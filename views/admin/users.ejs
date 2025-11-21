@@ -1,0 +1,39 @@
+<section>
+  <div class="list-header">
+    <h1>Utilisateurs</h1>
+    <a class="btn" href="/admin/users/new">Ajouter un utilisateur</a>
+  </div>
+
+  <table class="table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nom</th>
+        <th>Email</th>
+        <th>Role</th>
+        <th>Cree le</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% users.forEach(u => { %>
+        <tr>
+          <td><%= u.id %></td>
+          <td><%= u.display_name %></td>
+          <td><%= u.email %></td>
+          <td><%= u.role %></td>
+          <td><%= u.created_at %></td>
+          <td>
+            <a class="link" href="/admin/users/<%= u.id %>/edit">Modifier</a>
+            <form action="/admin/users/<%= u.id %>/reset" method="post" style="display:inline; margin-left:4px;">
+              <button type="submit" onclick="return confirm('Reset des stats pour cet utilisateur ?');">Reset stats</button>
+            </form>
+            <form action="/admin/users/<%= u.id %>?_method=DELETE" method="post" style="display:inline;">
+              <button type="submit" onclick="return confirm('Supprimer cet utilisateur ?');">Supprimer</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>

@@ -1,0 +1,21 @@
+<section class="card auth-card">
+  <h1>Connexion</h1>
+
+  <% if (error) { %>
+    <div class="alert alert-error"><%= error %></div>
+  <% } %>
+
+  <form method="post" action="/login" class="form">
+    <label>Email
+      <input type="email" name="email" required />
+    </label>
+
+    <label>Mot de passe
+      <input type="password" name="password" required />
+    </label>
+
+    <button type="submit">Se connecter</button>
+  </form>
+
+  <p>Pas encore de compte ? <a href="/register">Créer un compte</a></p>
+</section>

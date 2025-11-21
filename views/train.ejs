@@ -1,0 +1,108 @@
+<%
+  const f = filters || {};
+  const remainingCount = typeof remaining !== 'undefined' ? remaining : 10;
+  const totalCount = typeof total !== 'undefined' ? total : remainingCount;
+  const answeredCount = typeof answered !== 'undefined' ? answered : (totalCount - remainingCount + (word ? 1 : 0));
+  const correctCount = typeof correct !== 'undefined' ? correct : 0;
+  const currentStep = totalCount - remainingCount + (word ? 1 : 0);
+%>
+
+<section class="card session-card">
+  <div class="session-top">
+    <a class="icon-btn" href="/train/setup">&#8592;</a>
+    <div class="session-progress">
+      <span><%= currentStep %>/<%= totalCount %></span>
+      <span class="pill"><%= mode === 'flashcards' ? 'Flashcards' : 'Quiz' %></span>
+    </div>
+    <a class="icon-btn" href="/train/setup">&#9881;</a>
+  </div>
+
+  <% if (word) { %>
+    <form method="post" action="/favorites/<%= word.id %>" class="fav-form">
+      <input type="hidden" name="redirectTo" value="<%= `/train?mode=${mode}&theme_id=${f.theme_id || ''}&difficulty=${f.difficulty || ''}&rev_mode=${f.rev_mode || 'weak'}&scope=${f.scope || 'all'}&remaining=${remainingCount}&total=${totalCount}&answered=${answeredCount}&correct=${correctCount}` %>">
+      <button type="submit" class="icon-btn ghost">&#9829;</button>
+    </form>
+  <% } %>
+
+  <% if (message) { %>
+    <p><%= message %></p>
+  <% } %>
+
+  <% if (word && mode === 'quiz') { %>
+    <div class="quiz">
+      <p class="quiz-label">Traduire en hebreu :</p>
+      <p class="quiz-word"><%= word.french %></p>
+
+      <form method="post" action="/train/answer" class="form">
+        <input type="hidden" name="word_id" value="<%= word.id %>" />
+        <input type="hidden" name="theme_id" value="<%= f.theme_id || '' %>">
+        <input type="hidden" name="difficulty" value="<%= f.difficulty || '' %>">
+        <input type="hidden" name="rev_mode" value="<%= f.rev_mode || 'weak' %>">
+        <input type="hidden" name="scope" value="<%= f.scope || 'all' %>">
+        <input type="hidden" name="remaining" value="<%= remainingCount %>">
+        <input type="hidden" name="total" value="<%= totalCount %>">
+        <input type="hidden" name="answered" value="<%= answeredCount %>">
+        <input type="hidden" name="correct" value="<%= correctCount %>">
+        <label>Votre reponse (hebreu)
+          <input type="text" name="user_answer" autocomplete="off" required />
+        </label>
+        <button type="submit">Valider</button>
+      </form>
+    </div>
+  <% } %>
+
+  <% if (word && mode === 'flashcards') { %>
+    <div class="flashcard" id="flashcard">
+      <p class="flashcard-label">Hebreu</p>
+      <p class="flashcard-word"><%= word.hebrew %></p>
+      <% if (word.transliteration) { %>
+        <p class="flashcard-sub"><%= word.transliteration %></p>
+      <% } %>
+      <p class="flashcard-hint">Choisis la bonne traduction</p>
+    </div>
+
+    <form method="post" action="/train/flashcards" class="flashcard-options">
+      <input type="hidden" name="word_id" value="<%= word.id %>" />
+      <input type="hidden" name="theme_id" value="<%= f.theme_id || '' %>">
+      <input type="hidden" name="difficulty" value="<%= f.difficulty || '' %>">
+      <input type="hidden" name="rev_mode" value="<%= f.rev_mode || 'weak' %>">
+      <input type="hidden" name="scope" value="<%= f.scope || 'all' %>">
+      <input type="hidden" name="remaining" value="<%= remainingCount %>">
+      <input type="hidden" name="total" value="<%= totalCount %>">
+      <input type="hidden" name="answered" value="<%= answeredCount %>">
+      <input type="hidden" name="correct" value="<%= correctCount %>">
+      <div class="options-grid">
+        <% (options || []).forEach(opt => { %>
+          <button type="submit" name="choice_word_id" value="<%= opt.id %>" class="option-btn"><%= opt.french %></button>
+        <% }) %>
+      </div>
+    </form>
+  <% } %>
+
+  <% if (result) { %>
+    <div class="result <%= result.isCorrect ? 'success' : 'error' %>">
+      <% if (result.isCorrect) { %>
+        <p>Bonne reponse !</p>
+      <% } else { %>
+        <p>Mauvaise reponse.</p>
+      <% } %>
+      <p>Mot : <strong><%= result.correctAnswer %></strong></p>
+      <% if (result.transliteration) { %>
+        <p>Transliteration : <%= result.transliteration %></p>
+      <% } %>
+      <p>Francais : <%= result.french %></p>
+    </div>
+    <% if (nextUrl) { %>
+      <a class="btn" href="<%= nextUrl %>">Suivant</a>
+    <% } else { %>
+      <div class="result success">
+        <p>Session terminee.</p>
+        <p>Score : <strong><%= correctCount %>/<%= totalCount %></strong></p>
+      </div>
+    <% } %>
+  <% } %>
+
+  <% if (!word && !result && !message) { %>
+    <p>Aucun mot a reviser avec ces parametres.</p>
+  <% } %>
+</section>

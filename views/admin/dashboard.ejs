@@ -1,0 +1,23 @@
+<section>
+  <h1>Admin - Tableau de bord</h1>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Utilisateurs</h2>
+      <p><strong><%= userCount %></strong> comptes</p>
+      <a class="btn" href="/admin/users">Gerer les utilisateurs</a>
+    </div>
+
+    <div class="card">
+      <h2>Mots</h2>
+      <p><strong><%= wordCount %></strong> entrées</p>
+      <a class="btn" href="/admin/words">Gerer les mots</a>
+    </div>
+
+    <div class="card">
+      <h2>Categories</h2>
+      <p><strong><%= themeCount %></strong> themes</p>
+      <a class="btn" href="/admin/themes">Gerer les categories</a>
+    </div>
+  </div>
+</section>

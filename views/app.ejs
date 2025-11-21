@@ -1,0 +1,33 @@
+<section>
+  <h1>Bienvenue, <%= currentUser.display_name %> 👋</h1>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Progression globale</h2>
+      <ul class="stats">
+        <li><strong>Mots vus :</strong> <%= stats && stats.words_seen || 0 %></li>
+        <li><strong>Réussites :</strong> <%= stats && stats.total_success || 0 %></li>
+        <li><strong>Échecs :</strong> <%= stats && stats.total_fail || 0 %></li>
+        <li><strong>Maîtrise moyenne :</strong> <%= stats && stats.avg_strength ? stats.avg_strength.toFixed(1) : 0 %>%</li>
+      </ul>
+      <a class="btn" href="/train">Commencer une session d'entraînement</a>
+    </div>
+
+    <div class="card">
+      <h2>Thèmes principaux</h2>
+      <% if (!themes || themes.length === 0) { %>
+        <p>Aucun thème pour l'instant. L'admin doit en créer.</p>
+      <% } else { %>
+        <ul class="list">
+          <% themes.forEach(t => { %>
+            <li>
+              <strong><%= t.name %></strong>
+              <span class="badge"><%= t.word_count %> mots</span>
+              <a class="link" href="/train?theme_id=<%= t.id %>">Réviser ce thème</a>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </div>
+  </div>
+</section>

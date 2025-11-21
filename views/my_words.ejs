@@ -1,0 +1,74 @@
+<section>
+  <div class="list-header">
+    <h1>Mes mots</h1>
+    <a class="btn" href="/my/words/new">Ajouter un mot perso</a>
+    <a class="link" href="/my/themes">Gérer mes thèmes</a>
+  </div>
+
+  <div class="card">
+    <h2>Mots du thème (admin)</h2>
+    <% if (!globalWords || globalWords.length === 0) { %>
+      <p>Aucun mot global pour l'instant.</p>
+    <% } else { %>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Francais</th>
+            <th>Hebreu</th>
+            <th>Theme</th>
+            <th>Difficulte</th>
+            <th>Actif</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% globalWords.forEach(w => { %>
+            <tr>
+              <td><%= w.french %></td>
+              <td><%= w.hebrew %></td>
+              <td><%= w.theme_name || '-' %></td>
+              <td><%= w.difficulty %></td>
+              <td><%= w.active ? 'Oui' : 'Non' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <div class="card" style="margin-top:1rem;">
+    <h2>Mes mots persos</h2>
+    <% if (!personalWords || personalWords.length === 0) { %>
+      <p>Ajoute tes propres mots pour tes flashcards.</p>
+    <% } else { %>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Francais</th>
+            <th>Hebreu</th>
+            <th>Theme</th>
+            <th>Difficulte</th>
+            <th>Actif</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% personalWords.forEach(w => { %>
+            <tr>
+              <td><%= w.french %></td>
+              <td><%= w.hebrew %></td>
+              <td><%= w.theme_name || '-' %></td>
+              <td><%= w.difficulty %></td>
+              <td><%= w.active ? 'Oui' : 'Non' %></td>
+              <td>
+                <a class="link" href="/my/words/<%= w.id %>/edit">Modifier</a>
+                <form action="/my/words/<%= w.id %>?_method=DELETE" method="post" style="display:inline;">
+                  <button type="submit" onclick="return confirm('Supprimer ce mot ?');">Supprimer</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+</section>

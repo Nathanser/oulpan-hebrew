@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title><%= typeof title !== 'undefined' ? title : 'Hebrew Duo Pro' %></title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo">Hebrew Duo</div>
+    <nav>
+      <% if (currentUser) { %>
+        <a href="/app">Accueil</a>
+        <a href="/train/setup">S'entrainer</a>
+        <a href="/profile">Profil</a>
+        <a href="/my/words">Mots</a>
+        <% if (currentUser.role === 'admin') { %>
+          <a href="/admin">Admin</a>
+        <% } %>
+        <form action="/logout" method="post" style="display:inline;">
+          <button type="submit">Deconnexion</button>
+        </form>
+      <% } else { %>
+        <a href="/login">Connexion</a>
+        <a href="/register">Inscription</a>
+      <% } %>
+    </nav>
+  </header>
+
+  <main class="container">
+    <%- body %>
+  </main>
+
+  <footer class="footer">
+    <p>Projet d'apprentissage de l'hebreu</p>
+  </footer>
+</body>
+</html>

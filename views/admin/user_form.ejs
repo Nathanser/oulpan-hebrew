@@ -1,0 +1,26 @@
+<section class="card">
+  <h1><%= user ? 'Modifier un utilisateur' : 'Ajouter un utilisateur' %></h1>
+
+  <form method="post" action="<%= action %>" class="form">
+    <label>Nom affiché
+      <input type="text" name="display_name" value="<%= user ? user.display_name : '' %>" required />
+    </label>
+
+    <label>Email
+      <input type="email" name="email" value="<%= user ? user.email : '' %>" required />
+    </label>
+
+    <label>Mot de passe <%= user ? '(laisser vide pour conserver)' : '' %>
+      <input type="password" name="password" <%= user ? '' : 'required' %> />
+    </label>
+
+    <label>Role
+      <select name="role">
+        <option value="user" <%= user && user.role === 'user' ? 'selected' : '' %>>Utilisateur</option>
+        <option value="admin" <%= user && user.role === 'admin' ? 'selected' : '' %>>Admin</option>
+      </select>
+    </label>
+
+    <button type="submit"><%= user ? 'Sauvegarder' : 'Creer' %></button>
+  </form>
+</section>

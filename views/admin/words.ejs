@@ -1,0 +1,40 @@
+<section>
+  <div class="list-header">
+    <h1>Gestion des mots</h1>
+    <a class="btn" href="/admin/words/new">Ajouter un mot</a>
+  </div>
+
+  <table class="table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Francais</th>
+        <th>Hebreu</th>
+        <th>Translitteration</th>
+        <th>Theme</th>
+        <th>Difficulte</th>
+        <th>Actif</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% words.forEach(w => { %>
+        <tr>
+          <td><%= w.id %></td>
+          <td><%= w.french %></td>
+          <td><%= w.hebrew %></td>
+          <td><%= w.transliteration || '' %></td>
+          <td><%= w.theme_name || '-' %></td>
+          <td><%= w.difficulty %></td>
+          <td><%= w.active ? 'Oui' : 'Non' %></td>
+          <td>
+            <a class="link" href="/admin/words/<%= w.id %>/edit">Modifier</a>
+            <form action="/admin/words/<%= w.id %>?_method=DELETE" method="post" style="display:inline;">
+              <button type="submit" onclick="return confirm('Supprimer ce mot ?');">Supprimer</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>

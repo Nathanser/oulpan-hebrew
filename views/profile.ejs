@@ -1,0 +1,42 @@
+<section>
+  <h1>Profil de <%= user.display_name %></h1>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Statistiques</h2>
+      <ul class="stats">
+        <li><strong>Email :</strong> <%= user.email %></li>
+        <li><strong>Mots vus :</strong> <%= stats && stats.words_seen || 0 %></li>
+        <li><strong>Réussites :</strong> <%= stats && stats.total_success || 0 %></li>
+        <li><strong>Échecs :</strong> <%= stats && stats.total_fail || 0 %></li>
+        <li><strong>Maîtrise moyenne :</strong> <%= stats && stats.avg_strength ? stats.avg_strength.toFixed(1) : 0 %>%</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Mots les moins maîtrisés</h2>
+      <% if (!weakWords || weakWords.length === 0) { %>
+        <p>Encore aucun mot entraîné.</p>
+      <% } else { %>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Français</th>
+              <th>Hébreu</th>
+              <th>Maîtrise</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% weakWords.forEach(w => { %>
+              <tr>
+                <td><%= w.french %></td>
+                <td><%= w.hebrew %></td>
+                <td><%= w.strength %>%</td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+  </div>
+</section>

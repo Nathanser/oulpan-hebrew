@@ -1,0 +1,41 @@
+<section class="card">
+  <h1><%= word ? 'Modifier le mot' : 'Ajouter un mot' %></h1>
+
+  <form method="post" action="<%= action %>" class="form">
+    <label>Francais
+      <input type="text" name="french" value="<%= word ? word.french : '' %>" required />
+    </label>
+
+    <label>Hebreu
+      <input type="text" name="hebrew" value="<%= word ? word.hebrew : '' %>" required />
+    </label>
+
+    <label>Translitteration
+      <input type="text" name="transliteration" value="<%= word ? (word.transliteration || '') : '' %>" />
+    </label>
+
+    <label>Theme
+      <select name="theme_id">
+        <option value="">(aucun)</option>
+        <% themes.forEach(t => { %>
+          <option value="<%= t.id %>" <%= word && word.theme_id === t.id ? 'selected' : '' %>><%= t.name %></option>
+        <% }) %>
+      </select>
+    </label>
+
+    <label>Difficulte
+      <select name="difficulty">
+        <option value="1" <%= word && word.difficulty === 1 ? 'selected' : '' %>>Facile</option>
+        <option value="2" <%= word && word.difficulty === 2 ? 'selected' : '' %>>Moyen</option>
+        <option value="3" <%= word && word.difficulty === 3 ? 'selected' : '' %>>Difficile</option>
+      </select>
+    </label>
+
+    <label>
+      <input type="checkbox" name="active" value="1" <%= !word || word.active ? 'checked' : '' %> />
+      Actif (inclus en révision)
+    </label>
+
+    <button type="submit"><%= word ? 'Enregistrer' : 'Creer' %></button>
+  </form>
+</section>

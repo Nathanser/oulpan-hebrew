@@ -1,0 +1,32 @@
+<section>
+  <div class="list-header">
+    <h1>Categories</h1>
+    <a class="btn" href="/admin/themes/new">Ajouter une categorie</a>
+  </div>
+
+  <table class="table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nom</th>
+        <th>Parent</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% themes.forEach(t => { %>
+        <tr>
+          <td><%= t.id %></td>
+          <td><%= t.name %></td>
+          <td><%= t.parent_name || '-' %></td>
+          <td>
+            <a class="link" href="/admin/themes/<%= t.id %>/edit">Modifier</a>
+            <form action="/admin/themes/<%= t.id %>?_method=DELETE" method="post" style="display:inline;">
+              <button type="submit" onclick="return confirm('Supprimer cette categorie ?');">Supprimer</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>

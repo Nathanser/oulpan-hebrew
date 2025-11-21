@@ -1,0 +1,34 @@
+<section>
+  <div class="list-header">
+    <h1>Mes thèmes</h1>
+    <a class="btn" href="/my/themes/new">Ajouter un thème</a>
+  </div>
+
+  <% if (!themes || themes.length === 0) { %>
+    <p>Pas encore de thèmes personnels.</p>
+  <% } else { %>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nom</th>
+          <th>Parent</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% themes.forEach(t => { %>
+          <tr>
+            <td><%= t.name %></td>
+            <td><%= t.parent_name || '-' %></td>
+            <td>
+              <a class="link" href="/my/themes/<%= t.id %>/edit">Modifier</a>
+              <form action="/my/themes/<%= t.id %>?_method=DELETE" method="post" style="display:inline;">
+                <button type="submit" onclick="return confirm('Supprimer ce thème ?');">Supprimer</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</section>
