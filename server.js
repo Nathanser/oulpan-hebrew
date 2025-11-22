@@ -312,7 +312,7 @@ app.post('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/login'));
 });
 
-// ---------- Dashboard utilisateur ----------
+// ---------- Dashboard utilisateur ---------
 app.get('/app', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   try {
