@@ -83,6 +83,15 @@ db.serialize(() => {
     memorized INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS card_progress (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    card_id INTEGER NOT NULL,
+    success_count INTEGER DEFAULT 0,
+    fail_count INTEGER DEFAULT 0,
+    last_seen DATETIME
+  )`);
 });
 
 // Ajout de colonnes manquantes sur une base existante (ignore si déjà là)
@@ -105,5 +114,6 @@ safeAlter('ALTER TABLE cards ADD COLUMN active INTEGER DEFAULT 1');
 safeAlter('ALTER TABLE cards ADD COLUMN position INTEGER DEFAULT 1');
 safeAlter('ALTER TABLE cards ADD COLUMN favorite INTEGER DEFAULT 0');
 safeAlter('ALTER TABLE cards ADD COLUMN memorized INTEGER DEFAULT 0');
+safeAlter('CREATE TABLE IF NOT EXISTS card_progress (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, card_id INTEGER NOT NULL, success_count INTEGER DEFAULT 0, fail_count INTEGER DEFAULT 0, last_seen DATETIME)');
 
 module.exports = db;

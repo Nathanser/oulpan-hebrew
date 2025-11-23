@@ -5,10 +5,10 @@
     <div class="card">
       <h2>Progression globale</h2>
       <ul class="stats">
-        <li><strong>Mots vus :</strong> <%= stats && stats.words_seen || 0 %></li>
+        <li><strong>Mots/cartes vus :</strong> <%= stats && stats.total_seen || 0 %></li>
         <li><strong>Réussites :</strong> <%= stats && stats.total_success || 0 %></li>
         <li><strong>Échecs :</strong> <%= stats && stats.total_fail || 0 %></li>
-        <li><strong>Maîtrise moyenne :</strong> <%= stats && stats.avg_strength ? stats.avg_strength.toFixed(1) : 0 %>%</li>
+        <li><strong>Maîtrise moyenne :</strong> <%= stats && stats.avg_strength ? stats.avg_strength : 0 %>%</li>
       </ul>
       <a class="btn" href="/train/setup">Commencer une session d'entraînement</a>
     </div>
@@ -31,4 +31,6 @@
     </div>
   </div>
 </section>
+
+
 

@@ -1,5 +1,7 @@
-<%
+<% 
   const f = filters || {};
+  const themeIdsString = (f.theme_ids || []).join(',');
+  const setIdsString = (f.set_ids || []).join(',');
   const remainingCount = typeof remaining !== 'undefined' ? remaining : 10;
   const totalCount = typeof total !== 'undefined' ? total : remainingCount;
   const answeredCount = typeof answered !== 'undefined' ? answered : (totalCount - remainingCount + (word ? 1 : 0));
@@ -19,16 +21,7 @@
 
   <% if (word && (!f.source || f.source !== 'cards')) { %>
     <form method="post" action="/favorites/<%= word.id %>" class="fav-form">
-      <input type="hidden" name="redirectTo" value="<%= `/train?mode=${mode}&level_id=${f.level_id || ''}&difficulty=${f.difficulty || ''}&rev_mode=${f.rev_mode || 'random'}&scope=${f.scope || 'all'}&remaining=${remainingCount}&total=${totalCount}&answered=${answeredCount}&correct=${correctCount}` %>">
-      <% (f.theme_ids || []).forEach(tid => { %>
-        <input type="hidden" name="theme_ids" value="<%= tid %>">
-      <% }) %>
-      <% (f.scope_list || []).forEach(s => { %>
-        <input type="hidden" name="scope" value="<%= s %>">
-      <% }) %>
-      <% (f.set_ids || []).forEach(sid => { %>
-        <input type="hidden" name="set_ids" value="<%= sid %>">
-      <% }) %>
+      <input type="hidden" name="redirectTo" value="/train?mode=<%= mode %>">
       <button type="submit" class="icon-btn ghost">&#9829;</button>
     </form>
   <% } %>
@@ -44,22 +37,6 @@
 
       <form method="post" action="/train/answer" class="form">
         <input type="hidden" name="word_id" value="<%= word.id %>" />
-      <% (f.theme_ids || []).forEach(tid => { %>
-        <input type="hidden" name="theme_ids" value="<%= tid %>">
-      <% }) %>
-      <input type="hidden" name="level_id" value="<%= f.level_id || '' %>">
-      <input type="hidden" name="difficulty" value="<%= f.difficulty || '' %>">
-      <input type="hidden" name="rev_mode" value="<%= f.rev_mode || 'weak' %>">
-      <% (f.scope_list || []).forEach(s => { %>
-        <input type="hidden" name="scope" value="<%= s %>">
-      <% }) %>
-      <% (f.set_ids || []).forEach(sid => { %>
-        <input type="hidden" name="set_ids" value="<%= sid %>">
-      <% }) %>
-      <input type="hidden" name="remaining" value="<%= remainingCount %>">
-      <input type="hidden" name="total" value="<%= totalCount %>">
-      <input type="hidden" name="answered" value="<%= answeredCount %>">
-      <input type="hidden" name="correct" value="<%= correctCount %>">
         <label>Votre reponse (hebreu)
           <input type="text" name="user_answer" autocomplete="off" required />
         </label>
@@ -80,22 +57,6 @@
 
     <form method="post" action="/train/flashcards" class="flashcard-options">
       <input type="hidden" name="word_id" value="<%= word.id %>" />
-      <% (f.theme_ids || []).forEach(tid => { %>
-        <input type="hidden" name="theme_ids" value="<%= tid %>">
-      <% }) %>
-      <input type="hidden" name="level_id" value="<%= f.level_id || '' %>">
-      <input type="hidden" name="difficulty" value="<%= f.difficulty || '' %>">
-      <input type="hidden" name="rev_mode" value="<%= f.rev_mode || 'weak' %>">
-      <% (f.scope_list || []).forEach(s => { %>
-        <input type="hidden" name="scope" value="<%= s %>">
-      <% }) %>
-      <% (f.set_ids || []).forEach(sid => { %>
-        <input type="hidden" name="set_ids" value="<%= sid %>">
-      <% }) %>
-      <input type="hidden" name="remaining" value="<%= remainingCount %>">
-      <input type="hidden" name="total" value="<%= totalCount %>">
-      <input type="hidden" name="answered" value="<%= answeredCount %>">
-      <input type="hidden" name="correct" value="<%= correctCount %>">
       <div class="options-grid">
         <% (options || []).forEach(opt => { %>
           <button type="submit" name="choice_word_id" value="<%= opt.id %>" class="option-btn"><%= opt.french %></button>

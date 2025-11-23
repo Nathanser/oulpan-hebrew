@@ -3,7 +3,7 @@
     <h1>Choisir mon mode de révision</h1>
   </div>
 
-  <form class="form setup-grid" action="/train" method="get" id="setup-form">
+  <form class="form setup-grid" action="/train/session" method="post" id="setup-form">
     <div class="field-block">
       <label>Mode
         <select name="mode">
@@ -25,7 +25,7 @@
           <% if (!themes || themes.filter(t => !t.user_id).length === 0) { %>
             <p class="muted mini">Aucun thème en ligne disponible.</p>
           <% } else { %>
-            <select id="theme-select" name="theme_ids" multiple size="6">
+            <select id="theme-select" name="theme_ids[]" multiple size="6">
               <% themes.forEach(t => { if (!t.user_id) { %>
                 <option value="<%= t.id %>"><%= t.name %></option>
               <% } }) %>
@@ -37,7 +37,7 @@
           <% if (!sets || sets.length === 0) { %>
             <p class="muted mini">Aucune liste pour le moment.</p>
           <% } else { %>
-            <select id="list-select" name="set_ids" multiple size="6">
+            <select id="list-select" name="set_ids[]" multiple size="6">
               <% sets.forEach(s => { %>
                 <option value="<%= s.id %>"><%= s.name %></option>
               <% }) %>

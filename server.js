@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hebrew Learn - Express + SQLite
  */
 const express = require('express');
@@ -11,7 +11,7 @@ const expressLayouts = require('express-ejs-layouts');
 
 const db = require('./db');
 
-// Helpers promisifiés pour sqlite3
+// Helpers promisifiÃ©s pour sqlite3
 function run(sql, params = []) {
   return new Promise((resolve, reject) => {
     db.run(sql, params, function (err) {
@@ -146,6 +146,34 @@ async function upsertProgress(userId, wordId, isCorrect) {
   return { word, strength };
 }
 
+async function upsertCardProgress(userId, cardId, isCorrect) {
+  const card = await get('SELECT * FROM cards WHERE id = ?', [cardId]);
+  if (!card) return null;
+  const existing = await get(
+    'SELECT * FROM card_progress WHERE user_id = ? AND card_id = ?',
+    [userId, cardId]
+  );
+  let success = existing ? existing.success_count : 0;
+  let fail = existing ? existing.fail_count : 0;
+  if (isCorrect) success++;
+  else fail++;
+  if (existing) {
+    await run(
+      `UPDATE card_progress
+       SET success_count = ?, fail_count = ?, last_seen = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [success, fail, existing.id]
+    );
+  } else {
+    await run(
+      `INSERT INTO card_progress (user_id, card_id, success_count, fail_count, last_seen)
+       VALUES (?,?,?,?, CURRENT_TIMESTAMP)`,
+      [userId, cardId, success, fail]
+    );
+  }
+  return { card, success, fail };
+}
+
 async function getFlashcardOptions(userId, currentWord, filters = {}) {
   const params = [userId, currentWord.id];
   let sql = `SELECT w.id, w.french
@@ -264,7 +292,13 @@ app.set('layout', 'layout');
 
 // Middlewares
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.urlencoded({ extended: true }));
+app.use(
+  express.urlencoded({
+    extended: true,
+    parameterLimit: 2000,
+    limit: '1mb'
+  })
+);
 app.use(methodOverride('_method'));
 
 app.use(
@@ -290,12 +324,12 @@ function requireAuth(req, res, next) {
 
 function requireAdmin(req, res, next) {
   if (!req.session.user || req.session.user.role !== 'admin') {
-    return res.status(403).send('Accès refusé');
+    return res.status(403).send('AccÃ¨s refusÃ©');
   }
   next();
 }
 
-// Admin par défaut
+// Admin par dÃ©faut
 async function ensureAdmin() {
   const admin = await get("SELECT * FROM users WHERE role = 'admin'");
   if (!admin) {
@@ -304,7 +338,7 @@ async function ensureAdmin() {
       'INSERT INTO users (email, password_hash, display_name, role) VALUES (?,?,?,?)',
       ['admin@example.com', hash, 'Admin', 'admin']
     );
-    console.log('Admin créé : admin@example.com / admin123');
+    console.log('Admin crÃ©Ã© : admin@example.com / admin123');
   }
 }
 
@@ -360,7 +394,7 @@ async function ensureBaseThemes() {
       const created = await run('INSERT INTO themes (name, parent_id, active) VALUES (?,?,1)', [name, null]);
       await run('INSERT INTO theme_levels (theme_id, name, level_order, active) VALUES (?,?,?,1)', [created.lastID, 'Niveau 1', 1]);
     }
-    console.log('Thèmes de base créés (liste fournie).');
+    console.log('ThÃ¨mes de base crÃ©Ã©s (liste fournie).');
   }
 }
 (async () => {
@@ -390,7 +424,7 @@ app.post('/register', async (req, res) => {
   try {
     const existing = await get('SELECT * FROM users WHERE email = ?', [email]);
     if (existing) {
-      return res.render('register', { error: 'Cet email est déjà utilisé.' });
+      return res.render('register', { error: 'Cet email est dÃ©jÃ  utilisÃ©.' });
     }
     const hash = await bcrypt.hash(password, 10);
     const info = await run(
@@ -446,15 +480,36 @@ app.post('/logout', (req, res) => {
 app.get('/app', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   try {
-    const stats = await get(
+    const statsWords = await get(
       `SELECT
         COUNT(DISTINCT word_id) AS words_seen,
         SUM(success_count) AS total_success,
         SUM(fail_count) AS total_fail,
-        AVG(strength) AS avg_strength
+        AVG(strength) AS avg_strength,
+        COUNT(*) AS progress_count
        FROM progress WHERE user_id = ?`,
       [userId]
     );
+    const statsCards = await get(
+      `SELECT
+        COUNT(DISTINCT card_id) AS cards_seen,
+        SUM(success_count) AS total_success,
+        SUM(fail_count) AS total_fail
+       FROM card_progress WHERE user_id = ?`,
+      [userId]
+    );
+    const stats = {
+      words_seen: statsWords?.words_seen || 0,
+      cards_seen: statsCards?.cards_seen || 0,
+      total_success: (statsWords?.total_success || 0) + (statsCards?.total_success || 0),
+      total_fail: (statsWords?.total_fail || 0) + (statsCards?.total_fail || 0),
+      avg_strength: 0
+    };
+    const attempts = stats.total_success + stats.total_fail;
+    if (attempts > 0) {
+      stats.avg_strength = Math.round((stats.total_success / attempts) * 100);
+    }
+    stats.total_seen = stats.words_seen + stats.cards_seen;
 
     const themeIds = (await getThemeIdsInProgress(userId)).filter(Boolean);
     let themes = [];
@@ -507,7 +562,7 @@ app.get('/profile', requireAuth, async (req, res) => {
   }
 });
 
-// ---------- Bibliothèque perso / globale ----------
+// ---------- BibliothÃ¨que perso / globale ----------
 app.get('/my/words', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   try {
@@ -547,6 +602,110 @@ app.get('/my/words', requireAuth, async (req, res) => {
   }
 });
 
+app.post('/train/flashcards', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const { word_id, choice_word_id } = req.body;
+  const state = req.session.trainState;
+  if (!state) return res.redirect('/train/setup');
+
+  const filters = {
+    theme_id: state.theme_id || null,
+    theme_ids: state.theme_ids || [],
+    level_id: state.level_id || null,
+    difficulty: state.difficulty || '',
+    rev_mode: state.rev_mode || 'random',
+    scope: state.scope || 'all',
+    scope_list: [],
+    source: state.set_ids && state.set_ids.length > 0 ? 'cards' : 'words',
+    set_ids: state.set_ids || []
+  };
+
+  const remainingCount = Math.max(0, Number(state.remaining || 1) - 1);
+  const totalCount = Number(state.total || state.remaining || 1);
+  const answeredCount = Number(state.answered || (totalCount - remainingCount - 1)) + 1;
+  let correctCount = Number(state.correct || 0);
+
+  try {
+    if (filters.source === 'cards') {
+      if (!String(word_id).startsWith('card_')) return res.redirect('/train?mode=flashcards');
+      const cardId = Number(String(word_id).replace('card_', ''));
+      const chosenId = String(choice_word_id).replace('card_', '');
+      const card = await get('SELECT * FROM cards WHERE id = ?', [cardId]);
+      if (!card) return res.redirect('/train?mode=flashcards');
+      const isCorrect = String(chosenId) === String(cardId);
+      if (isCorrect) correctCount += 1;
+      await upsertCardProgress(userId, cardId, isCorrect);
+      req.session.trainState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount };
+      const result = {
+        isCorrect,
+        correctAnswer: card.hebrew,
+        transliteration: card.transliteration,
+        french: card.french
+      };
+      return res.render('train', {
+        word: null,
+        message: remainingCount > 0 ? null : 'Session terminée.',
+        result,
+        mode: 'flashcards',
+        filters,
+        options: null,
+        themes: await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]),
+        remaining: remainingCount,
+        total: totalCount,
+        answered: answeredCount,
+        correct: correctCount,
+        nextUrl: remainingCount > 0 ? '/train?mode=flashcards' : null
+      });
+    } else {
+      const word = await get('SELECT * FROM words WHERE id = ?', [word_id]);
+      if (!word) return res.redirect('/train?mode=flashcards');
+      const isCorrect = String(choice_word_id) === String(word_id);
+      if (isCorrect) correctCount += 1;
+      await upsertProgress(userId, word_id, isCorrect);
+      req.session.trainState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount };
+
+      const result = {
+        isCorrect,
+        correctAnswer: word.hebrew,
+        transliteration: word.transliteration,
+        french: word.french
+      };
+
+      const nextUrl = remainingCount > 0 ? `/train?mode=flashcards` : null;
+
+      res.render('train', {
+        word: null,
+        message: remainingCount > 0 ? null : 'Session terminée.',
+        result,
+        mode: 'flashcards',
+        filters,
+        options: null,
+        themes: await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]),
+        remaining: remainingCount,
+        total: totalCount,
+        answered: answeredCount,
+        correct: correctCount,
+        nextUrl
+      });
+    }
+  } catch (e) {
+    console.error(e);
+    res.render('train', {
+        word: null,
+        message: 'Erreur serveur.',
+        result: null,
+        mode: 'flashcards',
+        filters,
+        options: null,
+        themes: [],
+        remaining: 0,
+        total: 0,
+        answered: 0,
+        correct: 0,
+        nextUrl: null
+      });
+  }
+});
 app.get('/my/words/new', requireAuth, async (req, res) => {
   try {
     const userId = req.session.user.id;
@@ -723,16 +882,38 @@ app.get('/my/lists', requireAuth, async (req, res) => {
 app.get('/space', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   try {
-    const overall = await get(
+    const overallWords = await get(
       `SELECT
         COUNT(DISTINCT p.word_id) AS words_seen,
         SUM(p.success_count) AS total_success,
         SUM(p.fail_count) AS total_fail,
-        AVG(p.strength) AS avg_strength
+        AVG(p.strength) AS avg_strength,
+        COUNT(*) AS progress_count
        FROM progress p
        WHERE p.user_id = ?`,
       [userId]
     );
+    const overallCards = await get(
+      `SELECT
+        COUNT(DISTINCT card_id) AS cards_seen,
+        SUM(success_count) AS total_success,
+        SUM(fail_count) AS total_fail
+       FROM card_progress
+       WHERE user_id = ?`,
+      [userId]
+    );
+    const overall = {
+      words_seen: overallWords?.words_seen || 0,
+      cards_seen: overallCards?.cards_seen || 0,
+      total_success: (overallWords?.total_success || 0) + (overallCards?.total_success || 0),
+      total_fail: (overallWords?.total_fail || 0) + (overallCards?.total_fail || 0),
+      avg_strength: 0
+    };
+    overall.total_seen = overall.words_seen + overall.cards_seen;
+    const allAttempts = overall.total_success + overall.total_fail;
+    if (allAttempts > 0) {
+      overall.avg_strength = Math.round((overall.total_success / allAttempts) * 100);
+    }
 
     const setStats = await all(
       `SELECT s.id, s.name,
@@ -840,7 +1021,7 @@ app.put('/my/lists/:id/cards/:cardId', requireAuth, async (req, res) => {
         set,
         card: { ...card, hebrew, french, transliteration, active: active ? 1 : 0, favorite: favorite ? 1 : 0, memorized: memorized ? 1 : 0 },
         action: `/my/lists/${set.id}/cards/${card.id}?_method=PUT`,
-        error: 'Hebreu et français sont obligatoires.'
+        error: 'Hebreu et franÃ§ais sont obligatoires.'
       });
     }
     await run(
@@ -887,7 +1068,7 @@ app.post('/my/lists', requireAuth, async (req, res) => {
       set: null,
       cards: cards.length > 0 ? cards : [{ hebrew: '', french: '', transliteration: '' }],
       action: '/my/lists',
-      error: 'Donne un titre à ta liste.'
+      error: 'Donne un titre Ã  ta liste.'
     });
   }
   if (cards.length === 0) {
@@ -895,7 +1076,7 @@ app.post('/my/lists', requireAuth, async (req, res) => {
       set: null,
       cards: [{ hebrew: '', french: '', transliteration: '' }],
       action: '/my/lists',
-      error: 'Ajoute au moins une carte (hébreu + français).'
+      error: 'Ajoute au moins une carte (hÃ©breu + franÃ§ais).'
     });
   }
   try {
@@ -918,7 +1099,7 @@ app.post('/my/lists', requireAuth, async (req, res) => {
       set: null,
       cards: cards.length > 0 ? cards : [{ hebrew: '', french: '', transliteration: '' }],
       action: '/my/lists',
-      error: 'Impossible de créer la liste pour le moment.'
+      error: 'Impossible de crÃ©er la liste pour le moment.'
     });
   }
 });
@@ -935,7 +1116,7 @@ app.put('/my/lists/:id', requireAuth, async (req, res) => {
         set,
         cards: [{ hebrew: '', french: '', transliteration: '' }],
         action: `/my/lists/${set.id}?_method=PUT`,
-        error: 'Ajoute au moins une carte (hébreu + français).'
+        error: 'Ajoute au moins une carte (hÃ©breu + franÃ§ais).'
       });
     }
     const title = name && name.trim() ? name.trim() : set.name;
@@ -1198,7 +1379,7 @@ app.get('/themes/:id', requireAuth, async (req, res) => {
   }
 });
 
-// ---------- Entraînement ----------
+// ---------- EntraÃ®nement ----------
 app.get('/train/setup', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   const themes = await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]);
@@ -1221,52 +1402,61 @@ app.get('/train/setup', requireAuth, async (req, res) => {
   });
 });
 
+app.post('/train/session', requireAuth, async (req, res) => {
+  const { mode, theme_ids, set_ids, level_id, difficulty, rev_mode, remaining } = req.body;
+  const themeRaw = Array.isArray(theme_ids) ? theme_ids.filter(Boolean) : theme_ids ? [theme_ids] : [];
+  const setRaw = Array.isArray(set_ids) ? set_ids.filter(Boolean) : set_ids ? [set_ids] : [];
+  const themeList = themeRaw.flatMap(t => String(t).split(',')).filter(Boolean);
+  const setList = setRaw.flatMap(s => String(s).split(',')).filter(Boolean).map(Number).filter(Boolean);
+  const remain = Number(remaining || 10);
+  req.session.trainState = {
+    mode: mode === 'quiz' ? 'quiz' : 'flashcards',
+    theme_ids: themeList,
+    set_ids: setList,
+    level_id: level_id || '',
+    difficulty: difficulty || '',
+    rev_mode: rev_mode || 'random',
+    scope: 'all',
+    remaining: remain,
+    total: remain,
+    answered: 0,
+    correct: 0
+  };
+  res.redirect(`/train?mode=${req.session.trainState.mode}`);
+});
+
 app.get('/train', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
-  let { theme_ids, set_ids, level_id, difficulty, rev_mode, scope, remaining, total, answered, correct, mode: queryMode } = req.query;
-  const mode = queryMode === 'quiz' ? 'quiz' : 'flashcards';
-  const themeList = Array.isArray(theme_ids) ? theme_ids.filter(Boolean) : theme_ids ? [theme_ids] : [];
-  const setList = Array.isArray(set_ids) ? set_ids.filter(Boolean) : set_ids ? [set_ids] : [];
-  const selectedSetIds = setList.map(id => Number(id)).filter(Boolean);
-  const allThemes = await all('SELECT id, user_id FROM themes WHERE active = 1');
-  const globalIds = allThemes.filter(t => !t.user_id).map(t => String(t.id));
-  const mineIds = allThemes.filter(t => t.user_id === userId).map(t => String(t.id));
+  const mode = req.query.mode === 'quiz' ? 'quiz' : 'flashcards';
+  const state = req.session.trainState;
+  if (!state) return res.redirect('/train/setup');
+  state.mode = mode;
 
-  const hasGlobalAll = themeList.includes('global_all');
-  const hasMineAll = themeList.includes('mine_all');
-  const explicitIds = themeList.filter(v => /^\d+$/.test(v));
-  const explicitGlobals = explicitIds.filter(id => globalIds.includes(id));
-  const explicitMines = explicitIds.filter(id => mineIds.includes(id));
-
-  const wantGlobal = hasGlobalAll || explicitGlobals.length > 0;
-  const wantMine = hasMineAll || explicitMines.length > 0;
-  const combinedScope = wantGlobal && wantMine ? 'all' : wantGlobal ? 'global' : wantMine ? 'mine' : 'none';
-
-  const singleTheme = explicitIds.length === 1 ? explicitIds[0] : null;
-  const { levelId, themeId } = await normalizeLevelSelection(singleTheme, level_id);
+  const remainingCount = Number(state.remaining || 0);
+  const totalCount = Number(state.total || 0);
+  const answeredCount = Number(state.answered || 0);
+  const correctCount = Number(state.correct || 0);
+  const themeList = state.theme_ids || [];
+  const selectedSetIds = state.set_ids || [];
 
   const filters = {
-    theme_id: themeId,
-    theme_ids: explicitIds,
-    level_id: levelId,
-    difficulty,
-    rev_mode: rev_mode || 'random',
-    scope: combinedScope,
+    theme_id: themeList.length === 1 ? themeList[0] : null,
+    theme_ids: themeList,
+    level_id: state.level_id || null,
+    difficulty: state.difficulty || '',
+    rev_mode: state.rev_mode || 'random',
+    scope: 'all',
     scope_list: [],
     source: selectedSetIds.length > 0 ? 'cards' : 'words',
     set_ids: selectedSetIds
   };
-  const remainingCount = Number(remaining || 10);
-  const totalCount = Number(total || remainingCount);
-  const answeredCount = Number(answered || (totalCount - remainingCount));
-  const correctCount = Number(correct || 0);
 
   const themes = await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]);
 
   if (remainingCount <= 0) {
     return res.render('train', {
       word: null,
-      message: 'Session terminée.',
+      message: 'Session terminÃ©e.',
       result: null,
       mode,
       filters,
@@ -1282,26 +1472,10 @@ app.get('/train', requireAuth, async (req, res) => {
 
   try {
     if (filters.source === 'cards') {
-      if (selectedSetIds.length === 0) {
-        return res.render('train', {
-          word: null,
-          message: 'Aucune liste sélectionnée.',
-          result: null,
-          mode,
-          filters,
-          options: null,
-          themes,
-          remaining: remainingCount,
-          total: totalCount,
-          answered: answeredCount,
-          correct: correctCount,
-          nextUrl: null
-        });
-      }
-      const placeholders = selectedSetIds.map(() => '?').join(',');
+      const placeholders = filters.set_ids.map(() => '?').join(',');
       const cardsPool = await all(
         `SELECT * FROM cards WHERE set_id IN (${placeholders}) AND active = 1`,
-        selectedSetIds
+        filters.set_ids
       );
       if (!cardsPool || cardsPool.length === 0) {
         return res.render('train', {
@@ -1344,13 +1518,13 @@ app.get('/train', requireAuth, async (req, res) => {
         total: totalCount,
         answered: answeredCount,
         correct: correctCount,
-        nextUrl: null
+        nextUrl: `/train?mode=${mode}`
       });
     }
 
     const word = await fetchNextWord(userId, filters);
     const options = word && mode === 'flashcards' ? await getFlashcardOptions(userId, word, filters) : null;
-    const message = !word ? 'Aucun mot pour ces critères.' : null;
+    const message = !word ? 'Aucun mot pour ces critÃ¨res.' : null;
     res.render('train', {
       word,
       message,
@@ -1363,7 +1537,7 @@ app.get('/train', requireAuth, async (req, res) => {
       total: totalCount,
       answered: answeredCount,
       correct: correctCount,
-      nextUrl: null
+      nextUrl: `/train?mode=${mode}`
     });
   } catch (e) {
     console.error(e);
@@ -1386,32 +1560,36 @@ app.get('/train', requireAuth, async (req, res) => {
 
 app.post('/train/answer', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
-  const { word_id, user_answer, theme_id, level_id, difficulty, rev_mode, scope, remaining, total, answered, correct, global_theme_ids = [] } = req.body;
-  const { levelId, themeId } = await normalizeLevelSelection(theme_id, level_id);
-  const globalIds = Array.isArray(global_theme_ids) ? global_theme_ids : global_theme_ids ? [global_theme_ids] : [];
+  const { word_id, user_answer } = req.body;
+  const state = req.session.trainState;
+  if (!state) return res.redirect('/train/setup');
+
   const filters = {
-    theme_id: themeId,
-    level_id: levelId,
-    difficulty,
-    rev_mode: rev_mode || 'random',
-    scope: scope || 'all',
-    global_theme_ids: globalIds
+    theme_id: state.theme_id || null,
+    theme_ids: state.theme_ids || [],
+    level_id: state.level_id || null,
+    difficulty: state.difficulty || '',
+    rev_mode: state.rev_mode || 'random',
+    scope: state.scope || 'all',
+    scope_list: [],
+    source: 'words',
+    set_ids: []
   };
-  const remainingCount = Math.max(0, Number(remaining || 1) - 1);
-  const totalCount = Number(total || remainingCount + 1);
-  const answeredCount = Number(answered || (totalCount - remainingCount - 1)) + 1;
-  let correctCount = Number(correct || 0);
+
+  const remainingCount = Math.max(0, Number(state.remaining || 1) - 1);
+  const totalCount = Number(state.total || state.remaining || 1);
+  const answeredCount = Number(state.answered || (totalCount - remainingCount - 1)) + 1;
+  let correctCount = Number(state.correct || 0);
 
   try {
     const word = await get('SELECT * FROM words WHERE id = ?', [word_id]);
-    if (!word) return res.redirect('/train');
+    if (!word) return res.redirect('/train?mode=quiz');
 
-    const isCorrect = user_answer.trim().toLowerCase() === word.hebrew.trim().toLowerCase();
+    const isCorrect = user_answer && user_answer.trim().toLowerCase() === word.hebrew.trim().toLowerCase();
     if (isCorrect) correctCount += 1;
 
     const progressUpdate = await upsertProgress(userId, word_id, isCorrect);
-
-  const themes = await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]);
+    req.session.trainState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount };
 
     const result = {
       isCorrect,
@@ -1421,11 +1599,9 @@ app.post('/train/answer', requireAuth, async (req, res) => {
       newStrength: progressUpdate ? progressUpdate.strength : null
     };
 
-    const nextUrl =
-      remainingCount > 0
-        ? `/train?mode=quiz&theme_id=${filters.theme_id || ''}&level_id=${filters.level_id || ''}&difficulty=${filters.difficulty || ''}&rev_mode=${filters.rev_mode || 'weak'}&scope=${filters.scope || 'all'}&remaining=${remainingCount}&total=${totalCount}&answered=${answeredCount}&correct=${correctCount}`
-        : null;
+    const nextUrl = remainingCount > 0 ? `/train?mode=quiz` : null;
 
+    const themes = await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]);
     res.render('train', {
       word: null,
       message: remainingCount > 0 ? null : 'Session terminée.',
@@ -1442,105 +1618,9 @@ app.post('/train/answer', requireAuth, async (req, res) => {
     });
   } catch (e) {
     console.error(e);
-    res.redirect('/train');
+    res.redirect('/train?mode=quiz');
   }
 });
-
-app.post('/train/flashcards', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const { word_id, choice_word_id, theme_id, level_id, difficulty, rev_mode, scope, remaining, total, answered, correct, global_theme_ids = [], set_ids = [] } = req.body;
-  const { levelId, themeId } = await normalizeLevelSelection(theme_id, level_id);
-  const globalIds = Array.isArray(global_theme_ids) ? global_theme_ids : global_theme_ids ? [global_theme_ids] : [];
-  const setIdList = Array.isArray(set_ids) ? set_ids.filter(Boolean) : set_ids ? [set_ids] : [];
-  const filters = {
-    theme_id: themeId,
-    level_id: levelId,
-    difficulty,
-    rev_mode: rev_mode || 'random',
-    scope: scope || 'all',
-    global_theme_ids: globalIds,
-    source: setIdList.length > 0 ? 'cards' : 'words',
-    set_ids: setIdList
-  };
-  const remainingCount = Math.max(0, Number(remaining || 1) - 1);
-  const totalCount = Number(total || remainingCount + 1);
-  const answeredCount = Number(answered || (totalCount - remainingCount - 1)) + 1;
-  let correctCount = Number(correct || 0);
-
-  try {
-    if (filters.source === 'cards') {
-      if (!String(word_id).startsWith('card_')) return res.redirect('/train?mode=flashcards');
-      const cardId = Number(String(word_id).replace('card_', ''));
-      const chosenId = String(choice_word_id).replace('card_', '');
-      const card = await get('SELECT * FROM cards WHERE id = ?', [cardId]);
-      if (!card) return res.redirect('/train?mode=flashcards');
-      const isCorrect = String(chosenId) === String(cardId);
-      if (isCorrect) correctCount += 1;
-      const result = {
-        isCorrect,
-        correctAnswer: card.hebrew,
-        transliteration: card.transliteration,
-        french: card.french
-      };
-      const setParams = setIdList.map(id => `set_ids=${encodeURIComponent(id)}`).join('&');
-      const nextUrl =
-        remainingCount > 0
-          ? `/train?mode=flashcards&remaining=${remainingCount}&total=${totalCount}&answered=${answeredCount}&correct=${correctCount}&${setParams}`
-          : null;
-      return res.render('train', {
-        word: null,
-        message: remainingCount > 0 ? null : 'Session terminée.',
-        result,
-        mode: 'flashcards',
-        filters,
-        options: null,
-        themes: await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]),
-        remaining: remainingCount,
-        total: totalCount,
-        answered: answeredCount,
-        correct: correctCount,
-        nextUrl
-      });
-    } else {
-      const word = await get('SELECT * FROM words WHERE id = ?', [word_id]);
-      if (!word) return res.redirect('/train?mode=flashcards');
-      const isCorrect = String(choice_word_id) === String(word_id);
-      if (isCorrect) correctCount += 1;
-      await upsertProgress(userId, word_id, isCorrect);
-
-      const result = {
-        isCorrect,
-        correctAnswer: word.hebrew,
-        transliteration: word.transliteration,
-        french: word.french
-      };
-
-      const nextUrl =
-        remainingCount > 0
-          ? `/train?mode=flashcards&theme_id=${filters.theme_id || ''}&level_id=${filters.level_id || ''}&difficulty=${filters.difficulty || ''}&rev_mode=${filters.rev_mode || 'weak'}&scope=${filters.scope || 'all'}&remaining=${remainingCount}&total=${totalCount}&answered=${answeredCount}&correct=${correctCount}`
-          : null;
-
-      res.render('train', {
-        word: null,
-        message: remainingCount > 0 ? null : 'Session terminée.',
-        result,
-        mode: 'flashcards',
-        filters,
-        options: null,
-        themes: await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]),
-        remaining: remainingCount,
-        total: totalCount,
-        answered: answeredCount,
-        correct: correctCount,
-        nextUrl
-      });
-    }
-  } catch (e) {
-    console.error(e);
-    res.redirect('/train?mode=flashcards');
-  }
-});
-
 app.post('/favorites/:id', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   const redirectTo = req.body.redirectTo || '/train';
@@ -1659,6 +1739,7 @@ app.delete('/admin/users/:id', requireAdmin, async (req, res) => {
 app.post('/admin/users/:id/reset', requireAdmin, async (req, res) => {
   try {
     await run('DELETE FROM progress WHERE user_id = ?', [req.params.id]);
+    await run('DELETE FROM card_progress WHERE user_id = ?', [req.params.id]);
     res.redirect('/admin/users');
   } catch (e) {
     console.error(e);
@@ -1733,8 +1814,8 @@ app.post('/themes/:id/toggle', requireAuth, async (req, res) => {
   try {
     const theme = await get('SELECT * FROM themes WHERE id = ?', [req.params.id]);
     if (!theme) return res.redirect('/themes');
-    if (theme.user_id && theme.user_id !== userId && !isAdmin) return res.status(403).send('Accès refusé');
-    if (!theme.user_id && !isAdmin) return res.status(403).send('Accès refusé');
+    if (theme.user_id && theme.user_id !== userId && !isAdmin) return res.status(403).send('AccÃ¨s refusÃ©');
+    if (!theme.user_id && !isAdmin) return res.status(403).send('AccÃ¨s refusÃ©');
     const newStatus = theme.active ? 0 : 1;
     await run('UPDATE themes SET active = ? WHERE id = ?', [newStatus, theme.id]);
     res.redirect('/themes');
@@ -1753,8 +1834,8 @@ app.post('/levels/:id/toggle', requireAuth, async (req, res) => {
     if (!level) return res.redirect('/themes');
     const theme = await get('SELECT * FROM themes WHERE id = ?', [level.theme_id]);
     if (!theme) return res.redirect('/themes');
-    if (theme.user_id && theme.user_id !== userId && !isAdmin) return res.status(403).send('Accès refusé');
-    if (!theme.user_id && !isAdmin) return res.status(403).send('Accès refusé');
+    if (theme.user_id && theme.user_id !== userId && !isAdmin) return res.status(403).send('AccÃ¨s refusÃ©');
+    if (!theme.user_id && !isAdmin) return res.status(403).send('AccÃ¨s refusÃ©');
     const newStatus = level.active ? 0 : 1;
     await run('UPDATE theme_levels SET active = ? WHERE id = ?', [newStatus, level.id]);
     res.redirect(`/themes/${theme.id}`);
@@ -2025,5 +2106,11 @@ app.delete('/admin/words/:id', requireAdmin, async (req, res) => {
 
 // Lancement du serveur
 app.listen(PORT, () => {
-  console.log(`Serveur démarré sur http://localhost:${PORT}`);
+  console.log(`Server started at http://localhost:${PORT}`);
 });
+
+
+
+
+
+
