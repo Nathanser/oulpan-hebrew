@@ -1,7 +1,7 @@
 <section>
   <div class="list-header">
-    <h1>Categories</h1>
-    <a class="btn" href="/admin/themes/new">Ajouter une categorie</a>
+    <h1>Thèmes</h1>
+    <a class="btn" href="/admin/themes/new">Ajouter un thème</a>
   </div>
 
   <table class="table">
@@ -10,6 +10,8 @@
         <th>ID</th>
         <th>Nom</th>
         <th>Parent</th>
+        <th>Actif</th>
+        <th>Niveaux</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -17,12 +19,26 @@
       <% themes.forEach(t => { %>
         <tr>
           <td><%= t.id %></td>
-          <td><%= t.name %></td>
+          <td>
+            <%= t.name %>
+            <form action="/admin/themes/<%= t.id %>/toggle" method="post" style="display:inline;margin-left:0.35rem;">
+              <button type="submit" class="link" title="<%= t.active ? 'Désactiver' : 'Activer' %>">
+                <%= t.active ? '👁' : '🙈' %>
+              </button>
+            </form>
+          </td>
           <td><%= t.parent_name || '-' %></td>
           <td>
+            <%= t.active ? 'Oui' : 'Non' %>
+          </td>
+          <td>
+            <%= typeof t.level_count !== 'undefined' ? t.level_count : '-' %>
+          </td>
+          <td>
+            <a class="link" href="/admin/themes/<%= t.id %>">Niveaux</a>
             <a class="link" href="/admin/themes/<%= t.id %>/edit">Modifier</a>
             <form action="/admin/themes/<%= t.id %>?_method=DELETE" method="post" style="display:inline;">
-              <button type="submit" onclick="return confirm('Supprimer cette categorie ?');">Supprimer</button>
+              <button type="submit" onclick="return confirm('Supprimer ce thème ?');">Supprimer</button>
             </form>
           </td>
         </tr>

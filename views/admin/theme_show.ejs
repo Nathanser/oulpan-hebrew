@@ -1,0 +1,41 @@
+<section class="card">
+  <div class="list-header">
+    <h1><%= theme.name %></h1>
+    <div>
+      <a class="btn" href="/admin/themes/<%= theme.id %>/edit">Modifier le thème</a>
+      <a class="link" href="/admin/themes">Retour</a>
+    </div>
+  </div>
+  <p>Parent : <strong><%= theme.parent_name || 'Aucun' %></strong></p>
+</section>
+
+<section class="card" style="margin-top:1rem;">
+  <div class="list-header">
+    <h2>Niveaux</h2>
+  </div>
+
+  <% if (!levels || levels.length === 0) { %>
+    <p>Pas encore de niveau. Ajoutez un niveau pour structurer ce thème.</p>
+  <% } else { %>
+    <ul class="list">
+      <% levels.forEach(l => { %>
+        <li>
+          <span><strong><%= l.name %></strong> (ordre <%= l.level_order %>) - <%= l.active ? 'Actif' : 'Inactif' %></span>
+          <form action="/admin/levels/<%= l.id %>/toggle" method="post" style="display:inline;">
+            <button type="submit"><%= l.active ? 'Désactiver' : 'Activer' %></button>
+          </form>
+          <form action="/admin/levels/<%= l.id %>?_method=DELETE" method="post" style="display:inline;">
+            <button type="submit" onclick="return confirm('Supprimer ce niveau ?');">Supprimer</button>
+          </form>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+
+  <form method="post" action="/admin/themes/<%= theme.id %>/levels" class="form" style="margin-top:1rem;">
+    <label>Nom du niveau
+      <input type="text" name="name" placeholder="Niveau 1, Niveau 2..." />
+    </label>
+    <button type="submit">Ajouter un niveau</button>
+  </form>
+</section>

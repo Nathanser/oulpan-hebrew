@@ -1,25 +1,27 @@
-<section class="card auth-card">
-  <h1>Inscription</h1>
+<div class="auth-shell">
+  <section class="card auth-card">
+    <h1>Inscription</h1>
 
-  <% if (error) { %>
-    <div class="alert alert-error"><%= error %></div>
-  <% } %>
+    <% if (error) { %>
+      <div class="alert alert-error"><%= error %></div>
+    <% } %>
 
-  <form method="post" action="/register" class="form">
-    <label>Nom affiché
-      <input type="text" name="display_name" required />
-    </label>
+    <form method="post" action="/register" class="form">
+      <label>Nom affich&eacute;
+        <input type="text" name="display_name" required />
+      </label>
 
-    <label>Email
-      <input type="email" name="email" required />
-    </label>
+      <label>Email
+        <input type="email" name="email" required />
+      </label>
 
-    <label>Mot de passe
-      <input type="password" name="password" required />
-    </label>
+      <label>Mot de passe
+        <input type="password" name="password" required />
+      </label>
 
-    <button type="submit">Créer mon compte</button>
-  </form>
+      <button type="submit">Cr&eacute;er mon compte</button>
+    </form>
 
-  <p>Déjà inscrit ? <a href="/login">Connexion</a></p>
-</section>
+    <p>D&eacute;j&agrave; inscrit ? <a href="/login">Connexion</a></p>
+  </section>
+</div>

@@ -17,9 +17,18 @@
     <a class="icon-btn" href="/train/setup">&#9881;</a>
   </div>
 
-  <% if (word) { %>
+  <% if (word && (!f.source || f.source !== 'cards')) { %>
     <form method="post" action="/favorites/<%= word.id %>" class="fav-form">
-      <input type="hidden" name="redirectTo" value="<%= `/train?mode=${mode}&theme_id=${f.theme_id || ''}&difficulty=${f.difficulty || ''}&rev_mode=${f.rev_mode || 'weak'}&scope=${f.scope || 'all'}&remaining=${remainingCount}&total=${totalCount}&answered=${answeredCount}&correct=${correctCount}` %>">
+      <input type="hidden" name="redirectTo" value="<%= `/train?mode=${mode}&level_id=${f.level_id || ''}&difficulty=${f.difficulty || ''}&rev_mode=${f.rev_mode || 'random'}&scope=${f.scope || 'all'}&remaining=${remainingCount}&total=${totalCount}&answered=${answeredCount}&correct=${correctCount}` %>">
+      <% (f.theme_ids || []).forEach(tid => { %>
+        <input type="hidden" name="theme_ids" value="<%= tid %>">
+      <% }) %>
+      <% (f.scope_list || []).forEach(s => { %>
+        <input type="hidden" name="scope" value="<%= s %>">
+      <% }) %>
+      <% (f.set_ids || []).forEach(sid => { %>
+        <input type="hidden" name="set_ids" value="<%= sid %>">
+      <% }) %>
       <button type="submit" class="icon-btn ghost">&#9829;</button>
     </form>
   <% } %>
@@ -35,14 +44,22 @@
 
       <form method="post" action="/train/answer" class="form">
         <input type="hidden" name="word_id" value="<%= word.id %>" />
-        <input type="hidden" name="theme_id" value="<%= f.theme_id || '' %>">
-        <input type="hidden" name="difficulty" value="<%= f.difficulty || '' %>">
-        <input type="hidden" name="rev_mode" value="<%= f.rev_mode || 'weak' %>">
-        <input type="hidden" name="scope" value="<%= f.scope || 'all' %>">
-        <input type="hidden" name="remaining" value="<%= remainingCount %>">
-        <input type="hidden" name="total" value="<%= totalCount %>">
-        <input type="hidden" name="answered" value="<%= answeredCount %>">
-        <input type="hidden" name="correct" value="<%= correctCount %>">
+      <% (f.theme_ids || []).forEach(tid => { %>
+        <input type="hidden" name="theme_ids" value="<%= tid %>">
+      <% }) %>
+      <input type="hidden" name="level_id" value="<%= f.level_id || '' %>">
+      <input type="hidden" name="difficulty" value="<%= f.difficulty || '' %>">
+      <input type="hidden" name="rev_mode" value="<%= f.rev_mode || 'weak' %>">
+      <% (f.scope_list || []).forEach(s => { %>
+        <input type="hidden" name="scope" value="<%= s %>">
+      <% }) %>
+      <% (f.set_ids || []).forEach(sid => { %>
+        <input type="hidden" name="set_ids" value="<%= sid %>">
+      <% }) %>
+      <input type="hidden" name="remaining" value="<%= remainingCount %>">
+      <input type="hidden" name="total" value="<%= totalCount %>">
+      <input type="hidden" name="answered" value="<%= answeredCount %>">
+      <input type="hidden" name="correct" value="<%= correctCount %>">
         <label>Votre reponse (hebreu)
           <input type="text" name="user_answer" autocomplete="off" required />
         </label>
@@ -63,10 +80,18 @@
 
     <form method="post" action="/train/flashcards" class="flashcard-options">
       <input type="hidden" name="word_id" value="<%= word.id %>" />
-      <input type="hidden" name="theme_id" value="<%= f.theme_id || '' %>">
+      <% (f.theme_ids || []).forEach(tid => { %>
+        <input type="hidden" name="theme_ids" value="<%= tid %>">
+      <% }) %>
+      <input type="hidden" name="level_id" value="<%= f.level_id || '' %>">
       <input type="hidden" name="difficulty" value="<%= f.difficulty || '' %>">
       <input type="hidden" name="rev_mode" value="<%= f.rev_mode || 'weak' %>">
-      <input type="hidden" name="scope" value="<%= f.scope || 'all' %>">
+      <% (f.scope_list || []).forEach(s => { %>
+        <input type="hidden" name="scope" value="<%= s %>">
+      <% }) %>
+      <% (f.set_ids || []).forEach(sid => { %>
+        <input type="hidden" name="set_ids" value="<%= sid %>">
+      <% }) %>
       <input type="hidden" name="remaining" value="<%= remainingCount %>">
       <input type="hidden" name="total" value="<%= totalCount %>">
       <input type="hidden" name="answered" value="<%= answeredCount %>">

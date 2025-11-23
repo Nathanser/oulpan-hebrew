@@ -1,0 +1,44 @@
+<section class="card">
+  <div class="list-header">
+    <h1><%= theme.name %></h1>
+    <div>
+      <span style="margin-right:0.5rem;"><%= theme.active ? 'Actif' : 'Inactif' %></span>
+      <% if (isOwner || (!theme.user_id && currentUser && currentUser.role === 'admin')) { %>
+        <form action="/themes/<%= theme.id %>/toggle" method="post" style="display:inline;">
+          <button class="link" type="submit" title="<%= theme.active ? 'Désactiver' : 'Activer' %>"><%= theme.active ? '👁' : '🙈' %></button>
+        </form>
+        <% if (isOwner) { %>
+          <a class="link" href="/my/themes/<%= theme.id %>/edit">Modifier</a>
+        <% } %>
+      <% } %>
+      <a class="link" href="/themes">Retour</a>
+    </div>
+  </div>
+  <p>Parent : <strong><%= theme.parent_name || 'Aucun' %></strong></p>
+  <% if (isGlobal) { %>
+    <p style="margin:0.2rem 0 0;">Thème proposé (lecture seule).</p>
+  <% } else { %>
+    <p style="margin:0.2rem 0 0;">Thème personnel.</p>
+  <% } %>
+</section>
+
+<section class="card" style="margin-top:1rem;">
+  <h2>Niveaux</h2>
+  <% if (!levels || levels.length === 0) { %>
+    <p>Pas encore de niveaux pour ce thème.</p>
+  <% } else { %>
+    <ul class="list">
+      <% levels.forEach(l => { %>
+        <li>
+          <span><%= l.name %></span>
+          <a class="link" href="/train?mode=flashcards&theme_id=<%= theme.id %>&level_id=<%= l.id %>&scope=<%= isGlobal ? 'global' : 'mine' %>">Réviser</a>
+          <% if (isOwner || (!theme.user_id && currentUser && currentUser.role === 'admin')) { %>
+            <form action="/levels/<%= l.id %>/toggle" method="post" style="display:inline;">
+              <button class="link" type="submit"><%= l.active ? 'Désactiver' : 'Activer' %></button>
+            </form>
+          <% } %>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</section>

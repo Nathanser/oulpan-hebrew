@@ -1,0 +1,197 @@
+<section class="card set-builder">
+  <div class="builder-header">
+    <div>
+      <p class="eyebrow"><%= set ? 'Modifier ma liste' : 'Creer une nouvelle liste' %></p>
+      <h1><%= set ? set.name : 'Nouvelle liste' %></h1>
+    </div>
+    <div class="builder-actions">
+      <a class="link" href="/my/lists">&#8592; Retour</a>
+    </div>
+  </div>
+
+  <% if (error) { %>
+    <div class="alert alert-error"><%= error %></div>
+  <% } %>
+  <div class="form-banner" id="form-banner" style="display:none;"></div>
+
+  <form id="list-builder-form" method="post" action="<%= action %>" class="builder-form">
+    <label class="title-field">Titre de la liste
+      <input type="text" name="name" value="<%= set ? set.name : '' %>" placeholder="Ex : Vocabulaire de base" required />
+    </label>
+
+    <div id="cards-container" class="cards-stack">
+      <% (cards || []).forEach((card, idx) => { %>
+        <div class="builder-card" data-card-index="<%= idx %>" id="card-<%= card.id ? card.id : 'new-' + idx %>">
+          <div class="builder-card-head">
+            <div class="card-number"><%= idx + 1 %></div>
+            <button type="button" class="dots-btn" aria-label="Actions de la carte">...</button>
+          </div>
+          <div class="builder-fields">
+            <input type="hidden" data-field="id" name="cards[<%= idx %>][id]" value="<%= card.id || '' %>" />
+            <label>Mot hebreu
+              <input data-field="hebrew" name="cards[<%= idx %>][hebrew]" type="text" value="<%= card.hebrew || '' %>" placeholder="shalom" required />
+            </label>
+            <label>Mot francais
+              <input data-field="french" name="cards[<%= idx %>][french]" type="text" value="<%= card.french || '' %>" placeholder="Bonjour" required />
+            </label>
+            <label>Phonetique
+              <input data-field="transliteration" name="cards[<%= idx %>][transliteration]" type="text" value="<%= card.transliteration || '' %>" placeholder="shalom" />
+            </label>
+          </div>
+          <div class="card-actions" data-menu>
+            <button type="button" class="icon-only danger" data-action="delete" title="Supprimer cette carte">&#128465;</button>
+            <button type="button" class="icon-only" data-action="move-up" title="Monter la carte">&#8593;</button>
+            <button type="button" class="icon-only" data-action="move-down" title="Descendre la carte">&#8595;</button>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+
+    <div class="list-bottom-actions fixed-actions">
+      <button type="button" class="cta secondary" id="add-card-bottom">Ajouter des cartes</button>
+      <button type="submit" form="list-builder-form" class="cta">Enregistrer la liste</button>
+    </div>
+  </form>
+
+  <template id="card-template">
+    <div class="builder-card" data-card-index="__index__" id="card-new-__index__">
+      <div class="builder-card-head">
+        <div class="card-number"></div>
+        <button type="button" class="dots-btn" aria-label="Actions de la carte">...</button>
+      </div>
+      <div class="builder-fields">
+        <input type="hidden" data-field="id" name="" value="" />
+        <label>Mot hebreu
+          <input data-field="hebrew" name="" type="text" value="" placeholder="shalom" required />
+        </label>
+        <label>Mot francais
+          <input data-field="french" name="" type="text" value="" placeholder="Bonjour" required />
+        </label>
+        <label>Phonetique
+          <input data-field="transliteration" name="" type="text" value="" placeholder="shalom" />
+        </label>
+      </div>
+      <div class="card-actions" data-menu>
+        <button type="button" class="icon-only danger" data-action="delete" title="Supprimer cette carte">&#128465;</button>
+        <button type="button" class="icon-only" data-action="move-up" title="Monter la carte">&#8593;</button>
+        <button type="button" class="icon-only" data-action="move-down" title="Descendre la carte">&#8595;</button>
+      </div>
+    </div>
+  </template>
+</section>
+
+<script>
+  (() => {
+    const container = document.getElementById('cards-container');
+    const template = document.getElementById('card-template');
+    const addBtn = document.getElementById('add-card-bottom');
+    if (!container || !template || !addBtn) return;
+
+    const closeMenus = () => {
+      container.querySelectorAll('.builder-card.menu-open').forEach(card => card.classList.remove('menu-open'));
+    };
+
+    const updateOrder = () => {
+      const cards = Array.from(container.querySelectorAll('.builder-card'));
+      cards.forEach((card, index) => {
+        card.dataset.cardIndex = index;
+        const number = card.querySelector('.card-number');
+        if (number) number.textContent = index + 1;
+        card.querySelectorAll('[data-field]').forEach(input => {
+          const field = input.getAttribute('data-field');
+          input.name = `cards[${index}][${field}]`;
+        });
+      });
+    };
+
+    const attachActions = (card) => {
+      const dots = card.querySelector('.dots-btn');
+      if (dots) {
+        dots.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const isOpen = card.classList.contains('menu-open');
+          closeMenus();
+          if (!isOpen) card.classList.add('menu-open');
+        });
+      }
+      card.querySelectorAll('[data-action]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const action = btn.getAttribute('data-action');
+          handleAction(card, action);
+        });
+      });
+    };
+
+    const createCard = () => {
+      const clone = template.content.firstElementChild.cloneNode(true);
+      attachActions(clone);
+      return clone;
+    };
+
+    const handleAction = (card, action) => {
+      if (action === 'delete') {
+        if (container.children.length <= 1) {
+          card.querySelectorAll('input[type="text"]').forEach(inp => inp.value = '');
+          const hidden = card.querySelector('[data-field="id"]');
+          if (hidden) hidden.value = '';
+        } else {
+          card.remove();
+        }
+      } else if (action === 'move-up') {
+        const prev = card.previousElementSibling;
+        if (prev) container.insertBefore(card, prev);
+      } else if (action === 'move-down') {
+        const next = card.nextElementSibling;
+        if (next) container.insertBefore(next, card);
+      } else if (action === 'add-below') {
+        const newCard = createCard();
+        container.insertBefore(newCard, card.nextElementSibling);
+      }
+      closeMenus();
+      updateOrder();
+    };
+
+    addBtn.addEventListener('click', () => {
+      const newCard = createCard();
+      container.appendChild(newCard);
+      updateOrder();
+      newCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const heb = newCard.querySelector('[data-field="hebrew"]');
+      if (heb) setTimeout(() => heb.focus(), 180);
+    });
+
+    container.querySelectorAll('.builder-card').forEach(attachActions);
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.builder-card')) closeMenus();
+    });
+    updateOrder();
+
+    const form = document.getElementById('list-builder-form');
+    const banner = document.getElementById('form-banner');
+    const showBanner = (msg) => {
+      if (!banner) return;
+      banner.textContent = msg;
+      banner.style.display = 'block';
+      setTimeout(() => { banner.style.display = 'none'; }, 2500);
+    };
+
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        if (!form.reportValidity()) {
+          e.preventDefault();
+          const invalid = form.querySelector(':invalid');
+          if (invalid) {
+            invalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            invalid.focus({ preventScroll: true });
+          }
+          showBanner('Complete les champs obligatoires.');
+        }
+      });
+    }
+  })();
+</script>
+
+

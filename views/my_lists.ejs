@@ -1,0 +1,63 @@
+<section>
+  <div class="list-header">
+    <div>
+      <h1>Mes listes</h1>
+    </div>
+    <div class="list-actions">
+      <a class="btn" href="/my/lists/new">Créer une liste</a>
+    </div>
+  </div>
+
+  <% if (!sets || sets.length === 0) { %>
+    <div class="card set-list-empty">
+      <p>Pas encore de listes.</p>
+      <a class="btn" href="/my/lists/new">Créer ma première liste</a>
+    </div>
+  <% } else { %>
+    <div class="grid set-list-grid">
+      <% sets.forEach(set => { %>
+        <div class="card set-list-card">
+          <div class="set-list-top">
+            <div>
+              <h3><%= set.name %></h3>
+              <p class="muted"><%= set.card_count %> carte<%= Number(set.card_count) > 1 ? 's' : '' %></p>
+            </div>
+            <div class="set-list-actions inline-actions">
+              <a class="btn ghost" href="/my/lists/<%= set.id %>">Ouvrir</a>
+              <button type="button" class="icon-btn ghost dots-btn" data-menu-btn aria-label="Actions">&#8942;</button>
+              <div class="card-menu" data-menu>
+                <a class="menu-item" href="/my/lists/<%= set.id %>/edit">
+                  <span>Modifier</span>
+                  <span class="menu-icon">&#9998;</span>
+                </a>
+                <form action="/my/lists/<%= set.id %>?_method=DELETE" method="post" onsubmit="return confirm('Supprimer cette liste ?');">
+                  <button type="submit" class="menu-item danger">
+                    <span>Supprimer</span>
+                    <span class="menu-icon">&#128465;</span>
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+
+<script>
+  (() => {
+    const closeMenus = () => document.querySelectorAll('.card-menu.open').forEach(m => m.classList.remove('open'));
+    document.querySelectorAll('[data-menu-btn]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeMenus();
+        const menu = btn.parentElement.querySelector('[data-menu]');
+        if (menu) menu.classList.add('open');
+      });
+    });
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.inline-actions')) closeMenus();
+    });
+  })();
+</script>

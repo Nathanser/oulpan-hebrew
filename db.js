@@ -19,7 +19,16 @@ db.serialize(() => {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     parent_id INTEGER,
-    user_id INTEGER
+    user_id INTEGER,
+    active INTEGER DEFAULT 1
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS theme_levels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    theme_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    level_order INTEGER DEFAULT 1,
+    active INTEGER DEFAULT 1
   )`);
 
   db.run(`CREATE TABLE IF NOT EXISTS words (
@@ -28,11 +37,13 @@ db.serialize(() => {
     transliteration TEXT,
     french TEXT NOT NULL,
     theme_id INTEGER,
+    level_id INTEGER,
     difficulty INTEGER DEFAULT 1,
     active INTEGER DEFAULT 1,
     user_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+
 
   db.run(`CREATE TABLE IF NOT EXISTS progress (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,6 +62,27 @@ db.serialize(() => {
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, word_id)
   )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS sets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    active INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS cards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    set_id INTEGER NOT NULL,
+    french TEXT NOT NULL,
+    hebrew TEXT NOT NULL,
+    transliteration TEXT,
+    position INTEGER DEFAULT 1,
+    active INTEGER DEFAULT 1,
+    favorite INTEGER DEFAULT 0,
+    memorized INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
 });
 
 // Ajout de colonnes manquantes sur une base existante (ignore si déjà là)
@@ -65,5 +97,13 @@ const safeAlter = (sql) => {
 safeAlter('ALTER TABLE words ADD COLUMN active INTEGER DEFAULT 1');
 safeAlter('ALTER TABLE words ADD COLUMN user_id INTEGER');
 safeAlter('ALTER TABLE themes ADD COLUMN user_id INTEGER');
+safeAlter('ALTER TABLE words ADD COLUMN level_id INTEGER');
+safeAlter('ALTER TABLE themes ADD COLUMN active INTEGER DEFAULT 1');
+safeAlter('ALTER TABLE theme_levels ADD COLUMN active INTEGER DEFAULT 1');
+safeAlter('ALTER TABLE sets ADD COLUMN active INTEGER DEFAULT 1');
+safeAlter('ALTER TABLE cards ADD COLUMN active INTEGER DEFAULT 1');
+safeAlter('ALTER TABLE cards ADD COLUMN position INTEGER DEFAULT 1');
+safeAlter('ALTER TABLE cards ADD COLUMN favorite INTEGER DEFAULT 0');
+safeAlter('ALTER TABLE cards ADD COLUMN memorized INTEGER DEFAULT 0');
 
 module.exports = db;

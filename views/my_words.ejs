@@ -2,37 +2,7 @@
   <div class="list-header">
     <h1>Mes mots</h1>
     <a class="btn" href="/my/words/new">Ajouter un mot perso</a>
-    <a class="link" href="/my/themes">Gérer mes thèmes</a>
-  </div>
-
-  <div class="card">
-    <h2>Mots du thème (admin)</h2>
-    <% if (!globalWords || globalWords.length === 0) { %>
-      <p>Aucun mot global pour l'instant.</p>
-    <% } else { %>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Francais</th>
-            <th>Hebreu</th>
-            <th>Theme</th>
-            <th>Difficulte</th>
-            <th>Actif</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% globalWords.forEach(w => { %>
-            <tr>
-              <td><%= w.french %></td>
-              <td><%= w.hebrew %></td>
-              <td><%= w.theme_name || '-' %></td>
-              <td><%= w.difficulty %></td>
-              <td><%= w.active ? 'Oui' : 'Non' %></td>
-            </tr>
-          <% }) %>
-        </tbody>
-      </table>
-    <% } %>
+    <a class="link" href="/themes">G&eacute;rer mes th&egrave;mes</a>
   </div>
 
   <div class="card" style="margin-top:1rem;">
@@ -43,9 +13,10 @@
       <table class="table">
         <thead>
           <tr>
-            <th>Francais</th>
-            <th>Hebreu</th>
-            <th>Theme</th>
+             <th>Francais</th>
+             <th>Hebreu</th>
+             <th>Theme</th>
+             <th>Niveau</th>
             <th>Difficulte</th>
             <th>Actif</th>
             <th>Actions</th>
@@ -57,9 +28,14 @@
               <td><%= w.french %></td>
               <td><%= w.hebrew %></td>
               <td><%= w.theme_name || '-' %></td>
+              <td><%= w.level_name || '-' %></td>
               <td><%= w.difficulty %></td>
               <td><%= w.active ? 'Oui' : 'Non' %></td>
               <td>
+                <form action="/favorites/<%= w.id %>" method="post" style="display:inline;">
+                  <input type="hidden" name="redirectTo" value="/my/words">
+                  <button class="link" type="submit"><%= w.fav_id ? 'Retirer des favoris' : 'Ajouter aux favoris' %></button>
+                </form>
                 <a class="link" href="/my/words/<%= w.id %>/edit">Modifier</a>
                 <form action="/my/words/<%= w.id %>?_method=DELETE" method="post" style="display:inline;">
                   <button type="submit" onclick="return confirm('Supprimer ce mot ?');">Supprimer</button>
@@ -71,4 +47,76 @@
       </table>
     <% } %>
   </div>
+
+  <div class="card" style="margin-top:1rem;">
+    <h2>Mes favoris</h2>
+    <% if (!favorites || favorites.length === 0) { %>
+      <p>Pas de favoris pour l'instant.</p>
+    <% } else { %>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Francais</th>
+            <th>Hebreu</th>
+            <th>Theme</th>
+            <th>Niveau</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% favorites.forEach(w => { %>
+            <tr>
+              <td><%= w.french %></td>
+              <td><%= w.hebrew %></td>
+              <td><%= w.theme_name || '-' %></td>
+              <td><%= w.level_name || '-' %></td>
+              <td>
+                <form action="/favorites/<%= w.id %>" method="post" style="display:inline;">
+                  <input type="hidden" name="redirectTo" value="/my/words">
+                  <button class="link" type="submit">Retirer</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <div class="card" style="margin-top:1rem;">
+    <h2>Favoris depuis mes listes</h2>
+    <% if (!listFavorites || listFavorites.length === 0) { %>
+      <p>Pas de cartes de liste en favoris.</p>
+    <% } else { %>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Francais</th>
+            <th>Hebreu</th>
+            <th>Liste</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% listFavorites.forEach(c => { %>
+            <tr>
+              <td><%= c.french %></td>
+              <td><%= c.hebrew %></td>
+              <td><%= c.set_name || '-' %></td>
+              <td>
+                <form action="/my/lists/<%= c.set_id %>/cards/<%= c.id %>/action" method="post" style="display:inline;">
+                  <input type="hidden" name="action" value="toggle_fav">
+                  <input type="hidden" name="redirectTo" value="/my/words">
+                  <button class="link" type="submit">Retirer</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
 </section>
+
+
+

@@ -1,0 +1,117 @@
+<% const memorizedCount = (cards || []).filter(c => Number(c.memorized)).length; %>
+<% const pendingCount = (cards || []).length - memorizedCount; %>
+
+<section class="card list-screen">
+  <div class="list-screen-head">
+    <div>
+      <a class="link" href="/my/lists">&#8592; Retour</a>
+      <h1><%= set.name %></h1>
+    </div>
+    <div class="list-screen-actions">
+      <a class="btn ghost" href="/my/lists/<%= set.id %>/edit">Modifier la liste</a>
+    </div>
+  </div>
+
+  <div class="tab-row" id="card-tabs">
+    <button class="tab-chip active" data-tab="all">Toutes les cartes (<%= cards.length %>)</button>
+    <button class="tab-chip" data-tab="memorized">M&eacute;moris&eacute; (<%= memorizedCount %>)</button>
+    <button class="tab-chip" data-tab="pending">Non m&eacute;moris&eacute; (<%= pendingCount %>)</button>
+  </div>
+
+  <div class="search-row">
+    <span class="search-icon">&#128269;</span>
+    <input type="search" id="card-search" placeholder="Recherche (h&eacute;breu, fran&ccedil;ais, phon&eacute;tique)" />
+  </div>
+
+  <div class="cards-wall" id="cards-wall">
+    <% if (!cards || cards.length === 0) { %>
+      <div class="wall-empty">
+        <p>Pas encore de cartes dans cette liste.</p>
+      </div>
+    <% } else { %>
+      <% cards.forEach(card => { %>
+        <div class="word-card <%= card.active ? '' : 'is-inactive' %>" data-active="<%= card.active ? 1 : 0 %>" data-memorized="<%= card.memorized ? 1 : 0 %>" data-search="<%= (card.hebrew + ' ' + card.french + ' ' + (card.transliteration || '')).toLowerCase() %>">
+          <div class="word-card-top">
+            <div class="word-card-actions">
+              <a class="icon-btn ghost" href="/my/lists/<%= set.id %>/cards/<%= card.id %>/edit" title="Modifier la carte">&#9998;</a>
+              <form method="post" action="/my/lists/<%= set.id %>/cards/<%= card.id %>/action">
+                <input type="hidden" name="action" value="toggle_fav" />
+                <input type="hidden" name="redirectTo" value="/my/lists/<%= set.id %>" />
+                <button type="submit" class="icon-btn heart <%= card.favorite ? 'active' : '' %>" title="Ajouter aux favoris">
+                  &#10084;
+                </button>
+              </form>
+            </div>
+          </div>
+          <div class="word-card-body">
+            <p class="hebrew-word"><%= card.hebrew %></p>
+            <p class="french-word"><%= card.french %></p>
+            <% if (card.transliteration) { %>
+              <p class="translit"><em><%= card.transliteration %></em></p>
+            <% } %>
+          </div>
+          <div class="word-card-inline-actions">
+            <form method="post" action="/my/lists/<%= set.id %>/cards/<%= card.id %>/action">
+              <input type="hidden" name="action" value="toggle_active" />
+              <input type="hidden" name="redirectTo" value="/my/lists/<%= set.id %>" />
+              <button type="submit" class="icon-btn ghost" title="<%= card.active ? 'Masquer' : 'Rendre actif' %>">&#128065;</button>
+            </form>
+            <form method="post" action="/my/lists/<%= set.id %>/cards/<%= card.id %>/action">
+              <input type="hidden" name="action" value="toggle_memorized" />
+              <input type="hidden" name="redirectTo" value="/my/lists/<%= set.id %>" />
+              <button type="submit" class="icon-btn ghost" title="Marquer mémorisé">&#129504;</button>
+            </form>
+            <form method="post" action="/my/lists/<%= set.id %>/cards/<%= card.id %>/action" onsubmit="return confirm('Supprimer cette carte ?');">
+              <input type="hidden" name="action" value="delete" />
+              <input type="hidden" name="redirectTo" value="/my/lists/<%= set.id %>" />
+              <button type="submit" class="icon-btn ghost danger" title="Supprimer">&#128465;</button>
+            </form>
+          </div>
+          <div class="word-card-flags">
+            <% if (!card.active) { %><span class="pill muted">Inactif</span><% } %>
+            <% if (card.memorized) { %><span class="pill success">M&eacute;moris&eacute;</span><% } %>
+            <% if (card.favorite) { %><span class="pill accent">Favori</span><% } %>
+          </div>
+        </div>
+      <% }) %>
+    <% } %>
+  </div>
+
+  <div class="list-bottom-actions fixed-actions">
+    <a class="cta" href="/my/lists/<%= set.id %>/edit">Ajouter des cartes</a>
+    <a class="cta secondary" href="/train?mode=flashcards&scope=mine">Lancer le quizz</a>
+  </div>
+</section>
+
+<script>
+  (() => {
+    const tabs = Array.from(document.querySelectorAll('[data-tab]'));
+    const cards = Array.from(document.querySelectorAll('.word-card'));
+    const search = document.getElementById('card-search');
+    let currentTab = 'all';
+    const applyFilters = () => {
+      const term = search ? search.value.trim().toLowerCase() : '';
+      cards.forEach(card => {
+        const memo = card.dataset.memorized === '1';
+        const matchesTab = currentTab === 'all' ? true : currentTab === 'memorized' ? memo : !memo;
+        const matchesSearch = !term || (card.dataset.search || '').includes(term);
+        card.style.display = matchesTab && matchesSearch ? '' : 'none';
+      });
+    };
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentTab = tab.dataset.tab;
+        applyFilters();
+      });
+    });
+
+    if (search) {
+      search.addEventListener('input', applyFilters);
+    }
+
+    applyFilters();
+  })();
+</script>

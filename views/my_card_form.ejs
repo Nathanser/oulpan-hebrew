@@ -1,0 +1,36 @@
+<section class="card set-builder">
+  <div class="builder-header">
+    <div>
+      <p class="eyebrow">Modifier la carte</p>
+      <h1><%= set.name %></h1>
+      <p class="muted">Édite seulement cette carte sans toucher aux autres.</p>
+    </div>
+    <div class="builder-actions">
+      <a class="link" href="/my/lists/<%= set.id %>">&#8592; Retour à la liste</a>
+      <button type="submit" form="card-edit-form">Enregistrer</button>
+    </div>
+  </div>
+
+  <% if (error) { %>
+    <div class="alert alert-error"><%= error %></div>
+  <% } %>
+
+  <form id="card-edit-form" method="post" action="<%= action %>" class="builder-form">
+    <div class="builder-fields">
+      <label>Mot hébreu
+        <input name="hebrew" type="text" value="<%= card.hebrew || '' %>" placeholder="שלום" required />
+      </label>
+      <label>Mot français
+        <input name="french" type="text" value="<%= card.french || '' %>" placeholder="Bonjour" required />
+      </label>
+      <label>Phonétique
+        <input name="transliteration" type="text" value="<%= card.transliteration || '' %>" placeholder="shalom" />
+      </label>
+    </div>
+    <div class="theme-toggles" style="margin-top:0.6rem;">
+      <label><input type="checkbox" name="active" value="1" <%= card.active ? 'checked' : '' %> /> Carte active</label>
+      <label><input type="checkbox" name="favorite" value="1" <%= card.favorite ? 'checked' : '' %> /> Favori</label>
+      <label><input type="checkbox" name="memorized" value="1" <%= card.memorized ? 'checked' : '' %> /> Mémorisée</label>
+    </div>
+  </form>
+</section>

@@ -1,5 +1,5 @@
 <section class="card">
-  <h1><%= theme ? 'Modifier la categorie' : 'Ajouter une categorie' %></h1>
+  <h1><%= theme ? 'Modifier le thème' : 'Ajouter un thème' %></h1>
 
   <form method="post" action="<%= action %>" class="form">
     <label>Nom
@@ -13,6 +13,11 @@
           <option value="<%= p.id %>" <%= theme && theme.parent_id === p.id ? 'selected' : '' %>><%= p.name %></option>
         <% }) %>
       </select>
+    </label>
+
+    <label>
+      <input type="checkbox" name="active" value="1" <%= !theme || theme.active ? 'checked' : '' %> />
+      Thème actif
     </label>
 
     <button type="submit"><%= theme ? 'Sauvegarder' : 'Creer' %></button>

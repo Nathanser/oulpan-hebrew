@@ -1,60 +1,154 @@
 <section class="card">
-  <h1>Choisir ma session</h1>
+  <div class="list-header">
+    <h1>Choisir mon mode de révision</h1>
+  </div>
 
-  <form class="form" action="/train" method="get">
-    <label>Mode
-      <select name="mode">
-        <option value="flashcards" selected>Flashcards QCM</option>
-        <option value="quiz">Saisie libre (quiz)</option>
-      </select>
-    </label>
+  <form class="form setup-grid" action="/train" method="get" id="setup-form">
+    <div class="field-block">
+      <label>Mode
+        <select name="mode">
+          <option value="flashcards" selected>Flashcards QCM</option>
+          <option value="quiz">Saisie libre (quiz)</option>
+        </select>
+      </label>
+    </div>
 
-    <label>Thème
-      <select name="theme_id">
-        <option value="">Tous les thèmes</option>
-        <% themes.forEach(t => { %>
-          <option value="<%= t.id %>"><%= t.name %></option>
-        <% }) %>
-      </select>
-    </label>
+    <div class="field-block">
+      <label>Thèmes et listes</label>
+      <div class="theme-toggles">
+        <label><input type="checkbox" id="toggle-public" checked> Thèmes en ligne</label>
+        <label><input type="checkbox" id="toggle-lists" checked> Mes listes</label>
+      </div>
+      <div class="theme-groups">
+        <div class="theme-group" id="public-group">
+          <p class="muted mini" style="margin:0 0 0.2rem;">Thèmes en ligne</p>
+          <% if (!themes || themes.filter(t => !t.user_id).length === 0) { %>
+            <p class="muted mini">Aucun thème en ligne disponible.</p>
+          <% } else { %>
+            <select id="theme-select" name="theme_ids" multiple size="6">
+              <% themes.forEach(t => { if (!t.user_id) { %>
+                <option value="<%= t.id %>"><%= t.name %></option>
+              <% } }) %>
+            </select>
+          <% } %>
+        </div>
+        <div class="theme-group" id="list-group">
+          <p class="muted mini" style="margin:0 0 0.2rem;">Mes listes</p>
+          <% if (!sets || sets.length === 0) { %>
+            <p class="muted mini">Aucune liste pour le moment.</p>
+          <% } else { %>
+            <select id="list-select" name="set_ids" multiple size="6">
+              <% sets.forEach(s => { %>
+                <option value="<%= s.id %>"><%= s.name %></option>
+              <% }) %>
+            </select>
+          <% } %>
+        </div>
+      </div>
+    </div>
 
-    <label>Portée
-      <select name="scope">
-        <option value="all" selected>Global + mes thèmes</option>
-        <option value="global">Thèmes globaux seulement</option>
-        <option value="mine">Mes thèmes seulement</option>
-      </select>
-    </label>
+    <div class="field-block" id="level-field" style="display:none;">
+      <label>Niveau
+        <select name="level_id" id="level-select">
+          <option value="">(Tous les niveaux)</option>
+        </select>
+      </label>
+    </div>
 
-    <label>Mode de révision
-      <select name="rev_mode">
-        <option value="weak" selected>Mots faibles / non maîtrisés</option>
-        <option value="new">Nouveaux mots</option>
-        <option value="favorites">Favoris</option>
-        <option value="random">Aléatoire</option>
-      </select>
-    </label>
+    <div class="field-block">
+      <label>Nombre de mots
+        <select name="remaining">
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="15">15</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+        </select>
+      </label>
+      <input type="hidden" name="total" value="10">
+    </div>
 
-    <label>Difficulté
-      <select name="difficulty">
-        <option value="">Toutes</option>
-        <option value="1">Facile</option>
-        <option value="2">Moyen</option>
-        <option value="3">Difficile</option>
-      </select>
-    </label>
-
-    <label>Nombre de mots
-      <select name="remaining">
-        <option value="5">5</option>
-        <option value="10" selected>10</option>
-        <option value="15">15</option>
-        <option value="20">20</option>
-        <option value="50">50</option>
-      </select>
-    </label>
-    <input type="hidden" name="total" value="10">
+    <details class="advanced">
+      <summary>Options avancées</summary>
+      <div class="advanced-grid">
+        <label>Mode de révision
+          <select name="rev_mode">
+            <option value="random" selected>Aléatoire</option>
+            <option value="weak">Mots faibles / non maîtrisés</option>
+            <option value="new">Nouveaux mots</option>
+            <option value="favorites">Favoris</option>
+          </select>
+        </label>
+        <label>Difficulté
+          <select name="difficulty">
+            <option value="">Toutes</option>
+            <option value="1">Facile</option>
+            <option value="2">Moyen</option>
+            <option value="3">Difficile</option>
+          </select>
+        </label>
+      </div>
+    </details>
 
     <button type="submit">Démarrer</button>
   </form>
 </section>
+
+<script>
+  (() => {
+    const levelsData = <%- JSON.stringify(levels || []) %>;
+    const levelSelect = document.getElementById('level-select');
+    const levelField = document.getElementById('level-field');
+    const publicGroup = document.getElementById('public-group');
+    const listGroup = document.getElementById('list-group');
+    const togglePublic = document.getElementById('toggle-public');
+    const toggleLists = document.getElementById('toggle-lists');
+    const themeSelect = document.getElementById('theme-select');
+    const listSelect = document.getElementById('list-select');
+
+    const renderLevels = () => {
+      const checkedThemes = themeSelect
+        ? Array.from(themeSelect.selectedOptions || []).map(o => o.value).filter(Boolean)
+        : [];
+      levelSelect.innerHTML = '<option value="">(Tous les niveaux)</option>';
+      if (checkedThemes.length !== 1) {
+        levelField.style.display = 'none';
+        return;
+      }
+      const filtered = levelsData.filter(l => String(l.theme_id) === String(checkedThemes[0]));
+      if (filtered.length === 0) {
+        levelField.style.display = 'none';
+        return;
+      }
+      filtered.forEach(l => {
+        const opt = document.createElement('option');
+        opt.value = l.id;
+        opt.textContent = l.name;
+        levelSelect.appendChild(opt);
+      });
+      levelField.style.display = 'block';
+    };
+
+    const updateGroups = () => {
+      if (publicGroup) {
+        publicGroup.style.display = togglePublic && togglePublic.checked ? 'grid' : 'none';
+        if (togglePublic && !togglePublic.checked) {
+          if (themeSelect) themeSelect.selectedIndex = -1;
+        }
+      }
+      if (listGroup) {
+        listGroup.style.display = toggleLists && toggleLists.checked ? 'grid' : 'none';
+        if (toggleLists && !toggleLists.checked) {
+          if (listSelect) listSelect.selectedIndex = -1;
+        }
+      }
+      renderLevels();
+    };
+
+    if (themeSelect) themeSelect.addEventListener('change', renderLevels);
+    if (listSelect) listSelect.addEventListener('change', () => {});
+    if (togglePublic) togglePublic.addEventListener('change', updateGroups);
+    if (toggleLists) toggleLists.addEventListener('change', updateGroups);
+    updateGroups();
+  })();
+</script>

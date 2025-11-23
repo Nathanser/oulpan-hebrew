@@ -2,37 +2,99 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title><%= typeof title !== 'undefined' ? title : 'Hebrew Duo Pro' %></title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= typeof title !== 'undefined' ? title : 'Hebrew Learn' %></title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="logo">Hebrew Duo</div>
-    <nav>
-      <% if (currentUser) { %>
-        <a href="/app">Accueil</a>
-        <a href="/train/setup">S'entrainer</a>
-        <a href="/profile">Profil</a>
-        <a href="/my/words">Mots</a>
-        <% if (currentUser.role === 'admin') { %>
-          <a href="/admin">Admin</a>
+  <div class="layout-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-top">
+        <div class="logo">Hebrew Learn</div>
+        <div class="top-icons">
+          <a class="icon-btn link" href="/train/setup" title="Rechercher / réviser">&#128269;</a>
+          <button class="burger" id="burger" aria-label="Menu">&#9776;</button>
+        </div>
+      </div>
+      <nav id="nav-links">
+        <% if (currentUser) { %>
+          <div class="nav-section">
+            <a class="nav-item" href="/app">&#127968; Accueil</a>
+            <a class="nav-item" href="/space">&#128214; Mon espace</a>
+            <a class="nav-item" href="/train/setup">&#129351; S'entrainer</a>
+          </div>
+          <hr>
+          <div class="nav-section">
+            <a class="nav-item" href="/my/words">&#128221; Mes mots</a>
+            <a class="nav-item" href="/my/lists">&#128193; Mes listes</a>
+            <a class="nav-item" href="/themes">&#127912; Thèmes</a>
+          </div>
+          <hr>
+          <div class="nav-section">
+            <a class="nav-item" href="/profile">&#128100; Profil</a>
+            <% if (currentUser.role === 'admin') { %>
+              <a class="nav-item" href="/admin">&#9881; Admin</a>
+            <% } %>
+          </div>
+          <div class="nav-section">
+            <form action="/logout" method="post" style="display:block;">
+              <button type="submit" class="nav-item nav-button">&#128682; Déconnexion</button>
+            </form>
+          </div>
+        <% } else { %>
+          <div class="nav-section">
+            <a class="nav-item" href="/login">&#128272; Connexion</a>
+            <a class="nav-item" href="/register">&#10133; Inscription</a>
+          </div>
         <% } %>
-        <form action="/logout" method="post" style="display:inline;">
-          <button type="submit">Deconnexion</button>
-        </form>
-      <% } else { %>
-        <a href="/login">Connexion</a>
-        <a href="/register">Inscription</a>
-      <% } %>
-    </nav>
-  </header>
+      </nav>
+    </aside>
 
-  <main class="container">
-    <%- body %>
-  </main>
+    <div class="mobile-header">
+      <button class="burger" id="mobile-burger" aria-label="Menu">&#9776;</button>
+      <div class="logo">Hebrew Learn</div>
+    </div>
 
-  <footer class="footer">
-    <p>Projet d'apprentissage de l'hebreu</p>
-  </footer>
+    <div class="content-shell">
+      <main class="container">
+        <%- body %>
+      </main>
+      <footer class="footer">
+        <p>Projet d'apprentissage de l'hebreu</p>
+      </footer>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const sidebar = document.getElementById('sidebar');
+      const mobileBurger = document.getElementById('mobile-burger');
+      if (mobileBurger && sidebar) {
+        mobileBurger.addEventListener('click', () => {
+          sidebar.classList.toggle('open');
+        });
+      }
+      const burger = document.getElementById('burger');
+      if (burger && sidebar) {
+        burger.addEventListener('click', () => {
+          sidebar.classList.toggle('open');
+        });
+      }
+
+      // Confirmation avant toute suppression
+      document.addEventListener('submit', (e) => {
+        const form = e.target;
+        if (!(form instanceof HTMLFormElement)) return;
+        const hasDeleteOverride = form.querySelector('input[name="_method"][value="DELETE"]');
+        const actionHasDelete = form.action && /_method=DELETE/i.test(form.action);
+        const explicitConfirm = form.hasAttribute('data-confirm');
+        if (hasDeleteOverride || actionHasDelete || explicitConfirm) {
+          const msg = form.getAttribute('data-confirm') || 'Confirmer la suppression ?';
+          if (!window.confirm(msg)) {
+            e.preventDefault();
+          }
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

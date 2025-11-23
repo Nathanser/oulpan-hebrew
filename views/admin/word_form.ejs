@@ -23,6 +23,17 @@
       </select>
     </label>
 
+    <% const levelOptions = levels || []; %>
+
+    <label>Niveau (optionnel)
+      <select name="level_id">
+        <option value="">(aucun)</option>
+        <% levelOptions.forEach(l => { %>
+          <option value="<%= l.id %>" <%= word && word.level_id === l.id ? 'selected' : '' %>><%= l.theme_name %> - <%= l.name %></option>
+        <% }) %>
+      </select>
+    </label>
+
     <label>Difficulte
       <select name="difficulty">
         <option value="1" <%= word && word.difficulty === 1 ? 'selected' : '' %>>Facile</option>
