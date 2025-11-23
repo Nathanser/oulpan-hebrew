@@ -10,7 +10,7 @@
         <li><strong>Échecs :</strong> <%= stats && stats.total_fail || 0 %></li>
         <li><strong>Maîtrise moyenne :</strong> <%= stats && stats.avg_strength ? stats.avg_strength.toFixed(1) : 0 %>%</li>
       </ul>
-      <a class="btn" href="/train">Commencer une session d'entraînement</a>
+      <a class="btn" href="/train/setup">Commencer une session d'entraînement</a>
     </div>
 
     <div class="card">
@@ -31,3 +31,4 @@
     </div>
   </div>
 </section>
+

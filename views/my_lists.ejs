@@ -8,6 +8,16 @@
     </div>
   </div>
 
+  <form class="form" action="/my/lists" method="get" style="max-width:340px;">
+    <label>Filtrer par
+      <select name="sort" onchange="this.form.submit()">
+        <option value="created_asc" <%= sort === 'created_asc' ? 'selected' : '' %>>Date de création (plus anciennes)</option>
+        <option value="created_desc" <%= sort === 'created_desc' ? 'selected' : '' %>>Date de création (plus récentes)</option>
+        <option value="alpha" <%= sort === 'alpha' ? 'selected' : '' %>>Ordre alphabétique</option>
+      </select>
+    </label>
+  </form>
+
   <% if (!sets || sets.length === 0) { %>
     <div class="card set-list-empty">
       <p>Pas encore de listes.</p>
@@ -21,6 +31,7 @@
             <div>
               <h3><%= set.name %></h3>
               <p class="muted"><%= set.card_count %> carte<%= Number(set.card_count) > 1 ? 's' : '' %></p>
+              <p class="muted mini">Créé le <%= set.created_at ? new Date(set.created_at).toLocaleDateString('fr-FR') : '-' %></p>
             </div>
             <div class="set-list-actions inline-actions">
               <a class="btn ghost" href="/my/lists/<%= set.id %>">Ouvrir</a>

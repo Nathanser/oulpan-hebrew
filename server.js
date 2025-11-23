@@ -700,19 +700,23 @@ app.delete('/my/words/:id', requireAuth, async (req, res) => {
 app.get('/my/lists', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   try {
+    const sort = req.query.sort || 'created_asc';
+    let orderBy = 's.created_at ASC';
+    if (sort === 'created_desc') orderBy = 's.created_at DESC';
+    if (sort === 'alpha') orderBy = 's.name COLLATE NOCASE ASC';
     const sets = await all(
       `SELECT s.*, COUNT(c.id) AS card_count
        FROM sets s
        LEFT JOIN cards c ON c.set_id = s.id AND c.active = 1
        WHERE s.user_id = ? AND s.active = 1
        GROUP BY s.id
-       ORDER BY s.created_at DESC`,
+       ORDER BY ${orderBy}`,
       [userId]
     );
-    res.render('my_lists', { sets, pageClass: 'page-compact' });
+    res.render('my_lists', { sets, pageClass: 'page-compact', sort });
   } catch (e) {
     console.error(e);
-    res.render('my_lists', { sets: [], pageClass: 'page-compact' });
+    res.render('my_lists', { sets: [], pageClass: 'page-compact', sort: req.query.sort || 'created_asc' });
   }
 });
 

@@ -16,8 +16,8 @@
     <div class="field-block">
       <label>Thèmes et listes</label>
       <div class="theme-toggles">
-        <label><input type="checkbox" id="toggle-public" checked> Thèmes en ligne</label>
-        <label><input type="checkbox" id="toggle-lists" checked> Mes listes</label>
+        <label><input type="checkbox" id="toggle-public"> Thèmes en ligne</label>
+        <label><input type="checkbox" id="toggle-lists"> Mes listes</label>
       </div>
       <div class="theme-groups">
         <div class="theme-group" id="public-group">
@@ -149,6 +149,8 @@
     if (listSelect) listSelect.addEventListener('change', () => {});
     if (togglePublic) togglePublic.addEventListener('change', updateGroups);
     if (toggleLists) toggleLists.addEventListener('change', updateGroups);
-    updateGroups();
+    // au chargement, rien n'est coché
+    if (publicGroup) publicGroup.style.display = 'none';
+    if (listGroup) listGroup.style.display = 'none';
   })();
 </script>
