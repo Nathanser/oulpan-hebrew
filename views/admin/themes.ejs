@@ -1,48 +1,83 @@
 <section>
   <div class="list-header">
-    <h1>Thèmes</h1>
-    <a class="btn" href="/admin/themes/new">Ajouter un thème</a>
+    <div>
+      <h1>Themes par defaut</h1>
+    </div>
+    <div class="list-actions">
+      <a class="btn" href="/admin/themes/new">Creer un theme par defaut</a>
+    </div>
   </div>
 
-  <table class="table">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Nom</th>
-        <th>Parent</th>
-        <th>Actif</th>
-        <th>Niveaux</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% themes.forEach(t => { %>
-        <tr>
-          <td><%= t.id %></td>
-          <td>
-            <%= t.name %>
-            <form action="/admin/themes/<%= t.id %>/toggle" method="post" style="display:inline;margin-left:0.35rem;">
-              <button type="submit" class="link" title="<%= t.active ? 'Désactiver' : 'Activer' %>">
-                <%= t.active ? '👁' : '🙈' %>
-              </button>
-            </form>
-          </td>
-          <td><%= t.parent_name || '-' %></td>
-          <td>
-            <%= t.active ? 'Oui' : 'Non' %>
-          </td>
-          <td>
-            <%= typeof t.level_count !== 'undefined' ? t.level_count : '-' %>
-          </td>
-          <td>
-            <a class="link" href="/admin/themes/<%= t.id %>">Niveaux</a>
-            <a class="link" href="/admin/themes/<%= t.id %>/edit">Modifier</a>
-            <form action="/admin/themes/<%= t.id %>?_method=DELETE" method="post" style="display:inline;">
-              <button type="submit" onclick="return confirm('Supprimer ce thème ?');">Supprimer</button>
-            </form>
-          </td>
-        </tr>
+  <form class="form" action="/admin/themes" method="get" style="max-width:340px;">
+    <label>Filtrer par
+      <select name="sort" onchange="this.form.submit()">
+        <option value="created_asc" <%= sort === 'created_asc' ? 'selected' : '' %>>Date de creation (plus anciennes)</option>
+        <option value="created_desc" <%= sort === 'created_desc' ? 'selected' : '' %>>Date de creation (plus recentes)</option>
+        <option value="alpha" <%= sort === 'alpha' ? 'selected' : '' %>>Ordre alphabetique</option>
+      </select>
+    </label>
+  </form>
+
+  <% if (!themes || themes.length === 0) { %>
+    <div class="card set-list-empty">
+      <p>Pas encore de themes par defaut.</p>
+      <a class="btn" href="/admin/themes/new">Creer un theme</a>
+    </div>
+  <% } else { %>
+    <div class="grid set-list-grid">
+      <% themes.forEach(theme => { %>
+        <div class="card set-list-card">
+          <div class="set-list-top">
+            <div>
+              <h3><%= theme.name %></h3>
+              <p class="muted"><%= theme.word_count || 0 %> mot<%= Number(theme.word_count) > 1 ? 's' : '' %></p>
+              <p class="muted mini">Creé le <%= theme.created_at ? new Date(theme.created_at).toLocaleDateString('fr-FR') : '-' %></p>
+              <div class="pill-row" style="margin-top:0.35rem;">
+                <span class="pill <%= theme.active ? 'success' : 'muted' %>"><%= theme.active ? 'Actif' : 'Inactif' %></span>
+              </div>
+            </div>
+            <div class="set-list-actions inline-actions">
+              <a class="btn ghost" href="/admin/themes/<%= theme.id %>">Ouvrir</a>
+              <button type="button" class="icon-btn ghost dots-btn" data-menu-btn aria-label="Actions">&#8942;</button>
+              <div class="card-menu" data-menu>
+                <a class="menu-item" href="/admin/themes/<%= theme.id %>/edit">
+                  <span>Modifier</span>
+                  <span class="menu-icon">&#9998;</span>
+                </a>
+                <form action="/admin/themes/<%= theme.id %>/toggle" method="post">
+                  <button type="submit" class="menu-item">
+                    <span><%= theme.active ? 'Desactiver' : 'Activer' %></span>
+                    <span class="menu-icon"><%= theme.active ? 'Off' : 'On' %></span>
+                  </button>
+                </form>
+                <form action="/admin/themes/<%= theme.id %>?_method=DELETE" method="post" onsubmit="return confirm('Supprimer ce theme par defaut ?');">
+                  <button type="submit" class="menu-item danger">
+                    <span>Supprimer</span>
+                    <span class="menu-icon">&#128465;</span>
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
       <% }) %>
-    </tbody>
-  </table>
+    </div>
+  <% } %>
 </section>
+
+<script>
+  (() => {
+    const closeMenus = () => document.querySelectorAll('.card-menu.open').forEach(m => m.classList.remove('open'));
+    document.querySelectorAll('[data-menu-btn]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeMenus();
+        const menu = btn.parentElement.querySelector('[data-menu]');
+        if (menu) menu.classList.add('open');
+      });
+    });
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.inline-actions')) closeMenus();
+    });
+  })();
+</script>

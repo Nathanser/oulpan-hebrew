@@ -1,41 +1,105 @@
-<section class="card">
-  <div class="list-header">
-    <h1><%= theme.name %></h1>
+<% const activeCount = (words || []).filter(w => Number(w.active)).length; %>
+<% const inactiveCount = (words || []).length - activeCount; %>
+
+<section class="card list-screen">
+  <div class="list-screen-head">
     <div>
-      <a class="btn" href="/admin/themes/<%= theme.id %>/edit">Modifier le thème</a>
-      <a class="link" href="/admin/themes">Retour</a>
+      <a class="link back-link" href="/admin/themes">&#8592; Retour</a>
+      <h1><%= theme.name %></h1>
+      <p class="muted mini">Theme par defaut - <%= theme.active ? 'Actif' : 'Inactif' %></p>
+    </div>
+    <div class="list-screen-actions inline-actions">
+      <form action="/admin/themes/<%= theme.id %>/toggle" method="post" style="display:inline;">
+        <button type="submit" class="btn ghost"><%= theme.active ? 'Desactiver' : 'Activer' %></button>
+      </form>
+      <a class="btn ghost" href="/admin/themes/<%= theme.id %>/edit">Modifier le theme</a>
     </div>
   </div>
-  <p>Parent : <strong><%= theme.parent_name || 'Aucun' %></strong></p>
-</section>
 
-<section class="card" style="margin-top:1rem;">
-  <div class="list-header">
-    <h2>Niveaux</h2>
+  <div class="tab-row" id="card-tabs">
+    <button class="tab-chip active" data-tab="all">Tous les mots (<%= words.length %>)</button>
+    <button class="tab-chip" data-tab="active">Actifs (<%= activeCount %>)</button>
+    <button class="tab-chip" data-tab="inactive">Inactifs (<%= inactiveCount %>)</button>
   </div>
 
-  <% if (!levels || levels.length === 0) { %>
-    <p>Pas encore de niveau. Ajoutez un niveau pour structurer ce thème.</p>
-  <% } else { %>
-    <ul class="list">
-      <% levels.forEach(l => { %>
-        <li>
-          <span><strong><%= l.name %></strong> (ordre <%= l.level_order %>) - <%= l.active ? 'Actif' : 'Inactif' %></span>
-          <form action="/admin/levels/<%= l.id %>/toggle" method="post" style="display:inline;">
-            <button type="submit"><%= l.active ? 'Désactiver' : 'Activer' %></button>
-          </form>
-          <form action="/admin/levels/<%= l.id %>?_method=DELETE" method="post" style="display:inline;">
-            <button type="submit" onclick="return confirm('Supprimer ce niveau ?');">Supprimer</button>
-          </form>
-        </li>
-      <% }) %>
-    </ul>
-  <% } %>
+  <div class="search-row">
+    <span class="search-icon">&#128269;</span>
+    <input type="search" id="card-search" placeholder="Recherche (hebreu, francais, phonetique)" />
+  </div>
 
-  <form method="post" action="/admin/themes/<%= theme.id %>/levels" class="form" style="margin-top:1rem;">
-    <label>Nom du niveau
-      <input type="text" name="name" placeholder="Niveau 1, Niveau 2..." />
-    </label>
-    <button type="submit">Ajouter un niveau</button>
-  </form>
+  <div class="cards-wall" id="cards-wall">
+    <% if (!words || words.length === 0) { %>
+      <div class="wall-empty">
+        <p>Pas encore de mots dans ce theme.</p>
+      </div>
+    <% } else { %>
+      <% words.forEach(word => { %>
+        <div class="word-card <%= word.active ? '' : 'is-inactive' %>" data-active="<%= word.active ? 1 : 0 %>" data-search="<%= (word.hebrew + ' ' + word.french + ' ' + (word.transliteration || '')).toLowerCase() %>">
+          <div class="word-card-top">
+            <div class="word-card-actions">
+              <a class="icon-btn ghost" href="/admin/words?search=<%= encodeURIComponent(word.french) %>" title="Ouvrir dans la page mots">&#9998;</a>
+            </div>
+          </div>
+          <div class="word-card-body">
+            <p class="hebrew-word"><%= word.hebrew %></p>
+            <p class="french-word"><%= word.french %></p>
+            <% if (word.transliteration) { %>
+              <p class="translit"><em><%= word.transliteration %></em></p>
+            <% } %>
+          </div>
+          <div class="word-card-inline-actions">
+            <form method="post" action="/admin/themes/<%= theme.id %>/words/<%= word.id %>/action">
+              <input type="hidden" name="action" value="toggle_active" />
+              <button type="submit" class="icon-btn ghost" title="<%= word.active ? 'Masquer' : 'Rendre actif' %>">&#128065;</button>
+            </form>
+            <form method="post" action="/admin/themes/<%= theme.id %>/words/<%= word.id %>/action" onsubmit="return confirm('Supprimer ce mot ?');">
+              <input type="hidden" name="action" value="delete" />
+              <button type="submit" class="icon-btn ghost danger" title="Supprimer">&#128465;</button>
+            </form>
+          </div>
+          <div class="word-card-flags">
+            <% if (!word.active) { %><span class="pill muted">Inactif</span><% } %>
+          </div>
+        </div>
+      <% }) %>
+    <% } %>
+  </div>
+
+  <div class="list-bottom-actions fixed-actions">
+    <a class="cta" href="/admin/themes/<%= theme.id %>/edit">Ajouter des mots</a>
+    <a class="cta secondary" href="/admin/themes">Retour aux themes</a>
+  </div>
 </section>
+
+<script>
+  (() => {
+    const tabs = Array.from(document.querySelectorAll('[data-tab]'));
+    const cards = Array.from(document.querySelectorAll('.word-card'));
+    const search = document.getElementById('card-search');
+    let currentTab = 'all';
+    const applyFilters = () => {
+      const term = search ? search.value.trim().toLowerCase() : '';
+      cards.forEach(card => {
+        const isActive = card.dataset.active === '1';
+        const matchesTab = currentTab === 'all' ? true : currentTab === 'active' ? isActive : !isActive;
+        const matchesSearch = !term || (card.dataset.search || '').includes(term);
+        card.style.display = matchesTab && matchesSearch ? '' : 'none';
+      });
+    };
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentTab = tab.dataset.tab;
+        applyFilters();
+      });
+    });
+
+    if (search) {
+      search.addEventListener('input', applyFilters);
+    }
+
+    applyFilters();
+  })();
+</script>

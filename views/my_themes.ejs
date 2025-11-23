@@ -11,7 +11,6 @@
       <thead>
         <tr>
           <th>Nom</th>
-          <th>Parent</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -19,7 +18,6 @@
         <% themes.forEach(t => { %>
           <tr>
             <td><%= t.name %></td>
-            <td><%= t.parent_name || '-' %></td>
             <td>
               <a class="link" href="/my/themes/<%= t.id %>/edit">Modifier</a>
               <form action="/my/themes/<%= t.id %>?_method=DELETE" method="post" style="display:inline;">

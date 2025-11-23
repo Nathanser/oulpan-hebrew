@@ -102,7 +102,7 @@ const get = (sql, params = []) => new Promise((res, rej) => db.get(sql, params, 
   try {
     const themeName = 'Immigration et Alya';
     const existingTheme = await get('SELECT id FROM themes WHERE name = ? AND user_id IS NULL', [themeName]);
-    let themeId = existingTheme ? existingTheme.id : (await run('INSERT INTO themes (name, parent_id, user_id) VALUES (?, NULL, NULL)', [themeName])).lastID;
+    let themeId = existingTheme ? existingTheme.id : (await run('INSERT INTO themes (name, user_id) VALUES (?, NULL)', [themeName])).lastID;
 
     await run('UPDATE words SET level_id = NULL WHERE level_id IN (SELECT id FROM theme_levels WHERE theme_id = ?)', [themeId]);
     await run('DELETE FROM words WHERE theme_id = ?', [themeId]);

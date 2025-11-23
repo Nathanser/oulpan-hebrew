@@ -391,7 +391,7 @@ async function ensureBaseThemes() {
       'Alimentation'
     ];
     for (const name of seedThemes) {
-      const created = await run('INSERT INTO themes (name, parent_id, active) VALUES (?,?,1)', [name, null]);
+      const created = await run('INSERT INTO themes (name, active) VALUES (?,1)', [name]);
       await run('INSERT INTO theme_levels (theme_id, name, level_order, active) VALUES (?,?,?,1)', [created.lastID, 'Niveau 1', 1]);
     }
     console.log('ThÃ¨mes de base crÃ©Ã©s (liste fournie).');
@@ -1228,39 +1228,20 @@ async function renderThemeList(req, res) {
   const isAdmin = req.session.user && req.session.user.role === 'admin';
   try {
     const proposedThemes = await all(
-      `SELECT t.*, parent.name AS parent_name,
+      `SELECT t.*,
         (SELECT COUNT(*) FROM theme_levels l WHERE l.theme_id = t.id) AS level_count
        FROM themes t
-       LEFT JOIN themes parent ON parent.id = t.parent_id
        WHERE t.user_id IS NULL AND t.active = 1
        ORDER BY t.id ASC`
     );
-    const personalThemes = await all(
-      `SELECT t.*, p.name AS parent_name,
-        (SELECT COUNT(*) FROM theme_levels l WHERE l.theme_id = t.id) AS level_count
-       FROM themes t
-       LEFT JOIN themes p ON p.id = t.parent_id
-       WHERE t.user_id = ? AND t.active = 1
-       ORDER BY t.id ASC`,
-      [userId]
-    );
     const inactiveProposed = await all(
-      `SELECT t.*, parent.name AS parent_name
+      `SELECT t.*
        FROM themes t
-       LEFT JOIN themes parent ON parent.id = t.parent_id
        WHERE t.user_id IS NULL AND t.active = 0
        ORDER BY t.id ASC`
     );
-    const inactivePersonal = await all(
-      `SELECT t.*, p.name AS parent_name
-       FROM themes t
-       LEFT JOIN themes p ON p.id = t.parent_id
-       WHERE t.user_id = ? AND t.active = 0
-       ORDER BY t.id ASC`,
-      [userId]
-    );
 
-    const allIds = [...proposedThemes, ...personalThemes].map(t => t.id);
+    const allIds = [...proposedThemes].map(t => t.id);
     let levelsByTheme = {};
     if (allIds.length > 0) {
       const placeholders = allIds.map(() => '?').join(',');
@@ -1276,9 +1257,9 @@ async function renderThemeList(req, res) {
     }
     res.render('themes', {
       proposedThemes,
-      personalThemes,
       inactiveProposed,
-      inactivePersonal,
+      personalThemes: [],
+      inactivePersonal: [],
       levelsByTheme,
       pageClass: 'page-compact'
     });
@@ -1293,17 +1274,15 @@ app.get('/my/themes', requireAuth, renderThemeList);
 
 // ---------- Sets (Quizlet-like) ----------
 app.get('/my/themes/new', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const parents = await all('SELECT * FROM themes WHERE user_id = ? ORDER BY id ASC', [userId]);
-  res.render('my_theme_form', { theme: null, parents, action: '/my/themes' });
+  res.render('my_theme_form', { theme: null, action: '/my/themes' });
 });
 
 app.post('/my/themes', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
-  const { name, parent_id } = req.body;
+  const { name } = req.body;
   if (!name) return res.redirect('/themes');
   try {
-    await run('INSERT INTO themes (name, parent_id, user_id) VALUES (?,?,?)', [name, parent_id || null, userId]);
+    await run('INSERT INTO themes (name, user_id) VALUES (?,?)', [name, userId]);
     res.redirect('/themes');
   } catch (e) {
     console.error(e);
@@ -1316,8 +1295,7 @@ app.get('/my/themes/:id/edit', requireAuth, async (req, res) => {
   try {
     const theme = await get('SELECT * FROM themes WHERE id = ? AND user_id = ?', [req.params.id, userId]);
     if (!theme) return res.redirect('/themes');
-    const parents = await all('SELECT * FROM themes WHERE user_id = ? AND id != ? ORDER BY id ASC', [userId, req.params.id]);
-    res.render('my_theme_form', { theme, parents, action: `/my/themes/${theme.id}?_method=PUT` });
+    res.render('my_theme_form', { theme, action: `/my/themes/${theme.id}?_method=PUT` });
   } catch (e) {
     console.error(e);
     res.redirect('/themes');
@@ -1326,9 +1304,9 @@ app.get('/my/themes/:id/edit', requireAuth, async (req, res) => {
 
 app.put('/my/themes/:id', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
-  const { name, parent_id } = req.body;
+  const { name } = req.body;
   try {
-    await run('UPDATE themes SET name = ?, parent_id = ? WHERE id = ? AND user_id = ?', [name, parent_id || null, req.params.id, userId]);
+    await run('UPDATE themes SET name = ? WHERE id = ? AND user_id = ?', [name, req.params.id, userId]);
     res.redirect('/themes');
   } catch (e) {
     console.error(e);
@@ -1345,7 +1323,6 @@ app.delete('/my/themes/:id', requireAuth, async (req, res) => {
     );
     await run('UPDATE words SET theme_id = NULL WHERE theme_id = ? AND user_id = ?', [req.params.id, userId]);
     await run('DELETE FROM theme_levels WHERE theme_id = ?', [req.params.id]);
-    await run('UPDATE themes SET parent_id = NULL WHERE parent_id = ? AND user_id = ?', [req.params.id, userId]);
     await run('DELETE FROM themes WHERE id = ? AND user_id = ?', [req.params.id, userId]);
     res.redirect('/themes');
   } catch (e) {
@@ -1359,20 +1336,22 @@ app.get('/themes/:id', requireAuth, async (req, res) => {
   const isAdmin = req.session.user && req.session.user.role === 'admin';
   try {
     const theme = await get(
-      `SELECT t.*, p.name AS parent_name
+      `SELECT t.*
        FROM themes t
-       LEFT JOIN themes p ON p.id = t.parent_id
        WHERE t.id = ?`,
       [req.params.id]
     );
     if (!theme || (theme.user_id && theme.user_id !== userId) || (!theme.active && !isAdmin)) {
       return res.redirect('/themes');
     }
-    const levels = await all(
-      'SELECT * FROM theme_levels WHERE theme_id = ? ORDER BY level_order, id',
-      [theme.id]
+    const words = await all(
+      `SELECT id, hebrew, transliteration, french, active
+       FROM words
+       WHERE theme_id = ? AND (user_id IS NULL OR user_id = ?)
+       ORDER BY id ASC`,
+      [theme.id, userId]
     );
-    res.render('theme_show', { theme, levels, isOwner: theme.user_id === userId, isGlobal: !theme.user_id });
+    res.render('theme_show', { theme, words, isOwner: theme.user_id === userId, isGlobal: !theme.user_id });
   } catch (e) {
     console.error(e);
     res.redirect('/themes');
@@ -1749,26 +1728,31 @@ app.post('/admin/users/:id/reset', requireAdmin, async (req, res) => {
 
 app.get('/admin/themes', requireAdmin, async (req, res) => {
   try {
+    const sort = req.query.sort || 'created_asc';
+    let orderBy = 'COALESCE(t.created_at, t.id) ASC';
+    if (sort === 'created_desc') orderBy = 'COALESCE(t.created_at, t.id) DESC';
+    if (sort === 'alpha') orderBy = 't.name COLLATE NOCASE ASC';
     const themes = await all(
-      `SELECT t.*, parent.name AS parent_name,
-        (SELECT COUNT(*) FROM theme_levels tl WHERE tl.theme_id = t.id) AS level_count
+      `SELECT t.*,
+        COUNT(w.id) AS word_count
        FROM themes t
-       LEFT JOIN themes parent ON parent.id = t.parent_id
-       ORDER BY t.id ASC`
+       LEFT JOIN words w ON w.theme_id = t.id AND w.user_id IS NULL
+       WHERE t.user_id IS NULL
+       GROUP BY t.id
+       ORDER BY ${orderBy}`
     );
-    res.render('admin/themes', { themes });
+    res.render('admin/themes', { themes, sort });
   } catch (e) {
     console.error(e);
-    res.render('admin/themes', { themes: [] });
+    res.render('admin/themes', { themes: [], sort: req.query.sort || 'created_asc' });
   }
 });
 
 app.get('/admin/themes/new', requireAdmin, async (req, res) => {
   try {
-    const parents = await all('SELECT * FROM themes ORDER BY id ASC');
     res.render('admin/theme_form', {
       theme: null,
-      parents,
+      cards: [{ hebrew: '', french: '', transliteration: '' }],
       action: '/admin/themes'
     });
   } catch (e) {
@@ -1778,12 +1762,23 @@ app.get('/admin/themes/new', requireAdmin, async (req, res) => {
 });
 
 app.post('/admin/themes', requireAdmin, async (req, res) => {
-  const { name, parent_id, active } = req.body;
+  const { name, active } = req.body;
+  const cards = normalizeCardsPayload(req.body.cards);
   try {
-    await run(
-      'INSERT INTO themes (name, parent_id, active) VALUES (?,?,?)',
-      [name, parent_id || null, active ? 1 : 0]
+    const createdTheme = await run(
+      'INSERT INTO themes (name, active, user_id) VALUES (?,?,NULL)',
+      [name, active ? 1 : 0]
     );
+    const newThemeId = createdTheme.lastID;
+    if (newThemeId && cards.length > 0) {
+      for (const card of cards) {
+        await run(
+          `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id)
+           VALUES (?,?,?,?,?,?,?,NULL)`,
+          [card.hebrew, card.transliteration || null, card.french, newThemeId, null, 1, 1]
+        );
+      }
+    }
     res.redirect('/admin/themes');
   } catch (e) {
     console.error(e);
@@ -1793,14 +1788,30 @@ app.post('/admin/themes', requireAdmin, async (req, res) => {
 
 app.get('/admin/themes/:id/edit', requireAdmin, async (req, res) => {
   try {
-    const theme = await get('SELECT * FROM themes WHERE id = ?', [req.params.id]);
+    const theme = await get('SELECT * FROM themes WHERE id = ? AND user_id IS NULL', [req.params.id]);
     if (!theme) return res.redirect('/admin/themes');
-    const parents = await all('SELECT * FROM themes WHERE id != ? ORDER BY id ASC', [req.params.id]);
+    const cards = await all(
+      'SELECT id, hebrew, french, transliteration FROM words WHERE theme_id = ? AND user_id IS NULL ORDER BY id ASC',
+      [theme.id]
+    );
     res.render('admin/theme_form', {
       theme,
-      parents,
+      cards: cards.length > 0 ? cards : [{ hebrew: '', french: '', transliteration: '' }],
       action: `/admin/themes/${theme.id}?_method=PUT`
     });
+  } catch (e) {
+    console.error(e);
+    res.redirect('/admin/themes');
+  }
+});
+
+app.post('/admin/themes/:id/toggle', requireAdmin, async (req, res) => {
+  try {
+    const theme = await get('SELECT * FROM themes WHERE id = ? AND user_id IS NULL', [req.params.id]);
+    if (!theme) return res.redirect('/admin/themes');
+    const newStatus = theme.active ? 0 : 1;
+    await run('UPDATE themes SET active = ? WHERE id = ?', [newStatus, theme.id]);
+    res.redirect('/admin/themes');
   } catch (e) {
     console.error(e);
     res.redirect('/admin/themes');
@@ -1848,22 +1859,40 @@ app.post('/levels/:id/toggle', requireAuth, async (req, res) => {
 app.get('/admin/themes/:id', requireAdmin, async (req, res) => {
   try {
     const theme = await get(
-      `SELECT t.*, parent.name AS parent_name
+      `SELECT t.*
        FROM themes t
-       LEFT JOIN themes parent ON parent.id = t.parent_id
-       WHERE t.id = ?`,
+       WHERE t.id = ? AND t.user_id IS NULL`,
       [req.params.id]
     );
     if (!theme) return res.redirect('/admin/themes');
-    const levels = await all(
-      'SELECT * FROM theme_levels WHERE theme_id = ? ORDER BY level_order, id',
+    const words = await all(
+      'SELECT id, hebrew, french, transliteration, active FROM words WHERE theme_id = ? AND user_id IS NULL ORDER BY id ASC',
       [theme.id]
     );
-    res.render('admin/theme_show', { theme, levels });
+    res.render('admin/theme_show', { theme, words });
   } catch (e) {
     console.error(e);
     res.redirect('/admin/themes');
   }
+});
+
+app.post('/admin/themes/:themeId/words/:wordId/action', requireAdmin, async (req, res) => {
+  const { action } = req.body;
+  const redirectTo = `/admin/themes/${req.params.themeId}`;
+  try {
+    const word = await get('SELECT * FROM words WHERE id = ? AND theme_id = ? AND user_id IS NULL', [req.params.wordId, req.params.themeId]);
+    if (!word) return res.redirect(redirectTo);
+    if (action === 'toggle_active') {
+      await run('UPDATE words SET active = ? WHERE id = ?', [word.active ? 0 : 1, word.id]);
+    } else if (action === 'delete') {
+      await run('DELETE FROM progress WHERE word_id = ?', [word.id]);
+      await run('DELETE FROM favorites WHERE word_id = ?', [word.id]);
+      await run('DELETE FROM words WHERE id = ?', [word.id]);
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  res.redirect(redirectTo);
 });
 
 app.post('/admin/themes/:id/levels', requireAdmin, async (req, res) => {
@@ -1882,12 +1911,47 @@ app.post('/admin/themes/:id/levels', requireAdmin, async (req, res) => {
 });
 
 app.put('/admin/themes/:id', requireAdmin, async (req, res) => {
-  const { name, parent_id, active } = req.body;
+  const { name, active } = req.body;
+  const cards = normalizeCardsPayload(req.body.cards);
   try {
+    const theme = await get('SELECT * FROM themes WHERE id = ? AND user_id IS NULL', [req.params.id]);
+    if (!theme) return res.redirect('/admin/themes');
+
     await run(
-      'UPDATE themes SET name = ?, parent_id = ?, active = ? WHERE id = ?',
-      [name, parent_id || null, active ? 1 : 0, req.params.id]
+      'UPDATE themes SET name = ?, active = ? WHERE id = ?',
+      [name, active ? 1 : 0, theme.id]
     );
+
+    const existing = await all('SELECT * FROM words WHERE theme_id = ? AND user_id IS NULL', [theme.id]);
+    const existingById = new Map(existing.map(w => [Number(w.id), w]));
+    const keptIds = new Set();
+
+    for (const card of cards) {
+      if (card.id && existingById.has(Number(card.id))) {
+        const current = existingById.get(Number(card.id));
+        await run(
+          'UPDATE words SET hebrew = ?, french = ?, transliteration = ? WHERE id = ? AND theme_id = ? AND user_id IS NULL',
+          [card.hebrew, card.french, card.transliteration || null, current.id, theme.id]
+        );
+        keptIds.add(Number(card.id));
+      } else {
+        const created = await run(
+          `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id)
+           VALUES (?,?,?,?,?,?,?,NULL)`,
+          [card.hebrew, card.transliteration || null, card.french, theme.id, null, 1, 1]
+        );
+        keptIds.add(created.lastID);
+      }
+    }
+
+    for (const w of existing) {
+      if (!keptIds.has(Number(w.id))) {
+        await run('DELETE FROM progress WHERE word_id = ?', [w.id]);
+        await run('DELETE FROM favorites WHERE word_id = ?', [w.id]);
+        await run('DELETE FROM words WHERE id = ?', [w.id]);
+      }
+    }
+
     res.redirect('/admin/themes');
   } catch (e) {
     console.error(e);
@@ -1923,24 +1987,11 @@ app.post('/admin/levels/:id/toggle', requireAdmin, async (req, res) => {
 
 app.delete('/admin/themes/:id', requireAdmin, async (req, res) => {
   try {
-    await run('UPDATE words SET level_id = NULL WHERE theme_id = ?', [req.params.id]);
-    await run('UPDATE words SET theme_id = NULL WHERE theme_id = ?', [req.params.id]);
-    await run('UPDATE themes SET parent_id = NULL WHERE parent_id = ?', [req.params.id]);
+    await run('DELETE FROM progress WHERE word_id IN (SELECT id FROM words WHERE theme_id = ? AND user_id IS NULL)', [req.params.id]);
+    await run('DELETE FROM favorites WHERE word_id IN (SELECT id FROM words WHERE theme_id = ? AND user_id IS NULL)', [req.params.id]);
+    await run('DELETE FROM words WHERE theme_id = ? AND user_id IS NULL', [req.params.id]);
     await run('DELETE FROM theme_levels WHERE theme_id = ?', [req.params.id]);
-    await run('DELETE FROM themes WHERE id = ?', [req.params.id]);
-    res.redirect('/admin/themes');
-  } catch (e) {
-    console.error(e);
-    res.redirect('/admin/themes');
-  }
-});
-
-app.post('/admin/themes/:id/toggle', requireAdmin, async (req, res) => {
-  try {
-    const theme = await get('SELECT * FROM themes WHERE id = ?', [req.params.id]);
-    if (!theme) return res.redirect('/admin/themes');
-    const newStatus = theme.active ? 0 : 1;
-    await run('UPDATE themes SET active = ? WHERE id = ?', [newStatus, theme.id]);
+    await run('DELETE FROM themes WHERE id = ? AND user_id IS NULL', [req.params.id]);
     res.redirect('/admin/themes');
   } catch (e) {
     console.error(e);

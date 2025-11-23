@@ -1,18 +1,17 @@
 <section>
   <div class="list-header">
-    <h1>Thèmes</h1>
+    <h1>Themes</h1>
     <div class="mode-switch">
       <button type="button" class="tab-btn active" data-target="tab-actif">Actifs</button>
       <button type="button" class="tab-btn" data-target="tab-inactif">Inactifs</button>
     </div>
-    
   </div>
 
   <div id="tab-actif" class="tab-panel">
     <div class="card">
-      <h3 style="margin-top:0;">Proposés</h3>
+      <h3 style="margin-top:0;">Proposes</h3>
       <% if (!proposedThemes || proposedThemes.length === 0) { %>
-        <p>Pas encore de thèmes publics.</p>
+        <p>Pas encore de themes publics.</p>
       <% } else { %>
         <ul class="list">
           <% proposedThemes.forEach(t => { %>
@@ -21,43 +20,11 @@
                 <strong><%= t.name %></strong>
                 <% if (currentUser && currentUser.role === 'admin') { %>
                   <form action="/themes/<%= t.id %>/toggle" method="post" style="display:inline;margin-left:0.35rem;">
-                    <button class="link" type="submit" title="Désactiver">👁</button>
+                    <button class="link" type="submit" title="Desactiver">Off</button>
                   </form>
                 <% } %>
-                <% if (t.parent_name) { %><div style="color:#94a3b8;font-size:0.9rem;">Parent : <%= t.parent_name %></div><% } %>
               </div>
-              <a class="link" href="/themes/<%= t.id %>">Voir</a>
-            </li>
-          <% }) %>
-        </ul>
-      <% } %>
-    </div>
-
-    <div class="card" style="margin-top:1rem;">
-      <div class="list-header" style="margin-bottom:0.5rem;">
-        <h3 style="margin:0;">Mes thèmes</h3>
-        <a class="btn" href="/my/themes/new">Ajouter</a>
-      </div>
-      <% if (!personalThemes || personalThemes.length === 0) { %>
-        <p>Pas encore de thèmes personnels.</p>
-      <% } else { %>
-        <ul class="list">
-          <% personalThemes.forEach(t => { %>
-            <li>
-              <div>
-                <strong><%= t.name %></strong>
-                <form action="/themes/<%= t.id %>/toggle" method="post" style="display:inline;margin-left:0.35rem;">
-                  <button class="link" type="submit" title="Désactiver">👁</button>
-                </form>
-                <% if (t.parent_name) { %><div style="color:#94a3b8;font-size:0.9rem;">Parent : <%= t.parent_name %></div><% } %>
-              </div>
-              <div class="mode-switch">
-                <a class="link" href="/themes/<%= t.id %>">Voir</a>
-                <a class="link" href="/my/themes/<%= t.id %>/edit">Modifier</a>
-                <form action="/my/themes/<%= t.id %>?_method=DELETE" method="post" style="display:inline;">
-                  <button type="submit" onclick="return confirm('Supprimer ce thème ?');">Supprimer</button>
-                </form>
-              </div>
+              <a class="btn ghost" href="/themes/<%= t.id %>">Voir</a>
             </li>
           <% }) %>
         </ul>
@@ -67,9 +34,9 @@
 
   <div id="tab-inactif" class="tab-panel" style="display:none;">
     <div class="card">
-      <h3 style="margin-top:0;">Proposés inactifs</h3>
+      <h3 style="margin-top:0;">Proposes inactifs</h3>
       <% if (!inactiveProposed || inactiveProposed.length === 0) { %>
-        <p>Aucun thème inactif.</p>
+        <p>Aucun theme inactif.</p>
       <% } else { %>
         <ul class="list">
           <% inactiveProposed.forEach(t => { %>
@@ -78,31 +45,10 @@
               <div class="mode-switch">
                 <% if (currentUser && currentUser.role === 'admin') { %>
                   <form action="/themes/<%= t.id %>/toggle" method="post" style="display:inline;">
-                    <button class="link" type="submit" title="Activer">🙈</button>
+                    <button class="link" type="submit" title="Activer">On</button>
                   </form>
                 <% } %>
-                <span title="Inactif">🔒</span>
-              </div>
-            </li>
-          <% }) %>
-        </ul>
-      <% } %>
-    </div>
-
-    <div class="card" style="margin-top:1rem;">
-      <h3 style="margin-top:0;">Mes thèmes inactifs</h3>
-      <% if (!inactivePersonal || inactivePersonal.length === 0) { %>
-        <p>Pas de thèmes personnels inactifs.</p>
-      <% } else { %>
-        <ul class="list">
-          <% inactivePersonal.forEach(t => { %>
-            <li>
-              <div><strong><%= t.name %></strong></div>
-              <div class="mode-switch">
-                <form action="/themes/<%= t.id %>/toggle" method="post" style="display:inline;">
-                  <button class="link" type="submit" title="Activer">🙈</button>
-                </form>
-                <span title="Inactif">🔒</span>
+                <span title="Inactif">Inactif</span>
               </div>
             </li>
           <% }) %>
@@ -128,4 +74,3 @@
     });
   })();
 </script>
-

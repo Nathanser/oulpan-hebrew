@@ -140,6 +140,13 @@ main.container {
   color: #9ca3af;
 }
 
+.sidebar hr {
+  border: none;
+  border-top: 2px solid #1f2937;
+  margin: 0.35rem 0.5rem;
+  width: calc(100% - 1rem);
+}
+
 .card {
   background: #020617;
   border-radius: 0.75rem;
@@ -396,7 +403,25 @@ button:hover,
 }
 
 .link {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
+}
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.8rem;
+  border: 1px solid #1f2937;
+  background: #0b1224;
+  color: #e5e7eb;
+  text-decoration: none;
+}
+.back-link:hover {
+  border-color: #38bdf8;
+  color: #38bdf8;
+  text-decoration: none;
 }
 
 .mode-switch {

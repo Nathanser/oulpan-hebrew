@@ -1,20 +1,11 @@
 <section class="card">
-  <h1><%= theme ? 'Modifier le thème' : 'Ajouter un thème' %></h1>
+  <h1><%= theme ? 'Modifier le theme' : 'Ajouter un theme' %></h1>
 
   <form method="post" action="<%= action %>" class="form">
     <label>Nom
       <input type="text" name="name" value="<%= theme ? theme.name : '' %>" required />
     </label>
 
-    <label>Parent (optionnel)
-      <select name="parent_id">
-        <option value="">(aucun)</option>
-        <% (parents || []).forEach(p => { %>
-          <option value="<%= p.id %>" <%= theme && theme.parent_id === p.id ? 'selected' : '' %>><%= p.name %></option>
-        <% }) %>
-      </select>
-    </label>
-
-    <button type="submit"><%= theme ? 'Enregistrer' : 'Créer' %></button>
+    <button type="submit"><%= theme ? 'Enregistrer' : 'Creer' %></button>
   </form>
 </section>
