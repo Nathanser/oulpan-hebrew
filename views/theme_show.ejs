@@ -37,9 +37,10 @@
         <p>Pas encore de mots dans ce theme.</p>
       </div>
     <% } else { %>
-      <% words.forEach(word => { %>
+      <% words.forEach((word, idx) => { %>
         <div class="word-card <%= word.active ? '' : 'is-inactive' %>" data-active="<%= word.active ? 1 : 0 %>" data-search="<%= (word.hebrew + ' ' + word.french + ' ' + (word.transliteration || '')).toLowerCase() %>">
           <div class="word-card-body">
+            <div class="word-index"><%= idx + 1 %></div>
             <p class="hebrew-word"><%= word.hebrew %></p>
             <p class="french-word"><%= word.french %></p>
             <% if (word.transliteration) { %>

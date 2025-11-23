@@ -391,7 +391,7 @@ async function ensureBaseThemes() {
       'Alimentation'
     ];
     for (const name of seedThemes) {
-      const created = await run('INSERT INTO themes (name, active) VALUES (?,1)', [name]);
+      const created = await run('INSERT INTO themes (name, active, created_at) VALUES (?,1, CURRENT_TIMESTAMP)', [name]);
       await run('INSERT INTO theme_levels (theme_id, name, level_order, active) VALUES (?,?,?,1)', [created.lastID, 'Niveau 1', 1]);
     }
     console.log('ThÃ¨mes de base crÃ©Ã©s (liste fournie).');
@@ -511,24 +511,36 @@ app.get('/app', requireAuth, async (req, res) => {
     }
     stats.total_seen = stats.words_seen + stats.cards_seen;
 
-    const themeIds = (await getThemeIdsInProgress(userId)).filter(Boolean);
-    let themes = [];
-    if (themeIds.length > 0) {
-      const placeholders = themeIds.map(() => '?').join(',');
-      themes = await all(
-        `SELECT t.*,
-          (SELECT COUNT(*) FROM words w WHERE w.theme_id = t.id) AS word_count
-         FROM themes t
-         WHERE t.id IN (${placeholders}) AND t.active = 1
-         ORDER BY t.id ASC`,
-        themeIds
-      );
+    let ongoing = null;
+    const state = req.session.trainState;
+    if (state && Number(state.answered || 0) > 0) {
+      const themeIds = state.theme_ids || [];
+      const setIds = state.set_ids || [];
+      let themeNames = [];
+      let setNames = [];
+      if (themeIds.length > 0) {
+        const ph = themeIds.map(() => '?').join(',');
+        themeNames = await all(`SELECT id, name FROM themes WHERE id IN (${ph})`, themeIds);
+      }
+      if (setIds.length > 0) {
+        const ph = setIds.map(() => '?').join(',');
+        setNames = await all(`SELECT id, name FROM sets WHERE id IN (${ph})`, setIds);
+      }
+      ongoing = {
+        mode: state.mode || 'flashcards',
+        remaining: state.remaining,
+        total: state.total,
+        answered: state.answered || 0,
+        correct: state.correct || 0,
+        themes: themeNames,
+        sets: setNames
+      };
     }
 
-    res.render('app', { stats, themes });
+    res.render('app', { stats, themes: [], ongoing });
   } catch (e) {
     console.error(e);
-    res.render('app', { stats: null, themes: [] });
+    res.render('app', { stats: null, themes: [], ongoing: null });
   }
 });
 
@@ -1282,7 +1294,7 @@ app.post('/my/themes', requireAuth, async (req, res) => {
   const { name } = req.body;
   if (!name) return res.redirect('/themes');
   try {
-    await run('INSERT INTO themes (name, user_id) VALUES (?,?)', [name, userId]);
+    await run('INSERT INTO themes (name, user_id, created_at) VALUES (?,?, CURRENT_TIMESTAMP)', [name, userId]);
     res.redirect('/themes');
   } catch (e) {
     console.error(e);
@@ -1387,7 +1399,97 @@ app.post('/train/session', requireAuth, async (req, res) => {
   const setRaw = Array.isArray(set_ids) ? set_ids.filter(Boolean) : set_ids ? [set_ids] : [];
   const themeList = themeRaw.flatMap(t => String(t).split(',')).filter(Boolean);
   const setList = setRaw.flatMap(s => String(s).split(',')).filter(Boolean).map(Number).filter(Boolean);
-  const remain = Number(remaining || 10);
+  let remain = remaining === 'all' ? null : Number(remaining || 10);
+
+  if (themeList.length === 0 && setList.length === 0) {
+    const userId = req.session.user.id;
+    const themes = await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]);
+    const levels = await getLevelsForUser(userId);
+    const sets = await all('SELECT id, name FROM sets WHERE user_id = ? AND active = 1 ORDER BY created_at DESC', [userId]);
+    return res.render('train_setup', {
+      themes,
+      levels,
+      sets,
+      error: 'Selectionne au moins un theme ou une liste.',
+      params: {
+        mode: mode === 'quiz' ? 'quiz' : 'flashcards',
+        rev_mode: rev_mode || 'random',
+        difficulty: difficulty || '',
+        theme_id: '',
+        level_id: level_id || '',
+        scope: 'all',
+        remaining: remain || 10,
+        total: remain || 10
+      }
+    });
+  }
+
+  let poolWords = null;
+  let poolCards = null;
+  if (remain === null) {
+    if (setList.length > 0) {
+      const placeholders = setList.map(() => '?').join(',');
+      poolCards = await all(
+        `SELECT id FROM cards WHERE set_id IN (${placeholders}) AND active = 1 ORDER BY set_id ASC, position ASC, id ASC`,
+        setList
+      );
+      remain = poolCards.length;
+    } else {
+      const params = [];
+      let baseSql = `SELECT w.id
+        FROM words w
+        LEFT JOIN themes t ON t.id = w.theme_id
+        LEFT JOIN theme_levels l ON l.id = w.level_id
+        WHERE w.active = 1
+          AND (w.theme_id IS NULL OR t.active = 1)
+          AND (w.level_id IS NULL OR l.active = 1)`;
+      if (themeList.length === 1) {
+        baseSql += ' AND w.theme_id = ?';
+        params.push(themeList[0]);
+      } else if (themeList.length > 1) {
+        const ph = themeList.map(() => '?').join(',');
+        baseSql += ` AND w.theme_id IN (${ph})`;
+        params.push(...themeList);
+      }
+      if (level_id) {
+        baseSql += ' AND w.level_id = ?';
+        params.push(level_id);
+      }
+      if (difficulty) {
+        baseSql += ' AND w.difficulty = ?';
+        params.push(difficulty);
+      }
+      baseSql += ' AND (w.user_id IS NULL OR w.user_id = ?)';
+      params.push(req.session.user.id);
+      baseSql += ' ORDER BY w.id ASC';
+      poolWords = await all(baseSql, params);
+      remain = poolWords.length;
+    }
+  }
+
+  if (!remain || Number(remain) <= 0) {
+    const userId = req.session.user.id;
+    const themes = await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]);
+    const levels = await getLevelsForUser(userId);
+    const sets = await all('SELECT id, name FROM sets WHERE user_id = ? AND active = 1 ORDER BY created_at DESC', [userId]);
+    return res.render('train_setup', {
+      themes,
+      levels,
+      sets,
+      error: 'Aucun mot disponible avec cette selection.',
+      params: {
+        mode: mode === 'quiz' ? 'quiz' : 'flashcards',
+        rev_mode: rev_mode || 'random',
+        difficulty: difficulty || '',
+        theme_id: '',
+        level_id: level_id || '',
+        scope: 'all',
+        remaining: 10,
+        total: 10
+      }
+    });
+  }
+
   req.session.trainState = {
     mode: mode === 'quiz' ? 'quiz' : 'flashcards',
     theme_ids: themeList,
@@ -1399,7 +1501,9 @@ app.post('/train/session', requireAuth, async (req, res) => {
     remaining: remain,
     total: remain,
     answered: 0,
-    correct: 0
+    correct: 0,
+    poolWords: poolWords ? poolWords.map(w => w.id) : null,
+    poolCards: poolCards ? poolCards.map(c => c.id) : null
   };
   res.redirect(`/train?mode=${req.session.trainState.mode}`);
 });
@@ -1617,6 +1721,54 @@ app.post('/favorites/:id', requireAuth, async (req, res) => {
   }
 });
 
+// Reprendre ou recommencer une session existante
+app.get('/train/resume', requireAuth, (req, res) => {
+  const state = req.session.trainState;
+  if (!state) return res.redirect('/train/setup');
+  const choice = req.query.choice === 'restart' ? 'restart' : 'resume';
+  if (choice === 'restart') {
+    const total = state.total === 'all' ? 'all' : Number(state.total || 0);
+    state.answered = 0;
+    state.correct = 0;
+    state.remaining = total;
+    req.session.trainState = state;
+  }
+  const mode = state.mode === 'quiz' ? 'quiz' : 'flashcards';
+  return res.redirect(`/train?mode=${mode}`);
+});
+
+// Supprimer la session en cours et nettoyer les stats associées
+app.post('/train/session/clear', requireAuth, async (req, res) => {
+  const state = req.session.trainState;
+  const userId = req.session.user.id;
+  if (state) {
+    try {
+      if (state.theme_ids && state.theme_ids.length > 0) {
+        const ph = state.theme_ids.map(() => '?').join(',');
+        const wordIds = await all(`SELECT id FROM words WHERE theme_id IN (${ph})`, state.theme_ids);
+        const ids = wordIds.map(w => w.id);
+        if (ids.length > 0) {
+          const phw = ids.map(() => '?').join(',');
+          await run(`DELETE FROM progress WHERE user_id = ? AND word_id IN (${phw})`, [userId, ...ids]);
+        }
+      }
+      if (state.set_ids && state.set_ids.length > 0) {
+        const ph = state.set_ids.map(() => '?').join(',');
+        const cardIds = await all(`SELECT id FROM cards WHERE set_id IN (${ph})`, state.set_ids);
+        const cids = cardIds.map(c => c.id);
+        if (cids.length > 0) {
+          const phc = cids.map(() => '?').join(',');
+          await run(`DELETE FROM card_progress WHERE user_id = ? AND card_id IN (${phc})`, [userId, ...cids]);
+        }
+      }
+    } catch (e) {
+      console.error('clear session error', e);
+    }
+    delete req.session.trainState;
+  }
+  res.redirect('/app');
+});
+
 // ---------- Admin ----------
 app.get('/admin', requireAdmin, async (req, res) => {
   try {
@@ -1732,6 +1884,8 @@ app.get('/admin/themes', requireAdmin, async (req, res) => {
     let orderBy = 'COALESCE(t.created_at, t.id) ASC';
     if (sort === 'created_desc') orderBy = 'COALESCE(t.created_at, t.id) DESC';
     if (sort === 'alpha') orderBy = 't.name COLLATE NOCASE ASC';
+    const importError = req.query.import_error || null;
+    const importSuccess = req.query.import_success || null;
     const themes = await all(
       `SELECT t.*,
         COUNT(w.id) AS word_count
@@ -1741,10 +1895,51 @@ app.get('/admin/themes', requireAdmin, async (req, res) => {
        GROUP BY t.id
        ORDER BY ${orderBy}`
     );
-    res.render('admin/themes', { themes, sort });
+    res.render('admin/themes', { themes, sort, importError, importSuccess });
   } catch (e) {
     console.error(e);
-    res.render('admin/themes', { themes: [], sort: req.query.sort || 'created_asc' });
+    res.render('admin/themes', { themes: [], sort: req.query.sort || 'created_asc', importError: null, importSuccess: null });
+  }
+});
+
+// Import d'un thème par défaut (JSON)
+app.post('/admin/themes/import', requireAdmin, async (req, res) => {
+  const redirectErr = msg => res.redirect(`/admin/themes?import_error=${encodeURIComponent(msg)}`);
+  try {
+    const payload = req.body.payload;
+    if (!payload || !payload.trim()) return redirectErr('Fichier JSON manquant');
+    let data;
+    try {
+      data = JSON.parse(payload);
+    } catch (e) {
+      return redirectErr('JSON invalide');
+    }
+    const name = data && data.name && String(data.name).trim();
+    if (!name) return redirectErr('Nom de theme manquant');
+    const words = Array.isArray(data.words) ? data.words : [];
+    if (words.length === 0) return redirectErr('Aucun mot dans le fichier');
+
+    const active = data.active === 0 ? 0 : 1;
+    const themeRes = await run('INSERT INTO themes (name, active, user_id, created_at) VALUES (?,?,NULL, CURRENT_TIMESTAMP)', [name, active]);
+    const themeId = themeRes.lastID;
+
+    for (const w of words) {
+      const hebrew = w.hebrew ? String(w.hebrew).trim() : '';
+      const french = w.french ? String(w.french).trim() : '';
+      if (!hebrew || !french) continue;
+      const translit = w.transliteration ? String(w.transliteration).trim() : null;
+      const wActive = w.active === 0 ? 0 : 1;
+      await run(
+        `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id)
+         VALUES (?,?,?,?,?,?,?,NULL)`,
+        [hebrew, translit, french, themeId, null, 1, wActive]
+      );
+    }
+
+    return res.redirect(`/admin/themes?import_success=${encodeURIComponent('Theme importe avec succes')}`);
+  } catch (e) {
+    console.error('Import theme error:', e);
+    return res.redirect(`/admin/themes?import_error=${encodeURIComponent('Erreur pendant l import')}`);
   }
 });
 
@@ -1766,7 +1961,7 @@ app.post('/admin/themes', requireAdmin, async (req, res) => {
   const cards = normalizeCardsPayload(req.body.cards);
   try {
     const createdTheme = await run(
-      'INSERT INTO themes (name, active, user_id) VALUES (?,?,NULL)',
+      'INSERT INTO themes (name, active, user_id, created_at) VALUES (?,?,NULL, CURRENT_TIMESTAMP)',
       [name, active ? 1 : 0]
     );
     const newThemeId = createdTheme.lastID;
@@ -2159,6 +2354,7 @@ app.delete('/admin/words/:id', requireAdmin, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server started at http://localhost:${PORT}`);
 });
+
 
 
 

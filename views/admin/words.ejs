@@ -7,9 +7,9 @@
   <form class="form" method="get" action="/admin/words" style="margin-bottom:1rem;">
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;">
       <label>Recherche
-        <input type="text" name="search" value="<%= filters && filters.search ? filters.search : '' %>" placeholder="français / hébreu / translittération" />
+        <input type="text" name="search" value="<%= filters && filters.search ? filters.search : '' %>" placeholder="francais / hebreu / transliteration" />
       </label>
-      <label>Thème
+      <label>Theme
         <select name="theme_id">
           <option value="">Tous</option>
           <% (themes || []).forEach(t => { %>
@@ -32,7 +32,7 @@
           <option value="0" <%= filters && filters.active === '0' ? 'selected' : '' %>>Non</option>
         </select>
       </label>
-      <label>Difficulté
+      <label>Difficulte
         <select name="difficulty">
           <option value="">Toutes</option>
           <option value="1" <%= filters && filters.difficulty == '1' ? 'selected' : '' %>>Facile</option>
@@ -42,23 +42,23 @@
       </label>
       <label>Trier
         <select name="sort">
-          <option value="id" <%= !filters || !filters.sort || filters.sort === 'id' ? 'selected' : '' %>>ID asc</option>
-          <option value="recent" <%= filters && filters.sort === 'recent' ? 'selected' : '' %>>Plus récent</option>
-          <option value="french" <%= filters && filters.sort === 'french' ? 'selected' : '' %>>Français</option>
-          <option value="difficulty" <%= filters && filters.sort === 'difficulty' ? 'selected' : '' %>>Difficulté</option>
+          <option value="created_asc" <%= !filters || !filters.sort || filters.sort === 'created_asc' ? 'selected' : '' %>>Creation (plus anciens)</option>
+          <option value="recent" <%= filters && filters.sort === 'recent' ? 'selected' : '' %>>Plus recent</option>
+          <option value="french" <%= filters && filters.sort === 'french' ? 'selected' : '' %>>Francais</option>
+          <option value="difficulty" <%= filters && filters.sort === 'difficulty' ? 'selected' : '' %>>Difficulte</option>
         </select>
       </label>
     </div>
     <div style="margin-top:0.5rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
       <button type="submit">Filtrer</button>
-      <a class="link" href="/admin/words">Réinitialiser</a>
+      <a class="link" href="/admin/words">Reinitialiser</a>
     </div>
   </form>
 
   <table class="table">
     <thead>
       <tr>
-        <th>ID</th>
+        <th>#</th>
         <th>Francais</th>
         <th>Hebreu</th>
         <th>Translitteration</th>
@@ -70,9 +70,9 @@
       </tr>
     </thead>
     <tbody>
-      <% words.forEach(w => { %>
+      <% words.forEach((w, idx) => { %>
         <tr>
-          <td><%= w.id %></td>
+          <td><%= idx + 1 %></td>
           <td><%= w.french %></td>
           <td><%= w.hebrew %></td>
           <td><%= w.transliteration || '' %></td>

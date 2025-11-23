@@ -2,18 +2,24 @@
   const f = filters || {};
   const themeIdsString = (f.theme_ids || []).join(',');
   const setIdsString = (f.set_ids || []).join(',');
-  const remainingCount = typeof remaining !== 'undefined' ? remaining : 10;
-  const totalCount = typeof total !== 'undefined' ? total : remainingCount;
-  const answeredCount = typeof answered !== 'undefined' ? answered : (totalCount - remainingCount + (word ? 1 : 0));
-  const correctCount = typeof correct !== 'undefined' ? correct : 0;
-  const currentStep = totalCount - remainingCount + (word ? 1 : 0);
+  const isAll = total === 'all' || remaining === 'all';
+  const remainingCount = isAll ? 'all' : (typeof remaining !== 'undefined' ? Number(remaining) : 10);
+  const totalCount = isAll ? 'all' : (typeof total !== 'undefined' ? Number(total) : remainingCount);
+  const answeredCount = typeof answered !== 'undefined'
+    ? Number(answered)
+    : (isAll ? 0 : (totalCount - remainingCount + (word ? 1 : 0)));
+  const correctCount = typeof correct !== 'undefined' ? Number(correct) : 0;
+  const currentStep = isAll
+    ? (answeredCount + (word ? 1 : 0))
+    : (totalCount - remainingCount + (word ? 1 : 0));
+  const totalLabel = isAll ? 'tout' : totalCount;
 %>
 
 <section class="card session-card">
   <div class="session-top">
     <a class="icon-btn" href="/train/setup">&#8592;</a>
     <div class="session-progress">
-      <span><%= currentStep %>/<%= totalCount %></span>
+      <span><%= currentStep %>/<%= totalLabel %></span>
       <span class="pill"><%= mode === 'flashcards' ? 'Flashcards' : 'Quiz' %></span>
     </div>
     <a class="icon-btn" href="/train/setup">&#9881;</a>
@@ -83,7 +89,7 @@
     <% } else { %>
       <div class="result success">
         <p>Session terminee.</p>
-        <p>Score : <strong><%= correctCount %>/<%= totalCount %></strong></p>
+        <p>Score : <strong><%= correctCount %>/<%= totalLabel %></strong></p>
       </div>
     <% } %>
   <% } %>

@@ -424,6 +424,21 @@ button:hover,
   text-decoration: none;
 }
 
+.word-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #0b1224;
+  border: 1px solid #1f2937;
+  color: #cbd5e1;
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
 .mode-switch {
   display: inline-flex;
   gap: 0.6rem;

@@ -1,5 +1,5 @@
 <section>
-  <h1>Bienvenue, <%= currentUser.display_name %> 👋</h1>
+  <h1>Bienvenue, <%= currentUser.display_name %></h1>
 
   <div class="grid">
     <div class="card">
@@ -15,22 +15,33 @@
 
     <div class="card">
       <h2>Thèmes en cours de révision</h2>
-      <% if (!themes || themes.length === 0) { %>
-        <p>Aucun thème pour l'instant. L'admin doit en créer.</p>
+      <% if (!ongoing) { %>
+        <p>Aucune session en cours. Lance une révision.</p>
       <% } else { %>
-        <ul class="list">
-          <% themes.forEach(t => { %>
-            <li>
-              <strong><%= t.name %></strong>
-              <span class="badge"><%= t.word_count %> mots</span>
-              <a class="link" href="/train?theme_id=<%= t.id %>">Réviser ce thème</a>
-            </li>
-          <% }) %>
-        </ul>
+        <div class="list">
+          <div class="list-header" style="margin-bottom:0.5rem;">
+            <div>
+              <p class="muted mini">Mode : <%= ongoing.mode === 'quiz' ? 'Quiz' : 'Flashcards' %></p>
+              <p class="muted mini">Progression : <%= Number(ongoing.answered || 0) %>/<%= ongoing.total === 'all' ? 'total' : ongoing.total %></p>
+            </div>
+            <div class="inline-actions">
+              <form method="post" action="/train/session/clear" style="display:inline;">
+                <button class="icon-btn danger" type="submit" title="Supprimer la session">&#128465;</button>
+              </form>
+            </div>
+          </div>
+          <% if (ongoing.themes && ongoing.themes.length > 0) { %>
+            <p class="muted mini">Thèmes : <%= ongoing.themes.map(t => t.name).join(', ') %></p>
+          <% } %>
+          <% if (ongoing.sets && ongoing.sets.length > 0) { %>
+            <p class="muted mini">Listes : <%= ongoing.sets.map(s => s.name).join(', ') %></p>
+          <% } %>
+          <div class="mode-switch" style="margin-top:0.5rem;">
+            <a class="btn" href="/train/resume?choice=resume">Reprendre la révision</a>
+            <a class="btn ghost" href="/train/resume?choice=restart">Recommencer</a>
+          </div>
+        </div>
       <% } %>
     </div>
   </div>
 </section>
-
-
-

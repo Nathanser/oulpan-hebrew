@@ -8,6 +8,29 @@
     </div>
   </div>
 
+  <% if (typeof importError !== 'undefined' && importError) { %>
+    <div class="alert alert-error"><%= importError %></div>
+  <% } %>
+  <% if (typeof importSuccess !== 'undefined' && importSuccess) { %>
+    <div class="alert alert-success"><%= importSuccess %></div>
+  <% } %>
+
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="list-header" style="margin:0 0 0.5rem;">
+      <h3 style="margin:0;">Importer un theme (JSON)</h3>
+      <small class="muted">Charge un fichier json avec le theme et ses mots</small>
+    </div>
+    <form method="post" action="/admin/themes/import" class="form" id="import-form">
+      <label>Fichier JSON
+        <input type="file" accept=".json,application/json" id="import-file" />
+      </label>
+      <label>Données (JSON)
+        <textarea name="payload" id="import-payload" rows="6" placeholder='{"name":"Nouveau theme","active":1,"words":[{"hebrew":"...","french":"...","transliteration":"..."}]}'></textarea>
+      </label>
+      <button type="submit" class="btn">Importer</button>
+    </form>
+  </div>
+
   <form class="form" action="/admin/themes" method="get" style="max-width:340px;">
     <label>Filtrer par
       <select name="sort" onchange="this.form.submit()">
@@ -31,7 +54,7 @@
             <div>
               <h3><%= theme.name %></h3>
               <p class="muted"><%= theme.word_count || 0 %> mot<%= Number(theme.word_count) > 1 ? 's' : '' %></p>
-              <p class="muted mini">Creé le <%= theme.created_at ? new Date(theme.created_at).toLocaleDateString('fr-FR') : '-' %></p>
+              <p class="muted mini">Cree le <%= theme.created_at ? new Date(theme.created_at).toLocaleDateString('fr-FR') : '-' %></p>
               <div class="pill-row" style="margin-top:0.35rem;">
                 <span class="pill <%= theme.active ? 'success' : 'muted' %>"><%= theme.active ? 'Actif' : 'Inactif' %></span>
               </div>
@@ -79,5 +102,19 @@
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.inline-actions')) closeMenus();
     });
+
+    const fileInput = document.getElementById('import-file');
+    const payloadArea = document.getElementById('import-payload');
+    if (fileInput && payloadArea && window.FileReader) {
+      fileInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = evt => {
+          payloadArea.value = evt.target.result || '';
+        };
+        reader.readAsText(file, 'utf-8');
+      });
+    }
   })();
 </script>
