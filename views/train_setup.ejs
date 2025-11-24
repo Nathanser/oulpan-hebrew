@@ -1,36 +1,55 @@
 <section class="card">
   <div class="list-header">
-    <h1>Choisir mon mode de révision</h1>
+    <h1>Choisir mon mode de revision</h1>
   </div>
 
   <form class="form setup-grid" action="/train/session" method="post" id="setup-form">
     <% if (typeof error !== 'undefined' && error) { %>
       <div class="alert alert-error"><%= error %></div>
     <% } %>
+
     <div class="field-block">
-      <label>Mode
-        <select name="mode">
-          <option value="flashcards" selected>Flashcards QCM</option>
-          <option value="quiz">Saisie libre (quiz)</option>
-        </select>
-      </label>
+      <div class="field-title">Modes de revision</div>
+      <% 
+        const selectedModes = (params && params.modes ? (Array.isArray(params.modes) ? params.modes : [params.modes]) : ['flashcards']);
+        const selectedThemes = new Set((params && params.theme_ids ? (Array.isArray(params.theme_ids) ? params.theme_ids : [params.theme_ids]) : []).map(v => String(v)));
+        const selectedSets = new Set((params && params.set_ids ? (Array.isArray(params.set_ids) ? params.set_ids : [params.set_ids]) : []).map(v => String(v)));
+        const selectedRemaining = (params && typeof params.remaining !== 'undefined') ? String(params.remaining) : '10';
+        const selectedRevMode = params && typeof params.rev_mode !== 'undefined' ? String(params.rev_mode) : 'order';
+        const selectedDifficulty = params && typeof params.difficulty !== 'undefined' ? String(params.difficulty) : '';
+        const selectedLevel = params && params.level_id ? String(params.level_id) : '';
+      %>
+      <div class="mode-grid">
+        <label class="check-row">
+          <input type="checkbox" name="modes[]" value="flashcards" <%= selectedModes.includes('flashcards') ? 'checked' : '' %>>
+          <span>Flashcards classique</span>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" name="modes[]" value="flashcards_reverse" <%= selectedModes.includes('flashcards_reverse') ? 'checked' : '' %>>
+          <span>Flashcards reverse</span>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" name="modes[]" value="written" <%= selectedModes.includes('written') ? 'checked' : '' %>>
+          <span>Revision par ecrit</span>
+        </label>
+      </div>
     </div>
 
     <div class="field-block">
-      <label>Thèmes et listes</label>
-      <div class="theme-toggles">
-        <label><input type="checkbox" id="toggle-public"> Thèmes en ligne</label>
-        <label><input type="checkbox" id="toggle-lists"> Mes listes</label>
+      <div class="field-title">Themes et listes</div>
+      <div class="theme-toggles inline">
+        <label class="check-row"><input type="checkbox" id="toggle-public" <%= selectedThemes.size > 0 ? 'checked' : '' %>> <span>Themes en ligne</span></label>
+        <label class="check-row"><input type="checkbox" id="toggle-lists" <%= selectedSets.size > 0 ? 'checked' : '' %>> <span>Mes listes</span></label>
       </div>
       <div class="theme-groups">
         <div class="theme-group" id="public-group">
-          <p class="muted mini" style="margin:0 0 0.2rem;">Thèmes en ligne</p>
+          <p class="muted mini" style="margin:0 0 0.2rem;">Themes en ligne</p>
           <% if (!themes || themes.filter(t => !t.user_id).length === 0) { %>
-            <p class="muted mini">Aucun thème en ligne disponible.</p>
+            <p class="muted mini">Aucun theme en ligne disponible.</p>
           <% } else { %>
             <select id="theme-select" name="theme_ids[]" multiple size="6">
               <% themes.forEach(t => { if (!t.user_id) { %>
-                <option value="<%= t.id %>"><%= t.name %></option>
+                <option value="<%= t.id %>" <%= selectedThemes.has(String(t.id)) ? 'selected' : '' %>><%= t.name %></option>
               <% } }) %>
             </select>
           <% } %>
@@ -42,7 +61,7 @@
           <% } else { %>
             <select id="list-select" name="set_ids[]" multiple size="6">
               <% sets.forEach(s => { %>
-                <option value="<%= s.id %>"><%= s.name %></option>
+                <option value="<%= s.id %>" <%= selectedSets.has(String(s.id)) ? 'selected' : '' %>><%= s.name %></option>
               <% }) %>
             </select>
           <% } %>
@@ -61,47 +80,51 @@
     <div class="field-block">
       <label>Nombre de mots
         <select name="remaining">
-          <option value="all">Tout le thème/liste</option>
-          <option value="5">5</option>
-          <option value="10" selected>10</option>
-          <option value="15">15</option>
-          <option value="20">20</option>
-          <option value="50">50</option>
+          <option value="all" <%= selectedRemaining === 'all' ? 'selected' : '' %>>Tout le theme/liste</option>
+          <option value="5" <%= selectedRemaining === '5' ? 'selected' : '' %>>5</option>
+          <option value="10" <%= selectedRemaining === '10' ? 'selected' : '' %>>10</option>
+          <option value="15" <%= selectedRemaining === '15' ? 'selected' : '' %>>15</option>
+          <option value="20" <%= selectedRemaining === '20' ? 'selected' : '' %>>20</option>
+          <option value="50" <%= selectedRemaining === '50' ? 'selected' : '' %>>50</option>
         </select>
       </label>
-      <input type="hidden" name="total" value="10">
+      <input type="hidden" name="total" value="<%= (params && typeof params.total !== 'undefined') ? params.total : 10 %>">
     </div>
 
     <details class="advanced">
-      <summary>Options avancées</summary>
+      <summary>Options avancees</summary>
       <div class="advanced-grid">
-        <label>Mode de révision
+        <label>Mode de revision
           <select name="rev_mode">
-            <option value="order" selected>Dans l'ordre</option>
-            <option value="random">Aléatoire</option>
-            <option value="favorites">Favoris</option>
-            <option value="new">Nouveaux mots</option>
-            <option value="weak">Mots faibles / non maîtrisés</option>
+            <option value="order" <%= selectedRevMode === 'order' ? 'selected' : '' %>>Dans l'ordre</option>
+            <option value="random" <%= selectedRevMode === 'random' ? 'selected' : '' %>>Aleatoire</option>
+            <option value="favorites" <%= selectedRevMode === 'favorites' ? 'selected' : '' %>>Favoris</option>
+            <option value="new" <%= selectedRevMode === 'new' ? 'selected' : '' %>>Nouveaux mots</option>
+            <option value="weak" <%= selectedRevMode === 'weak' ? 'selected' : '' %>>Mots faibles / non maitrises</option>
           </select>
         </label>
-        <label>Difficulté
+        <label>Difficulte
           <select name="difficulty">
-            <option value="">Toutes</option>
-            <option value="1">Facile</option>
-            <option value="2">Moyen</option>
-            <option value="3">Difficile</option>
+            <option value="" <%= selectedDifficulty === '' ? 'selected' : '' %>>Toutes</option>
+            <option value="1" <%= selectedDifficulty === '1' ? 'selected' : '' %>>Facile</option>
+            <option value="2" <%= selectedDifficulty === '2' ? 'selected' : '' %>>Moyen</option>
+            <option value="3" <%= selectedDifficulty === '3' ? 'selected' : '' %>>Difficile</option>
           </select>
         </label>
       </div>
     </details>
 
-    <button type="submit">Démarrer</button>
+    <button type="submit">Demarrer</button>
   </form>
 </section>
 
 <script>
   (() => {
     const levelsData = <%- JSON.stringify(levels || []) %>;
+    const preselectedThemes = <%- JSON.stringify(Array.from(selectedThemes)) %>;
+    const preselectedSets = <%- JSON.stringify(Array.from(selectedSets)) %>;
+    const preselectedLevel = <%- JSON.stringify(selectedLevel || '') %>;
+    const selectedRemainingValue = <%- JSON.stringify(selectedRemaining) %>;
     const levelSelect = document.getElementById('level-select');
     const levelField = document.getElementById('level-field');
     const publicGroup = document.getElementById('public-group');
@@ -110,6 +133,7 @@
     const toggleLists = document.getElementById('toggle-lists');
     const themeSelect = document.getElementById('theme-select');
     const listSelect = document.getElementById('list-select');
+    const remainingSelect = document.querySelector('select[name="remaining"]');
 
     const renderLevels = () => {
       const checkedThemes = themeSelect
@@ -154,8 +178,36 @@
     if (listSelect) listSelect.addEventListener('change', () => {});
     if (togglePublic) togglePublic.addEventListener('change', updateGroups);
     if (toggleLists) toggleLists.addEventListener('change', updateGroups);
-    // au chargement, rien n'est coché
-    if (publicGroup) publicGroup.style.display = 'none';
-    if (listGroup) listGroup.style.display = 'none';
+    if (themeSelect && preselectedThemes && preselectedThemes.length > 0) {
+      preselectedThemes.forEach(val => {
+        const opt = themeSelect.querySelector(`option[value="${val}"]`);
+        if (opt) opt.selected = true;
+      });
+    }
+    if (listSelect && preselectedSets && preselectedSets.length > 0) {
+      preselectedSets.forEach(val => {
+        const opt = listSelect.querySelector(`option[value="${val}"]`);
+        if (opt) opt.selected = true;
+      });
+    }
+    if (remainingSelect && selectedRemainingValue) {
+      remainingSelect.value = selectedRemainingValue;
+    }
+
+    renderLevels();
+    if (preselectedLevel && levelSelect) {
+      levelSelect.value = preselectedLevel;
+      if (levelSelect.value) levelField.style.display = 'block';
+    }
+    updateGroups();
+
+    const form = document.getElementById('setup-form');
+    if (form) {
+      form.addEventListener('submit', () => {
+        const modeInputs = Array.from(document.querySelectorAll('input[name="modes[]"]'));
+        const anyChecked = modeInputs.some(i => i.checked);
+        if (!anyChecked && modeInputs[0]) modeInputs[0].checked = true;
+      });
+    }
   })();
 </script>

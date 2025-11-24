@@ -1,6 +1,6 @@
 <section>
   <div class="list-header">
-    <h1>Themes</h1>
+    <h1>Themes par défaut</h1>
     <div class="mode-switch">
       <button type="button" class="tab-btn active" data-target="tab-actif">Actifs</button>
       <button type="button" class="tab-btn" data-target="tab-inactif">Inactifs</button>
@@ -9,7 +9,7 @@
 
   <div id="tab-actif" class="tab-panel">
     <div class="card">
-      <h3 style="margin-top:0;">Proposes</h3>
+      <h3 style="margin-top:0;">Thèmes actifs</h3>
       <% if (!proposedThemes || proposedThemes.length === 0) { %>
         <p>Pas encore de themes publics.</p>
       <% } else { %>
@@ -34,7 +34,7 @@
 
   <div id="tab-inactif" class="tab-panel" style="display:none;">
     <div class="card">
-      <h3 style="margin-top:0;">Proposes inactifs</h3>
+      <h3 style="margin-top:0;">Thèmes inactifs</h3>
       <% if (!inactiveProposed || inactiveProposed.length === 0) { %>
         <p>Aucun theme inactif.</p>
       <% } else { %>
