@@ -1,0 +1,83 @@
+<section>
+  <div class="list-header">
+    <div>
+      <p class="eyebrow">Import / Export</p>
+      <h1><%= importType === 'theme' ? 'Importer un thème' : 'Importer une liste' %></h1>
+      <p class="muted">Ajoute un thème ou une liste (JSON) ou exporte-les en ZIP.</p>
+    </div>
+  </div>
+
+  <% if (importError) { %>
+    <div class="alert alert-error"><%= importError %></div>
+  <% } %>
+  <% if (importSuccess) { %>
+    <div class="alert alert-success"><%= importSuccess %></div>
+  <% } %>
+
+  <% if (pendingImport) { %>
+    <div class="alert alert-warning">
+      La Liste ou Thème existe déjà, voulez-vous ajouter ces mots à cette liste ?
+      <div class="muted" style="margin-top:0.35rem;">
+        <strong><%= pendingImport.name %></strong> - <%= pendingImport.wordsCount %> mot<%= Number(pendingImport.wordsCount) > 1 ? 's' : '' %> trouvés
+      </div>
+    </div>
+    <div class="inline-actions" style="margin-bottom:1rem;">
+      <form method="post" action="/import" class="form" style="margin-right:0.5rem;">
+        <input type="hidden" name="payload" value="<%= payloadValue || '' %>" />
+        <input type="hidden" name="confirm" value="append" />
+        <button type="submit" class="btn">Oui</button>
+      </form>
+      <a class="btn ghost" href="/import">Non</a>
+    </div>
+  <% } %>
+
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="list-header" style="margin:0 0 0.5rem;">
+      <h3 style="margin:0;">Charger un fichier JSON</h3>
+      <small class="muted">Disponible pour <%= isAdmin ? 'les thèmes admin' : 'les listes perso' %></small>
+    </div>
+    <form method="post" action="/import" class="form" id="import-form">
+      <label>Fichier JSON
+        <input type="file" accept=".json,application/json" id="import-file" />
+      </label>
+      <%
+        const placeholder = importType === 'theme'
+          ? '{"name":"Nouveau theme","active":1,"words":[{"hebrew":"...","french":"...","transliteration":"..."}]}'
+          : '{"name":"Nouvelle liste","words":[{"hebrew":"...","french":"...","transliteration":"..."}]}';
+      %>
+      <label>Donnèes (JSON)
+        <textarea name="payload" id="import-payload" rows="8" placeholder="<%= placeholder %>"><%= payloadValue || '' %></textarea>
+      </label>
+      <button type="submit" class="btn">Importer</button>
+    </form>
+  </div>
+
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="list-header" style="margin:0 0 0.5rem;">
+      <h3 style="margin:0;">Exporter en JSON (ZIP)</h3>
+      <small class="muted"><%= isAdmin ? 'Thèmes actifs/inactifs + listes de tous les utilisateurs' : 'Toutes mes listes personnelles' %></small>
+    </div>
+    <form method="post" action="/export">
+      <p class="muted">Un fichier .zip sera téléchargé, contenant un JSON par thème ou liste (compatible avec l'import).</p> <br>
+      <button type="submit" class="btn" style="width:100%;">Exporter</button>
+    </form>
+  </div>
+</section>
+
+<script>
+  (() => {
+    const fileInput = document.getElementById('import-file');
+    const payloadArea = document.getElementById('import-payload');
+    if (fileInput && payloadArea && window.FileReader) {
+      fileInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = evt => {
+          payloadArea.value = evt.target.result || '';
+        };
+        reader.readAsText(file, 'utf-8');
+      });
+    }
+  })();
+</script>

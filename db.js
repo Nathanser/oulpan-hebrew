@@ -117,6 +117,11 @@ safeAlter('ALTER TABLE cards ADD COLUMN memorized INTEGER DEFAULT 0');
 safeAlter('CREATE TABLE IF NOT EXISTS card_progress (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, card_id INTEGER NOT NULL, success_count INTEGER DEFAULT 0, fail_count INTEGER DEFAULT 0, last_seen DATETIME)');
 safeAlter('ALTER TABLE themes ADD COLUMN created_at DATETIME');
 safeAlter('CREATE TABLE IF NOT EXISTS user_word_overrides (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, word_id INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 1, UNIQUE(user_id, word_id))');
+safeAlter('CREATE TABLE IF NOT EXISTS set_shares (id INTEGER PRIMARY KEY AUTOINCREMENT, set_id INTEGER NOT NULL, user_id INTEGER NOT NULL, UNIQUE(set_id, user_id))');
+safeAlter('CREATE TABLE IF NOT EXISTS card_overrides (id INTEGER PRIMARY KEY AUTOINCREMENT, card_id INTEGER NOT NULL, user_id INTEGER NOT NULL, active INTEGER DEFAULT NULL, favorite INTEGER DEFAULT NULL, memorized INTEGER DEFAULT NULL, UNIQUE(card_id, user_id))');
+safeAlter('CREATE TABLE IF NOT EXISTS user_set_overrides (id INTEGER PRIMARY KEY AUTOINCREMENT, set_id INTEGER NOT NULL, user_id INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 1, UNIQUE(set_id, user_id))');
+safeAlter('CREATE TABLE IF NOT EXISTS user_theme_overrides (id INTEGER PRIMARY KEY AUTOINCREMENT, theme_id INTEGER NOT NULL, user_id INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 1, UNIQUE(theme_id, user_id))');
+safeAlter('ALTER TABLE set_shares ADD COLUMN can_edit INTEGER DEFAULT 0');
 db.run('UPDATE themes SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL', err => {
   if (err && !/no such column/i.test(err.message)) {
     console.error('Alter fill error:', err.message);

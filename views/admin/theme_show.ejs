@@ -4,7 +4,7 @@
 <section class="card list-screen">
   <div class="list-screen-head">
     <div>
-      <a class="link back-link" href="/admin/themes">&#8592; Retour</a>
+      <a class="link back-link" id="back-link" href="/admin/themes">&#8592; Retour</a>
       <h1><%= theme.name %></h1>
       <p class="muted mini">Theme par defaut - <%= theme.active ? 'Actif' : 'Inactif' %></p>
     </div>
@@ -22,15 +22,23 @@
     <button class="tab-chip" data-tab="inactive">Inactifs (<%= inactiveCount %>)</button>
   </div>
 
-  <div class="search-row">
-    <span class="search-icon">&#128269;</span>
-    <input type="search" id="card-search" placeholder="Recherche (hebreu, francais, phonetique)" />
+  <div class="search-bar-row">
+    <div class="search-row">
+      <span class="search-icon">&#128269;</span>
+      <input type="search" id="card-search" placeholder="Recherche (hebreu, francais, phonetique)" />
+    </div>
+    <div class="search-actions">
+      <button type="button" class="icon-btn ghost" id="select-toggle" title="Deplacer des mots">&#x21C4;</button>
+      <button type="button" class="icon-btn danger" id="select-cancel" style="display:none;" title="Annuler">&#10060;</button>
+    </div>
   </div>
+
+  <div class="alert alert-error" id="select-banner" style="display:none;"></div>
 
   <div class="cards-wall" id="cards-wall">
     <% if (!words || words.length === 0) { %>
       <div class="wall-empty">
-        <p>Pas encore de mots dans ce theme.</p>
+        <p>Aucun mot.</p>
       </div>
     <% } else { %>
       <% words.forEach((word, idx) => { %>
@@ -39,6 +47,9 @@
             <div class="word-card-actions">
               <a class="icon-btn ghost" href="/admin/words?search=<%= encodeURIComponent(word.french) %>" title="Ouvrir dans la page mots">&#9998;</a>
             </div>
+            <label class="card-select">
+              <input type="checkbox" class="card-check" value="<%= word.id %>" />
+            </label>
           </div>
           <div class="word-card-body">
             <div class="word-index"><%= idx + 1 %></div>
@@ -67,10 +78,34 @@
   </div>
 
   <div class="list-bottom-actions fixed-actions">
-    <a class="cta" href="/admin/themes/<%= theme.id %>/edit">Ajouter des mots</a>
-    <a class="cta secondary" href="/admin/themes">Retour aux themes</a>
+    <button type="button" class="cta" id="main-action" data-edit-url="/admin/themes/<%= theme.id %>/edit">Ajouter des mots</button>
+    <a class="cta secondary" id="return-link" href="/admin/themes">Retour aux themes</a>
   </div>
 </section>
+
+<div class="modal-backdrop" id="move-modal" style="display:none;">
+  <div class="modal-card">
+    <h3>Deplacer vers</h3>
+    <% if (!targetThemes || targetThemes.length === 0) { %>
+      <p class="muted">Pas d'autre theme disponible.</p>
+    <% } else { %>
+      <div class="options-list">
+        <% targetThemes.forEach(t => { %>
+          <label class="option-row">
+            <input type="radio" name="target_theme" value="<%= t.id %>" />
+            <span><%= t.name %></span>
+          </label>
+        <% }) %>
+      </div>
+    <% } %>
+    <div class="alert alert-error" id="move-error" style="display:none;"></div>
+    <div class="inline-actions modal-actions">
+      <button type="button" class="btn" id="confirm-move">Valider</button>
+      <button type="button" class="btn ghost" id="cancel-move">Annuler</button>
+    </div>
+  </div>
+</div>
+<form id="move-form" method="post" action="/admin/themes/<%= theme.id %>/move"></form>
 
 <script>
   (() => {
@@ -101,6 +136,152 @@
       search.addEventListener('input', applyFilters);
     }
 
+    const selectBtn = document.getElementById('select-toggle');
+    const cancelSelectBtn = document.getElementById('select-cancel');
+    const mainAction = document.getElementById('main-action');
+    const backLink = document.getElementById('back-link');
+    const returnLink = document.getElementById('return-link');
+    const banner = document.getElementById('select-banner');
+    const modal = document.getElementById('move-modal');
+    const confirmMove = document.getElementById('confirm-move');
+    const cancelMove = document.getElementById('cancel-move');
+    const moveForm = document.getElementById('move-form');
+    const moveError = document.getElementById('move-error');
+    const cardChecks = Array.from(document.querySelectorAll('.card-check'));
+    let selecting = false;
+
+    const getSelectedIds = () => cardChecks.filter(cb => cb.checked).map(cb => cb.value);
+    const showBanner = (msg) => {
+      if (!banner) return;
+      banner.textContent = msg;
+      banner.style.display = 'block';
+      setTimeout(() => { banner.style.display = 'none'; }, 2200);
+    };
+
+    const closeModal = () => {
+      if (modal) modal.style.display = 'none';
+      if (moveError) moveError.style.display = 'none';
+    };
+
+    const updateSelectionUI = () => {
+      document.querySelectorAll('.word-card-actions, .word-card-inline-actions').forEach(el => {
+        el.style.display = selecting ? 'none' : '';
+      });
+      document.querySelectorAll('.card-select').forEach(el => {
+        el.style.display = selecting ? 'flex' : 'none';
+      });
+      if (backLink) backLink.style.display = selecting ? 'none' : '';
+      if (returnLink) returnLink.style.display = selecting ? 'none' : '';
+      if (selectBtn) selectBtn.style.display = selecting ? 'none' : '';
+      if (cancelSelectBtn) cancelSelectBtn.style.display = selecting ? '' : 'none';
+      if (mainAction) {
+        mainAction.textContent = selecting ? 'Deplacer ces mots' : 'Ajouter des mots';
+        const disabled = selecting && getSelectedIds().length === 0;
+        mainAction.classList.toggle('is-disabled', disabled);
+        mainAction.dataset.disabled = disabled ? '1' : '0';
+      }
+    };
+
+    const exitSelection = () => {
+      selecting = false;
+      cardChecks.forEach(cb => { cb.checked = false; });
+      closeModal();
+      updateSelectionUI();
+    };
+
+    if (selectBtn) {
+      selectBtn.addEventListener('click', () => {
+        selecting = true;
+        updateSelectionUI();
+      });
+    }
+    if (cancelSelectBtn) {
+      cancelSelectBtn.addEventListener('click', exitSelection);
+    }
+
+    cardChecks.forEach(cb => {
+      cb.addEventListener('change', () => {
+        if (mainAction && selecting) {
+          const disabled = getSelectedIds().length === 0;
+          mainAction.classList.toggle('is-disabled', disabled);
+          mainAction.dataset.disabled = disabled ? '1' : '0';
+        }
+      });
+    });
+
+    const openModal = () => {
+      if (!selecting) return;
+      if (getSelectedIds().length === 0) {
+        showBanner('Selectionne au moins un mot.');
+        return;
+      }
+      if (modal) modal.style.display = 'flex';
+    };
+
+    if (mainAction) {
+      mainAction.addEventListener('click', (e) => {
+        if (!selecting) {
+          const url = mainAction.getAttribute('data-edit-url');
+          if (url) window.location.href = url;
+          return;
+        }
+        e.preventDefault();
+        if (mainAction.dataset.disabled === '1') {
+          showBanner('Selectionne au moins un mot.');
+          return;
+        }
+        openModal();
+      });
+    }
+
+    if (cancelMove) {
+      cancelMove.addEventListener('click', (e) => {
+        e.preventDefault();
+        closeModal();
+      });
+    }
+
+    if (confirmMove && moveForm) {
+      confirmMove.addEventListener('click', (e) => {
+        e.preventDefault();
+        const selected = getSelectedIds();
+        if (selected.length === 0) {
+          showBanner('Selectionne au moins un mot.');
+          closeModal();
+          return;
+        }
+        const target = document.querySelector('input[name="target_theme"]:checked');
+        if (!target) {
+          if (moveError) {
+            moveError.textContent = 'Choisis une destination.';
+            moveError.style.display = 'block';
+          }
+          return;
+        }
+        moveForm.innerHTML = '';
+        selected.forEach(id => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'word_ids';
+          input.value = id;
+          moveForm.appendChild(input);
+        });
+        const targetInput = document.createElement('input');
+        targetInput.type = 'hidden';
+        targetInput.name = 'target_theme_id';
+        targetInput.value = target.value;
+        moveForm.appendChild(targetInput);
+        moveForm.submit();
+      });
+    }
+
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+      });
+    }
+
     applyFilters();
+    updateSelectionUI();
   })();
 </script>

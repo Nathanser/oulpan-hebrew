@@ -4,7 +4,7 @@
   </div>
 
   <div class="card" style="margin-top:1rem;">
-    <h2>Mes favoris</h2>
+    <h2>Mes favoris (Thèmes)</h2>
     <% if (!favorites || favorites.length === 0) { %>
       <p>Pas de favoris pour l'instant.</p>
     <% } else { %>
@@ -39,7 +39,7 @@
   </div>
 
   <div class="card" style="margin-top:1rem;">
-    <h2>Favoris depuis mes listes</h2>
+    <h2>Mes favoris (Liste perso)</h2>
     <% if (!listFavorites || listFavorites.length === 0) { %>
       <p>Pas de cartes de liste en favoris.</p>
     <% } else { %>
@@ -58,6 +58,42 @@
               <td><%= c.french %></td>
               <td><%= c.hebrew %></td>
               <td><%= c.set_name || '-' %></td>
+              <td>
+                <form action="/my/lists/<%= c.set_id %>/cards/<%= c.id %>/action" method="post" style="display:inline;">
+                  <input type="hidden" name="action" value="toggle_fav">
+                  <input type="hidden" name="redirectTo" value="/my/words">
+                  <button class="link" type="submit">Retirer</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <div class="card" style="margin-top:1rem;">
+    <h2>Mes favoris (Liste partagées)</h2>
+    <% if (!sharedFavorites || sharedFavorites.length === 0) { %>
+      <p>Aucun favori provenant des listes partagees.</p>
+    <% } else { %>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Francais</th>
+            <th>Hebreu</th>
+            <th>Liste</th>
+            <th>Proprietaire</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% sharedFavorites.forEach(c => { %>
+            <tr>
+              <td><%= c.french %></td>
+              <td><%= c.hebrew %></td>
+              <td><%= c.set_name || '-' %></td>
+              <td><%= c.owner_name || '-' %></td>
               <td>
                 <form action="/my/lists/<%= c.set_id %>/cards/<%= c.id %>/action" method="post" style="display:inline;">
                   <input type="hidden" name="action" value="toggle_fav">

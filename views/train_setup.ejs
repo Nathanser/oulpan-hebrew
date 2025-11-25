@@ -1,6 +1,6 @@
 <section class="card">
   <div class="list-header">
-    <h1>Choisir mon mode de revision</h1>
+    <h1>Choisir mon mode de révision</h1>
   </div>
 
   <form class="form setup-grid" action="/train/session" method="post" id="setup-form">
@@ -9,14 +9,14 @@
     <% } %>
 
     <div class="field-block">
-      <div class="field-title">Modes de revision</div>
+      <div class="field-title">Modes de révision</div>
       <% 
         const selectedModes = (params && params.modes ? (Array.isArray(params.modes) ? params.modes : [params.modes]) : ['flashcards']);
         const selectedThemes = new Set((params && params.theme_ids ? (Array.isArray(params.theme_ids) ? params.theme_ids : [params.theme_ids]) : []).map(v => String(v)));
         const selectedSets = new Set((params && params.set_ids ? (Array.isArray(params.set_ids) ? params.set_ids : [params.set_ids]) : []).map(v => String(v)));
         const selectedRemaining = (params && typeof params.remaining !== 'undefined') ? String(params.remaining) : '10';
         const selectedRevMode = params && typeof params.rev_mode !== 'undefined' ? String(params.rev_mode) : 'order';
-        const selectedDifficulty = params && typeof params.difficulty !== 'undefined' ? String(params.difficulty) : '';
+        const selectedPhonetic = params && typeof params.show_phonetic !== 'undefined' ? String(params.show_phonetic) : '1';
         const selectedLevel = params && params.level_id ? String(params.level_id) : '';
       %>
       <div class="mode-grid">
@@ -30,22 +30,23 @@
         </label>
         <label class="check-row">
           <input type="checkbox" name="modes[]" value="written" <%= selectedModes.includes('written') ? 'checked' : '' %>>
-          <span>Revision par ecrit</span>
+          <span>Révision par ecrit</span>
         </label>
       </div>
     </div>
 
     <div class="field-block">
-      <div class="field-title">Themes et listes</div>
+      <div class="field-title">Thèmes et listes</div>
       <div class="theme-toggles inline">
-        <label class="check-row"><input type="checkbox" id="toggle-public" <%= selectedThemes.size > 0 ? 'checked' : '' %>> <span>Themes en ligne</span></label>
+        <label class="check-row"><input type="checkbox" id="toggle-public" <%= selectedThemes.size > 0 ? 'checked' : '' %>> <span>Thèmes en ligne</span></label>
         <label class="check-row"><input type="checkbox" id="toggle-lists" <%= selectedSets.size > 0 ? 'checked' : '' %>> <span>Mes listes</span></label>
+        <label class="check-row"><input type="checkbox" id="toggle-shared" <%= selectedSets.size > 0 ? 'checked' : '' %>> <span>Listes partagées</span></label>
       </div>
       <div class="theme-groups">
         <div class="theme-group" id="public-group">
-          <p class="muted mini" style="margin:0 0 0.2rem;">Themes en ligne</p>
+          <p class="muted mini" style="margin:0 0 0.2rem;">Thèmes en ligne</p>
           <% if (!themes || themes.filter(t => !t.user_id).length === 0) { %>
-            <p class="muted mini">Aucun theme en ligne disponible.</p>
+            <p class="muted mini">Aucun thème en ligne disponible.</p>
           <% } else { %>
             <select id="theme-select" name="theme_ids[]" multiple size="6">
               <% themes.forEach(t => { if (!t.user_id) { %>
@@ -55,13 +56,25 @@
           <% } %>
         </div>
         <div class="theme-group" id="list-group">
-          <p class="muted mini" style="margin:0 0 0.2rem;">Mes listes</p>
+          <p class="muted mini" style="margin:0 0 0.2rem;">Mes Listes</p>
           <% if (!sets || sets.length === 0) { %>
             <p class="muted mini">Aucune liste pour le moment.</p>
           <% } else { %>
             <select id="list-select" name="set_ids[]" multiple size="6">
               <% sets.forEach(s => { %>
                 <option value="<%= s.id %>" <%= selectedSets.has(String(s.id)) ? 'selected' : '' %>><%= s.name %></option>
+              <% }) %>
+            </select>
+          <% } %>
+        </div>
+        <div class="theme-group" id="shared-list-group">
+          <p class="muted mini" style="margin:0 0 0.2rem;">Listes partagées</p>
+          <% if (!sharedSets || sharedSets.length === 0) { %>
+            <p class="muted mini">Aucune liste partagée.</p>
+          <% } else { %>
+            <select id="shared-list-select" name="set_ids[]" multiple size="6">
+              <% sharedSets.forEach(s => { %>
+                <option value="<%= s.id %>" <%= selectedSets.has(String(s.id)) ? 'selected' : '' %>><%= s.name %> (<%= s.owner_name %>)</option>
               <% }) %>
             </select>
           <% } %>
@@ -80,7 +93,7 @@
     <div class="field-block">
       <label>Nombre de mots
         <select name="remaining">
-          <option value="all" <%= selectedRemaining === 'all' ? 'selected' : '' %>>Tout le theme/liste</option>
+          <option value="all" <%= selectedRemaining === 'all' ? 'selected' : '' %>>Tout le thème/liste</option>
           <option value="5" <%= selectedRemaining === '5' ? 'selected' : '' %>>5</option>
           <option value="10" <%= selectedRemaining === '10' ? 'selected' : '' %>>10</option>
           <option value="15" <%= selectedRemaining === '15' ? 'selected' : '' %>>15</option>
@@ -97,24 +110,25 @@
         <label>Mode de revision
           <select name="rev_mode">
             <option value="order" <%= selectedRevMode === 'order' ? 'selected' : '' %>>Dans l'ordre</option>
-            <option value="random" <%= selectedRevMode === 'random' ? 'selected' : '' %>>Aleatoire</option>
+            <option value="random" <%= selectedRevMode === 'random' ? 'selected' : '' %>>Aléatoire</option>
             <option value="favorites" <%= selectedRevMode === 'favorites' ? 'selected' : '' %>>Favoris</option>
             <option value="new" <%= selectedRevMode === 'new' ? 'selected' : '' %>>Nouveaux mots</option>
-            <option value="weak" <%= selectedRevMode === 'weak' ? 'selected' : '' %>>Mots faibles / non maitrises</option>
+            <option value="weak" <%= selectedRevMode === 'weak' ? 'selected' : '' %>>Mots faibles / Non maitrisés</option>
           </select>
         </label>
-        <label>Difficulte
-          <select name="difficulty">
-            <option value="" <%= selectedDifficulty === '' ? 'selected' : '' %>>Toutes</option>
-            <option value="1" <%= selectedDifficulty === '1' ? 'selected' : '' %>>Facile</option>
-            <option value="2" <%= selectedDifficulty === '2' ? 'selected' : '' %>>Moyen</option>
-            <option value="3" <%= selectedDifficulty === '3' ? 'selected' : '' %>>Difficile</option>
-          </select>
-        </label>
+        <fieldset class="check-row">
+          <legend style="margin-bottom:0.35rem;">Phonétique ?</legend>
+          <label class="check-row">
+            <input type="radio" name="show_phonetic" value="1" <%= selectedPhonetic !== '0' ? 'checked' : '' %>> <span>Oui</span>
+          </label>
+          <label class="check-row">
+            <input type="radio" name="show_phonetic" value="0" <%= selectedPhonetic === '0' ? 'checked' : '' %>> <span>Non</span>
+          </label>
+        </fieldset>
       </div>
     </details>
 
-    <button type="submit">Demarrer</button>
+    <button type="submit">Démarrer</button>
   </form>
 </section>
 
@@ -129,10 +143,13 @@
     const levelField = document.getElementById('level-field');
     const publicGroup = document.getElementById('public-group');
     const listGroup = document.getElementById('list-group');
+    const sharedListGroup = document.getElementById('shared-list-group');
     const togglePublic = document.getElementById('toggle-public');
     const toggleLists = document.getElementById('toggle-lists');
+    const toggleShared = document.getElementById('toggle-shared');
     const themeSelect = document.getElementById('theme-select');
     const listSelect = document.getElementById('list-select');
+    const sharedListSelect = document.getElementById('shared-list-select');
     const remainingSelect = document.querySelector('select[name="remaining"]');
 
     const renderLevels = () => {
@@ -171,13 +188,21 @@
           if (listSelect) listSelect.selectedIndex = -1;
         }
       }
+      if (sharedListGroup) {
+        sharedListGroup.style.display = toggleShared && toggleShared.checked ? 'grid' : 'none';
+        if (toggleShared && !toggleShared.checked) {
+          if (sharedListSelect) sharedListSelect.selectedIndex = -1;
+        }
+      }
       renderLevels();
     };
 
     if (themeSelect) themeSelect.addEventListener('change', renderLevels);
     if (listSelect) listSelect.addEventListener('change', () => {});
+    if (sharedListSelect) sharedListSelect.addEventListener('change', () => {});
     if (togglePublic) togglePublic.addEventListener('change', updateGroups);
     if (toggleLists) toggleLists.addEventListener('change', updateGroups);
+    if (toggleShared) toggleShared.addEventListener('change', updateGroups);
     if (themeSelect && preselectedThemes && preselectedThemes.length > 0) {
       preselectedThemes.forEach(val => {
         const opt = themeSelect.querySelector(`option[value="${val}"]`);

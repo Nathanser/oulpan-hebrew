@@ -6,7 +6,8 @@
     <div>
       <a class="link back-link" href="/themes">&#8592; Retour</a>
       <h1><%= theme.name %></h1>
-      <p class="muted mini"><%= theme.active ? 'Actif' : 'Inactif' %> - <%= isGlobal ? 'Theme propose' : 'Theme personnel' %></p>
+      <% const activeLabel = theme.active ? (Number(theme.effective_active) === 1 ? 'Actif' : 'Inactif pour moi') : 'Inactif'; %>
+      <p class="muted mini"><%= activeLabel %> - <%= isGlobal ? 'Theme propose' : 'Theme personnel' %></p>
     </div>
     <div class="list-screen-actions inline-actions">
       <% if (isOwner || (!theme.user_id && currentUser && currentUser.role === 'admin')) { %>
@@ -17,6 +18,11 @@
           <a class="btn ghost" href="/my/themes/<%= theme.id %>/edit">Modifier</a>
         <% } %>
       <% } %>
+      <% if (theme.active) { %>
+        <form action="/themes/<%= theme.id %>/toggle-visibility" method="post" style="display:inline;">
+          <button class="btn ghost" type="submit"><%= Number(theme.effective_active) === 0 ? 'Afficher pour moi' : 'Masquer pour moi' %></button>
+        </form>
+      <% } %>
     </div>
   </div>
 
@@ -26,15 +32,23 @@
     <button class="tab-chip" data-tab="inactive">Inactifs (<%= inactiveCount %>)</button>
   </div>
 
-  <div class="search-row">
-    <span class="search-icon">&#128269;</span>
-    <input type="search" id="word-search" placeholder="Recherche (hebreu, francais, phonetique)" />
+  <div class="search-bar-row">
+    <div class="search-row">
+      <span class="search-icon">&#128269;</span>
+      <input type="search" id="word-search" placeholder="Recherche (hebreu, francais, phonetique)" />
+    </div>
+    <% if (currentUser && currentUser.role === 'admin') { %>
+      <div class="search-actions">
+        <button type="button" class="icon-btn ghost" id="select-toggle" title="Deplacer des mots">&#x21C4;</button>
+        <button type="button" class="icon-btn danger" id="select-cancel" style="display:none;" title="Annuler">&#10060;</button>
+      </div>
+    <% } %>
   </div>
 
   <div class="cards-wall" id="words-wall">
     <% if (!words || words.length === 0) { %>
       <div class="wall-empty">
-        <p>Pas encore de mots dans ce theme.</p>
+        <p>Aucun mot.</p>
       </div>
     <% } else { %>
       <% words.forEach((word, idx) => { 

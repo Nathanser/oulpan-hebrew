@@ -18,6 +18,7 @@
   const isFlashcard = qMode === 'flashcards' || qMode === 'flashcards_reverse';
   const isReverse = qMode === 'flashcards_reverse';
   const isWritten = qMode === 'written';
+  const showPhonetic = !(filters && (filters.show_phonetic === 0 || filters.show_phonetic === '0' || String(filters.show_phonetic).toLowerCase() === 'false'));
   const modeLabels = {
     flashcards: 'Flashcards classique',
     flashcards_reverse: 'Flashcards reverse',
@@ -52,7 +53,7 @@
     <div class="quiz">
       <p class="quiz-label">Traduire en francais :</p>
       <p class="quiz-word"><%= word.hebrew %></p>
-      <% if (word.transliteration) { %>
+      <% if (showPhonetic && word.transliteration) { %>
         <p class="flashcard-sub"><%= word.transliteration %></p>
       <% } %>
 
@@ -71,7 +72,7 @@
     <div class="flashcard" id="flashcard">
       <p class="flashcard-label"><%= isReverse ? 'Francais' : 'Hebreu' %></p>
       <p class="flashcard-word"><%= isReverse ? word.french : word.hebrew %></p>
-      <% if (!isReverse && word.transliteration) { %>
+      <% if (!isReverse && showPhonetic && word.transliteration) { %>
         <p class="flashcard-sub"><%= word.transliteration %></p>
       <% } %>
       <p class="flashcard-hint"><%= isReverse ? 'Choisis la bonne traduction en hebreu' : 'Choisis la bonne traduction en francais' %></p>
@@ -96,7 +97,7 @@
         <p>Mauvaise reponse.</p>
       <% } %>
       <p>Hebreu : <strong><%= result.hebrew %></strong></p>
-      <% if (!isReverse && result.transliteration) { %>
+      <% if (!isReverse && showPhonetic && result.transliteration) { %>
         <p>Transliteration : <%= result.transliteration %></p>
       <% } %>
       <p>Francais : <strong><%= result.french %></strong></p>

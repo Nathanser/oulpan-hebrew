@@ -1,7 +1,7 @@
 <section class="card set-builder">
   <div class="builder-header">
     <div>
-      <p class="eyebrow"><%= set ? 'Modifier ma liste' : 'Creer une nouvelle liste' %></p>
+      <p class="eyebrow"><%= set ? 'Modifier ma liste' : 'Créer une nouvelle liste' %></p>
       <h1><%= set ? set.name : 'Nouvelle liste' %></h1>
     </div>
     <div class="builder-actions">
@@ -29,13 +29,13 @@
           <div class="builder-fields">
             <input type="hidden" data-field="id" name="cards[<%= idx %>][id]" value="<%= card.id || '' %>" />
             <label>Mot hebreu
-              <input data-field="hebrew" name="cards[<%= idx %>][hebrew]" type="text" value="<%= card.hebrew || '' %>" placeholder="shalom" required />
+              <input data-field="hebrew" name="cards[<%= idx %>][hebrew]" type="text" value="<%= card.hebrew || '' %>" placeholder="שָׁלוֹם" required />
             </label>
             <label>Mot francais
               <input data-field="french" name="cards[<%= idx %>][french]" type="text" value="<%= card.french || '' %>" placeholder="Bonjour" required />
             </label>
             <label>Phonetique
-              <input data-field="transliteration" name="cards[<%= idx %>][transliteration]" type="text" value="<%= card.transliteration || '' %>" placeholder="shalom" />
+              <input data-field="transliteration" name="cards[<%= idx %>][transliteration]" type="text" value="<%= card.transliteration || '' %>" placeholder="Shalom" />
             </label>
           </div>
           <div class="card-actions" data-menu>
@@ -62,13 +62,13 @@
       <div class="builder-fields">
         <input type="hidden" data-field="id" name="" value="" />
         <label>Mot hebreu
-          <input data-field="hebrew" name="" type="text" value="" placeholder="shalom" required />
+          <input data-field="hebrew" name="" type="text" value="" placeholder="שָׁלוֹם" required />
         </label>
         <label>Mot francais
           <input data-field="french" name="" type="text" value="" placeholder="Bonjour" required />
         </label>
         <label>Phonetique
-          <input data-field="transliteration" name="" type="text" value="" placeholder="shalom" />
+          <input data-field="transliteration" name="" type="text" value="" placeholder="Shalom" />
         </label>
       </div>
       <div class="card-actions" data-menu>

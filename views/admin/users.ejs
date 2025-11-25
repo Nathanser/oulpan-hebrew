@@ -7,7 +7,7 @@
   <table class="table">
     <thead>
       <tr>
-        <th>ID</th>
+        <th>#</th>
         <th>Nom</th>
         <th>Email</th>
         <th>Role</th>
@@ -16,9 +16,9 @@
       </tr>
     </thead>
     <tbody>
-      <% users.forEach(u => { %>
+      <% users.forEach((u, idx) => { %>
         <tr>
-          <td><%= u.id %></td>
+          <td><%= idx + 1 %></td>
           <td><%= u.display_name %></td>
           <td><%= u.email %></td>
           <td><%= u.role %></td>

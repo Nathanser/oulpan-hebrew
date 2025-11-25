@@ -82,7 +82,7 @@ function modeLabel(mode) {
 
 async function fetchNextWord(userId, filters = {}) {
   const mode = (filters.rev_mode || 'weak').toLowerCase();
-  const params = [userId, userId, userId];
+  const params = [userId, userId, userId, userId];
   const excludedIds = Array.isArray(filters.excludedIds)
     ? filters.excludedIds.map(id => Number(id)).filter(id => !Number.isNaN(id))
     : [];
@@ -96,10 +96,11 @@ async function fetchNextWord(userId, filters = {}) {
        LEFT JOIN favorites fav ON fav.word_id = w.id AND fav.user_id = ?
        LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
        LEFT JOIN themes t ON t.id = w.theme_id
+       LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
        LEFT JOIN theme_levels l ON l.id = w.level_id
        WHERE w.active = 1
          AND COALESCE(uwo.active, 1) = 1
-         AND (w.theme_id IS NULL OR t.active = 1)
+         AND (w.theme_id IS NULL OR (t.active = 1 AND COALESCE(uto.active, 1) = 1))
          AND (w.level_id IS NULL OR l.active = 1)`;
 
   if (filters.theme_id) {
@@ -227,16 +228,17 @@ async function upsertCardProgress(userId, cardId, isCorrect) {
 }
 
 async function getFlashcardOptions(userId, currentWord, filters = {}, reverse = false) {
-  const params = [userId, userId, currentWord.id];
+  const params = [userId, userId, userId, currentWord.id];
   let sql = `SELECT w.id, w.french, w.hebrew
     FROM words w
     LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = ?
     LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
     LEFT JOIN themes t ON t.id = w.theme_id
+    LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
     LEFT JOIN theme_levels l ON l.id = w.level_id
     WHERE w.active = 1 AND w.id != ?
       AND COALESCE(uwo.active, 1) = 1
-      AND (w.theme_id IS NULL OR t.active = 1)
+      AND (w.theme_id IS NULL OR (t.active = 1 AND COALESCE(uto.active, 1) = 1))
       AND (w.level_id IS NULL OR l.active = 1)`;
 
   if (filters.theme_id) {
@@ -285,9 +287,10 @@ async function getLevelsForUser(userId) {
     `SELECT tl.*, t.name AS theme_name, t.user_id AS theme_user_id
      FROM theme_levels tl
      JOIN themes t ON t.id = tl.theme_id
-     WHERE (t.user_id IS NULL OR t.user_id = ?) AND t.active = 1 AND tl.active = 1
+     LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
+     WHERE (t.user_id IS NULL OR t.user_id = ?) AND t.active = 1 AND COALESCE(uto.active, 1) = 1 AND tl.active = 1
      ORDER BY t.id ASC, tl.level_order, tl.id`,
-    [userId]
+    [userId, userId]
   );
 }
 
@@ -296,9 +299,10 @@ async function getOwnedLevels(userId) {
     `SELECT tl.*, t.name AS theme_name, t.user_id AS theme_user_id
      FROM theme_levels tl
      JOIN themes t ON t.id = tl.theme_id
-     WHERE t.user_id = ? AND t.active = 1 AND tl.active = 1
+     LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
+     WHERE t.user_id = ? AND t.active = 1 AND COALESCE(uto.active, 1) = 1 AND tl.active = 1
      ORDER BY t.id ASC, tl.level_order, tl.id`,
-    [userId]
+    [userId, userId]
   );
 }
 
@@ -336,6 +340,190 @@ function normalizeCardsPayload(rawCards) {
       transliteration: card.transliteration ? card.transliteration.trim() : ''
     }))
     .filter(card => card.hebrew && card.french);
+}
+
+// Normalise un tableau de mots/cartes importes depuis un JSON
+function normalizeImportEntries(rawWords) {
+  const list = Array.isArray(rawWords) ? rawWords : [];
+  return list
+    .map(w => ({
+      hebrew: w.hebrew ? String(w.hebrew).trim() : '',
+      french: w.french ? String(w.french).trim() : '',
+      transliteration: w.transliteration ? String(w.transliteration).trim() : '',
+      active: w.active === 0 ? 0 : 1,
+      favorite: w.favorite ? 1 : 0,
+      memorized: w.memorized ? 1 : 0
+    }))
+    .filter(w => w.hebrew && w.french);
+}
+
+function normalizeIds(raw) {
+  const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  return list
+    .map(id => Number(id))
+    .filter(id => Number.isInteger(id) && id > 0);
+}
+
+function slugify(str = '') {
+  return String(str)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase() || 'item';
+}
+
+function crc32(buf) {
+  const table = crc32.table || (crc32.table = (() => {
+    let c;
+    const t = [];
+    for (let n = 0; n < 256; n++) {
+      c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      t[n] = c >>> 0;
+    }
+    return t;
+  })());
+  let crc = 0 ^ -1;
+  for (let i = 0; i < buf.length; i++) {
+    crc = (crc >>> 0);
+    crc = (crc >>> 8) ^ table[(crc ^ buf[i]) & 0xff];
+  }
+  return (crc ^ -1) >>> 0;
+}
+
+function createZip(files = []) {
+  const encoder = new TextEncoder();
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  const now = new Date();
+  const dosTime = ((now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() / 2)) & 0xffff;
+  const dosDate = (((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate()) & 0xffff;
+
+  files.forEach(file => {
+    const nameBuf = Buffer.from(encoder.encode(file.path));
+    const dataBuf = Buffer.isBuffer(file.content)
+      ? file.content
+      : Buffer.from(typeof file.content === 'string' ? encoder.encode(file.content) : file.content);
+    const csum = crc32(dataBuf);
+    const local = Buffer.alloc(30 + nameBuf.length);
+    let p = 0;
+    local.writeUInt32LE(0x04034b50, p); p += 4; // local header signature
+    local.writeUInt16LE(20, p); p += 2; // version needed
+    local.writeUInt16LE(0, p); p += 2; // flags
+    local.writeUInt16LE(0, p); p += 2; // compression (0 = store)
+    local.writeUInt16LE(dosTime, p); p += 2;
+    local.writeUInt16LE(dosDate, p); p += 2;
+    local.writeUInt32LE(csum, p); p += 4;
+    local.writeUInt32LE(dataBuf.length, p); p += 4;
+    local.writeUInt32LE(dataBuf.length, p); p += 4;
+    local.writeUInt16LE(nameBuf.length, p); p += 2;
+    local.writeUInt16LE(0, p); p += 2; // extra length
+    nameBuf.copy(local, p);
+    const localOffset = offset;
+    offset += local.length + dataBuf.length;
+    localParts.push(local, dataBuf);
+
+    const central = Buffer.alloc(46 + nameBuf.length);
+    p = 0;
+    central.writeUInt32LE(0x02014b50, p); p += 4; // central header signature
+    central.writeUInt16LE(20, p); p += 2; // version made by
+    central.writeUInt16LE(20, p); p += 2; // version needed
+    central.writeUInt16LE(0, p); p += 2; // flags
+    central.writeUInt16LE(0, p); p += 2; // compression
+    central.writeUInt16LE(dosTime, p); p += 2;
+    central.writeUInt16LE(dosDate, p); p += 2;
+    central.writeUInt32LE(csum, p); p += 4;
+    central.writeUInt32LE(dataBuf.length, p); p += 4;
+    central.writeUInt32LE(dataBuf.length, p); p += 4;
+    central.writeUInt16LE(nameBuf.length, p); p += 2;
+    central.writeUInt16LE(0, p); p += 2; // extra len
+    central.writeUInt16LE(0, p); p += 2; // comment len
+    central.writeUInt16LE(0, p); p += 2; // disk
+    central.writeUInt16LE(0, p); p += 2; // internal attr
+    central.writeUInt32LE(0, p); p += 4; // external attr
+    central.writeUInt32LE(localOffset, p); p += 4;
+    nameBuf.copy(central, p);
+    centralParts.push(central);
+  });
+
+  const centralSize = centralParts.reduce((sum, b) => sum + b.length, 0);
+  const centralOffset = offset;
+  const eocd = Buffer.alloc(22);
+  let p = 0;
+  eocd.writeUInt32LE(0x06054b50, p); p += 4;
+  eocd.writeUInt16LE(0, p); p += 2; // disk
+  eocd.writeUInt16LE(0, p); p += 2; // start disk
+  eocd.writeUInt16LE(files.length, p); p += 2;
+  eocd.writeUInt16LE(files.length, p); p += 2;
+  eocd.writeUInt32LE(centralSize, p); p += 4;
+  eocd.writeUInt32LE(centralOffset, p); p += 4;
+  eocd.writeUInt16LE(0, p); p += 2; // comment len
+
+  return Buffer.concat([...localParts, ...centralParts, eocd]);
+}
+async function getAccessibleSetIds(userId) {
+  const rows = await all(
+    `SELECT DISTINCT s.id
+     FROM sets s
+     LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
+     LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+     WHERE s.active = 1
+       AND COALESCE(uso.active, s.active) = 1
+       AND (s.user_id = ? OR sh.id IS NOT NULL)`,
+    [userId, userId, userId]
+  );
+  return rows.map(r => Number(r.id));
+}
+
+async function getEffectiveCardsForUser(userId, setIds = []) {
+  if (!setIds || setIds.length === 0) return [];
+  const placeholders = setIds.map(() => '?').join(',');
+  const rows = await all(
+    `SELECT c.*,
+      COALESCE(co.active, c.active) AS effective_active,
+      COALESCE(co.favorite, c.favorite) AS effective_favorite,
+      COALESCE(co.memorized, c.memorized) AS effective_memorized
+     FROM cards c
+     JOIN sets s ON s.id = c.set_id
+     LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+     LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+     WHERE c.set_id IN (${placeholders})
+       AND s.active = 1
+       AND COALESCE(uso.active, s.active) = 1`,
+    [userId, userId, ...setIds]
+  );
+  return rows.filter(r => Number(r.effective_active) === 1).map(r => ({
+    ...r,
+    active: r.effective_active,
+    favorite: r.effective_favorite,
+    memorized: r.effective_memorized
+  }));
+}
+
+async function getActiveThemeIdsForUser(userId) {
+  const rows = await all(
+    `SELECT DISTINCT t.id
+     FROM themes t
+     LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
+     WHERE (t.user_id IS NULL OR t.user_id = ?)
+       AND t.active = 1
+       AND COALESCE(uto.active, 1) = 1`,
+    [userId, userId]
+  );
+  return rows.map(r => Number(r.id));
+}
+
+async function getActiveThemesForUser(userId) {
+  return all(
+    `SELECT t.*, COALESCE(uto.active, t.active) AS effective_active, uto.active AS user_active
+     FROM themes t
+     LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
+     WHERE (t.user_id IS NULL OR t.user_id = ?) AND t.active = 1 AND COALESCE(uto.active, 1) = 1
+     ORDER BY t.id ASC`,
+    [userId, userId]
+  );
 }
 
 const app = express();
@@ -549,11 +737,15 @@ app.get('/app', requireAuth, async (req, res) => {
     );
     const statsCards = await get(
       `SELECT
-        COUNT(DISTINCT card_id) AS cards_seen,
-        SUM(success_count) AS total_success,
-        SUM(fail_count) AS total_fail
-       FROM card_progress WHERE user_id = ?`,
-      [userId]
+        COUNT(DISTINCT cp.card_id) AS cards_seen,
+        SUM(cp.success_count) AS total_success,
+        SUM(cp.fail_count) AS total_fail
+       FROM card_progress cp
+       JOIN cards c ON c.id = cp.card_id
+       JOIN sets s ON s.id = c.set_id AND s.active = 1
+       LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
+       WHERE cp.user_id = ? AND (s.user_id = ? OR sh.id IS NOT NULL)`,
+      [userId, userId, userId]
     );
     const stats = {
       words_seen: statsWords?.words_seen || 0,
@@ -631,6 +823,180 @@ app.get('/profile', requireAuth, async (req, res) => {
   }
 });
 
+// ---------- Import JSON ----------
+function buildImportContext(req, extra = {}) {
+  const isAdmin = req.session.user && req.session.user.role === 'admin';
+  return {
+    isAdmin,
+    importType: isAdmin ? 'theme' : 'list',
+    pageClass: 'page-compact',
+    importError: null,
+    importSuccess: null,
+    payloadValue: '',
+    pendingImport: null,
+    ...extra
+  };
+}
+
+app.get('/import', requireAuth, (req, res) => {
+  const ctx = buildImportContext(req, {
+    importError: req.query.import_error || null,
+    importSuccess: req.query.import_success || null
+  });
+  res.render('import', ctx);
+});
+
+app.post('/import', requireAuth, async (req, res) => {
+  const isAdmin = req.session.user && req.session.user.role === 'admin';
+  const importType = isAdmin ? 'theme' : 'list';
+  const redirectErr = msg => res.redirect(`/import?import_error=${encodeURIComponent(msg)}`);
+  const payloadText = typeof req.body.payload === 'string' ? req.body.payload.trim() : '';
+  if (!payloadText) return redirectErr('Fichier JSON manquant');
+
+  let parsed;
+  try {
+    parsed = JSON.parse(payloadText);
+  } catch (e) {
+    return redirectErr('JSON invalide');
+  }
+  const name = parsed && parsed.name ? String(parsed.name).trim() : '';
+  if (!name) return redirectErr(importType === 'theme' ? 'Nom de theme manquant' : 'Nom de liste manquant');
+
+  const words = normalizeImportEntries(parsed.words);
+  if (words.length === 0) return redirectErr('Aucun mot valide dans le fichier');
+  const active = parsed.active === 0 ? 0 : 1;
+  const confirmAppend = req.body.confirm === 'append';
+
+  try {
+    if (importType === 'theme') {
+      const existing = await get('SELECT * FROM themes WHERE name = ? AND user_id IS NULL', [name]);
+      if (existing && !confirmAppend) {
+        return res.render(
+          'import',
+          buildImportContext(req, {
+            payloadValue: payloadText,
+            pendingImport: { type: 'theme', name, targetId: existing.id, wordsCount: words.length }
+          })
+        );
+      }
+
+      const themeId = existing
+        ? existing.id
+        : (await run('INSERT INTO themes (name, active, user_id, created_at) VALUES (?,?,NULL, CURRENT_TIMESTAMP)', [name, active])).lastID;
+
+      for (const w of words) {
+        await run(
+          `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id)
+           VALUES (?,?,?,?,?,?,?,NULL)`,
+          [w.hebrew, w.transliteration || null, w.french, themeId, null, 1, w.active]
+        );
+      }
+      const msg = existing ? 'Mots ajoutes au theme existant' : 'Theme importe avec succes';
+      return res.redirect(`/import?import_success=${encodeURIComponent(msg)}`);
+    }
+
+    const userId = req.session.user.id;
+    const existing = await get('SELECT * FROM sets WHERE name = ? AND user_id = ?', [name, userId]);
+    if (existing && !confirmAppend) {
+      return res.render(
+        'import',
+        buildImportContext(req, {
+          payloadValue: payloadText,
+          pendingImport: { type: 'list', name, targetId: existing.id, wordsCount: words.length }
+        })
+      );
+    }
+
+    const setId = existing
+      ? existing.id
+      : (await run('INSERT INTO sets (name, user_id, active) VALUES (?,?,?)', [name, userId, active ? 1 : 0])).lastID;
+
+    const posRow = await get('SELECT MAX(position) AS pos FROM cards WHERE set_id = ?', [setId]);
+    const startPos = posRow && posRow.pos ? Number(posRow.pos) : 0;
+
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
+      await run(
+        `INSERT INTO cards (set_id, french, hebrew, transliteration, position, active, favorite, memorized)
+         VALUES (?,?,?,?,?,?,?,?)`,
+        [setId, w.french, w.hebrew, w.transliteration || null, startPos + i + 1, w.active, w.favorite, w.memorized]
+      );
+    }
+    const msg = existing ? 'Cartes ajoutees a la liste existante' : 'Liste importee avec succes';
+    return res.redirect(`/import?import_success=${encodeURIComponent(msg)}`);
+  } catch (e) {
+    console.error('Import error:', e);
+    return res.redirect(`/import?import_error=${encodeURIComponent('Erreur pendant l import')}`);
+  }
+});
+
+app.post('/export', requireAuth, async (req, res) => {
+  const isAdmin = req.session.user && req.session.user.role === 'admin';
+  const userId = req.session.user.id;
+  try {
+    const files = [];
+
+    const addListFile = (basePath, set, cards) => {
+      const payload = {
+        name: set.name,
+        active: set.active,
+        words: cards.map(c => ({
+          hebrew: c.hebrew,
+          french: c.french,
+          transliteration: c.transliteration,
+          active: c.active,
+          favorite: c.favorite,
+          memorized: c.memorized
+        }))
+      };
+      const fname = `${basePath}/list_${set.id}_${slugify(set.name)}.json`;
+      files.push({ path: fname, content: JSON.stringify(payload, null, 2) });
+    };
+
+    if (isAdmin) {
+      const themes = await all('SELECT * FROM themes');
+      for (const t of themes) {
+        const words = await all('SELECT hebrew, french, transliteration, active, difficulty FROM words WHERE theme_id = ? ORDER BY id ASC', [t.id]);
+        const payload = {
+          name: t.name,
+          active: t.active,
+          words: words.map(w => ({
+            hebrew: w.hebrew,
+            french: w.french,
+            transliteration: w.transliteration,
+            active: w.active,
+            difficulty: w.difficulty
+          }))
+        };
+        const fname = `themes/theme_${t.id}_${slugify(t.name)}.json`;
+        files.push({ path: fname, content: JSON.stringify(payload, null, 2) });
+      }
+
+      const sets = await all('SELECT s.*, u.display_name AS owner_name FROM sets s JOIN users u ON u.id = s.user_id');
+      for (const s of sets) {
+        const cards = await all('SELECT hebrew, french, transliteration, active, favorite, memorized FROM cards WHERE set_id = ? ORDER BY position ASC, id ASC', [s.id]);
+        addListFile(`lists/user_${s.user_id}_${slugify(s.owner_name || '')}`, s, cards);
+      }
+    } else {
+      const sets = await all('SELECT * FROM sets WHERE user_id = ?', [userId]);
+      for (const s of sets) {
+        const cards = await all('SELECT hebrew, french, transliteration, active, favorite, memorized FROM cards WHERE set_id = ? ORDER BY position ASC, id ASC', [s.id]);
+        addListFile('my-lists', s, cards);
+      }
+    }
+
+    const zipBuf = createZip(files);
+    const filename = isAdmin ? 'export-admin.zip' : 'export-mes-listes.zip';
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.end(zipBuf);
+  } catch (e) {
+    console.error('Export error:', e);
+    return res.status(500).send('Erreur pendant l export');
+  }
+});
+
+
 // ---------- BibliothÃ¨que perso / globale ----------
 app.get('/my/words', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
@@ -663,11 +1029,25 @@ app.get('/my/words', requireAuth, async (req, res) => {
        ORDER BY c.id ASC`,
       [userId]
     );
+    const sharedFavorites = await all(
+      `SELECT c.*, s.name AS set_name, owner.display_name AS owner_name
+       FROM set_shares sh
+       JOIN cards c ON c.set_id = sh.set_id
+       LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = sh.user_id
+       JOIN sets s ON s.id = c.set_id
+       JOIN users owner ON owner.id = s.user_id
+       WHERE sh.user_id = ?
+         AND (
+           (co.favorite = 1) OR (co.favorite IS NULL AND c.favorite = 1 AND sh.can_edit = 1)
+         )
+       ORDER BY c.id ASC`,
+      [userId]
+    );
     const themes = await all('SELECT * FROM themes WHERE user_id = ? AND active = 1 ORDER BY id ASC', [userId]);
-    res.render('my_words', { globalWords: [], personalWords, favorites, themes, listFavorites });
+    res.render('my_words', { globalWords: [], personalWords, favorites, themes, listFavorites, sharedFavorites });
   } catch (e) {
     console.error(e);
-    res.render('my_words', { globalWords: [], personalWords: [], favorites: [], themes: [], listFavorites: [] });
+    res.render('my_words', { globalWords: [], personalWords: [], favorites: [], themes: [], listFavorites: [], sharedFavorites: [] });
   }
 });
 
@@ -680,11 +1060,14 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
   const modeList = normalizeModes(state.modes || state.mode);
   state.modes = modeList;
   const activeMode = normalizeMode(question_mode || state.currentMode || modeList[0]);
+  const allowedThemeIds = new Set(await getActiveThemeIdsForUser(userId));
+  const filteredThemeIds = (state.theme_ids || []).filter(id => allowedThemeIds.has(Number(id)));
+  state.theme_ids = filteredThemeIds;
   const filters = {
-    theme_id: state.theme_id || null,
-    theme_ids: state.theme_ids || [],
+    theme_id: filteredThemeIds.length === 1 ? filteredThemeIds[0] : null,
+    theme_ids: filteredThemeIds,
     level_id: state.level_id || null,
-    difficulty: state.difficulty || '',
+    show_phonetic: typeof state.show_phonetic === 'undefined' ? 1 : state.show_phonetic,
     rev_mode: state.rev_mode || 'random',
     scope: state.scope || 'all',
     scope_list: [],
@@ -727,7 +1110,7 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
         questionMode: activeMode,
         filters,
         options: null,
-        themes: await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]),
+        themes: await getActiveThemesForUser(userId),
         remaining: remainingCount,
         total: totalCount,
         answered: answeredCount,
@@ -764,7 +1147,7 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
         questionMode: activeMode,
         filters,
         options: null,
-        themes: await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]),
+        themes: await getActiveThemesForUser(userId),
         remaining: remainingCount,
         total: totalCount,
         answered: answeredCount,
@@ -950,20 +1333,88 @@ app.get('/my/lists', requireAuth, async (req, res) => {
     let orderBy = 's.created_at ASC';
     if (sort === 'created_desc') orderBy = 's.created_at DESC';
     if (sort === 'alpha') orderBy = 's.name COLLATE NOCASE ASC';
-    const sets = await all(
-      `SELECT s.*, COUNT(c.id) AS card_count
+    const owned = await all(
+      `SELECT s.*,
+        COUNT(c.id) AS card_count,
+        COALESCE(uso.active, s.active) AS effective_active,
+        GROUP_CONCAT(DISTINCT CASE WHEN sh.can_edit = 1 THEN u.display_name END) AS collaborators,
+        GROUP_CONCAT(DISTINCT CASE WHEN (sh.can_edit IS NULL OR sh.can_edit = 0) THEN u.display_name END) AS shared_with
        FROM sets s
        LEFT JOIN cards c ON c.set_id = s.id AND c.active = 1
+       LEFT JOIN set_shares sh ON sh.set_id = s.id
+       LEFT JOIN users u ON u.id = sh.user_id
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
        WHERE s.user_id = ? AND s.active = 1
        GROUP BY s.id
        ORDER BY ${orderBy}`,
-      [userId]
+      [userId, userId]
     );
-    res.render('my_lists', { sets, pageClass: 'page-compact', sort });
+    const shared = await all(
+      `SELECT s.*, owner.display_name AS owner_name,
+        COUNT(c.id) AS card_count,
+        COALESCE(uso.active, s.active) AS effective_active,
+        sh.can_edit
+       FROM set_shares sh
+       JOIN sets s ON s.id = sh.set_id
+       JOIN users owner ON owner.id = s.user_id
+       LEFT JOIN cards c ON c.set_id = s.id AND c.active = 1
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+       WHERE sh.user_id = ? AND s.active = 1
+       GROUP BY s.id
+       ORDER BY ${orderBy}`,
+      [userId, userId]
+    );
+    res.render('my_lists', { sets: owned, sharedSets: shared, pageClass: 'page-compact', sort });
   } catch (e) {
     console.error(e);
-    res.render('my_lists', { sets: [], pageClass: 'page-compact', sort: req.query.sort || 'created_asc' });
+    res.render('my_lists', { sets: [], sharedSets: [], pageClass: 'page-compact', sort: req.query.sort || 'created_asc' });
   }
+});
+
+app.post('/my/lists/:id/toggle-active', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const backUrl = req.get('referer') || '/my/lists';
+  try {
+    const set = await get(
+      `SELECT s.*, COALESCE(uso.active, s.active) AS effective_active, sh.id AS shared_id
+       FROM sets s
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+       LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
+       WHERE s.id = ?`,
+      [userId, userId, req.params.id]
+    );
+    if (!set) return res.redirect('/my/lists');
+    const isOwner = set.user_id === userId;
+    const isShared = !!set.shared_id;
+    if (!isOwner && !isShared) return res.redirect('/my/lists');
+    if (!set.active) return res.redirect(backUrl);
+    const nextStatus = set.effective_active ? 0 : 1;
+    await run(
+      'INSERT INTO user_set_overrides (set_id, user_id, active) VALUES (?,?,?) ON CONFLICT(set_id, user_id) DO UPDATE SET active=excluded.active',
+      [set.id, userId, nextStatus]
+    );
+  } catch (e) {
+    console.error('Toggle list active error:', e);
+  }
+  res.redirect(backUrl);
+});
+
+app.post('/my/lists/:id/leave', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const backUrl = req.get('referer') || '/my/lists';
+  try {
+    const shared = await get('SELECT 1 FROM set_shares WHERE set_id = ? AND user_id = ?', [req.params.id, userId]);
+    if (!shared) return res.redirect(backUrl);
+    await run('DELETE FROM set_shares WHERE set_id = ? AND user_id = ?', [req.params.id, userId]);
+    await run('DELETE FROM user_set_overrides WHERE set_id = ? AND user_id = ?', [req.params.id, userId]);
+    await run(
+      `DELETE FROM card_overrides WHERE user_id = ? AND card_id IN (SELECT id FROM cards WHERE set_id = ?)`,
+      [userId, req.params.id]
+    );
+  } catch (e) {
+    console.error('Leave shared list error:', e);
+  }
+  res.redirect('/my/lists');
 });
 
 app.get('/space', requireAuth, async (req, res) => {
@@ -982,12 +1433,16 @@ app.get('/space', requireAuth, async (req, res) => {
     );
     const overallCards = await get(
       `SELECT
-        COUNT(DISTINCT card_id) AS cards_seen,
-        SUM(success_count) AS total_success,
-        SUM(fail_count) AS total_fail
-       FROM card_progress
-       WHERE user_id = ?`,
-      [userId]
+        COUNT(DISTINCT cp.card_id) AS cards_seen,
+        SUM(cp.success_count) AS total_success,
+        SUM(cp.fail_count) AS total_fail
+       FROM card_progress cp
+       JOIN cards c ON c.id = cp.card_id
+       JOIN sets s ON s.id = c.set_id AND s.active = 1
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+       LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
+       WHERE cp.user_id = ? AND COALESCE(uso.active, s.active) = 1 AND (s.user_id = ? OR sh.id IS NOT NULL)`,
+      [userId, userId, userId, userId]
     );
     const overall = {
       words_seen: overallWords?.words_seen || 0,
@@ -1003,17 +1458,20 @@ app.get('/space', requireAuth, async (req, res) => {
     }
 
     const setStats = await all(
-      `SELECT s.id, s.name,
+      `SELECT s.id, s.name, owner.display_name AS owner_name,
               COUNT(c.id) AS total_cards,
               SUM(CASE WHEN c.active = 1 THEN 1 ELSE 0 END) AS active_cards,
               SUM(CASE WHEN c.memorized = 1 THEN 1 ELSE 0 END) AS memorized_cards,
               SUM(CASE WHEN c.favorite = 1 THEN 1 ELSE 0 END) AS favorite_cards
        FROM sets s
+       JOIN users owner ON owner.id = s.user_id
        LEFT JOIN cards c ON c.set_id = s.id
-       WHERE s.user_id = ? AND s.active = 1
+       LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+       WHERE s.active = 1 AND COALESCE(uso.active, s.active) = 1 AND (s.user_id = ? OR sh.id IS NOT NULL)
        GROUP BY s.id
        ORDER BY s.created_at DESC`,
-      [userId]
+      [userId, userId, userId]
     );
 
     const themeStats = await all(
@@ -1024,10 +1482,11 @@ app.get('/space', requireAuth, async (req, res) => {
        FROM themes t
        LEFT JOIN words w ON w.theme_id = t.id AND w.active = 1
        LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = ?
-       WHERE t.user_id IS NULL AND t.active = 1
+       LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
+       WHERE t.user_id IS NULL AND t.active = 1 AND COALESCE(uto.active, 1) = 1
        GROUP BY t.id
        ORDER BY t.id ASC`,
-      [userId]
+      [userId, userId]
     );
 
     res.render('space', {
@@ -1048,10 +1507,9 @@ app.get('/space', requireAuth, async (req, res) => {
 });
 
 app.get('/my/lists/new', requireAuth, (req, res) => {
-  const defaultCards = [{ hebrew: '', french: '', transliteration: '' }, { hebrew: '', french: '', transliteration: '' }];
   res.render('my_list_form', {
     set: null,
-    cards: defaultCards,
+    cards: [],
     action: '/my/lists',
     error: null
   });
@@ -1060,15 +1518,45 @@ app.get('/my/lists/new', requireAuth, (req, res) => {
 app.get('/my/lists/:id', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   try {
-    const set = await get('SELECT * FROM sets WHERE id = ? AND user_id = ?', [req.params.id, userId]);
+    const set = await get(
+      `SELECT s.*, COALESCE(uso.active, s.active) AS effective_active
+       FROM sets s
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+       WHERE s.id = ?`,
+      [userId, req.params.id]
+    );
     if (!set) return res.redirect('/my/lists');
+    const shared = await get('SELECT can_edit FROM set_shares WHERE set_id = ? AND user_id = ?', [set.id, userId]);
+    const isOwner = set.user_id === userId;
+    const isCollaborator = shared && Number(shared.can_edit) === 1;
+    if (!isOwner && !shared) return res.redirect('/my/lists');
     const cards = await all(
-      'SELECT * FROM cards WHERE set_id = ? ORDER BY position ASC, id ASC',
-      [set.id]
+      `SELECT c.*,
+        COALESCE(co.active, c.active) AS effective_active,
+        COALESCE(co.favorite, c.favorite) AS effective_favorite,
+        COALESCE(co.memorized, c.memorized) AS effective_memorized
+       FROM cards c
+       LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+       WHERE c.set_id = ?
+       ORDER BY c.position ASC, c.id ASC`,
+      [userId, set.id]
+    );
+    const normalizedCards = cards.map(c => ({
+      ...c,
+      active: c.effective_active,
+      favorite: c.effective_favorite,
+      memorized: c.effective_memorized
+    }));
+    const otherSets = await all(
+      'SELECT id, name FROM sets WHERE user_id = ? AND id != ? AND active = 1 ORDER BY created_at DESC',
+      [userId, set.id]
     );
     res.render('my_list_show', {
       set,
-      cards
+      cards: normalizedCards,
+      otherSets,
+      isOwner,
+      isCollaborator
     });
   } catch (e) {
     console.error(e);
@@ -1076,11 +1564,102 @@ app.get('/my/lists/:id', requireAuth, async (req, res) => {
   }
 });
 
+app.post('/my/lists/:id/move', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const sourceId = Number(req.params.id);
+  const targetId = Number(req.body.target_set_id);
+  const cardIds = normalizeIds(req.body.card_ids);
+  if (!targetId || cardIds.length === 0) return res.redirect(`/my/lists/${sourceId}`);
+  try {
+    const source = await get('SELECT * FROM sets WHERE id = ? AND user_id = ?', [sourceId, userId]);
+    if (!source) return res.redirect('/my/lists');
+    const target = await get('SELECT * FROM sets WHERE id = ? AND user_id = ?', [targetId, userId]);
+    if (!target || target.id === source.id) return res.redirect(`/my/lists/${source.id}`);
+
+    const placeholders = cardIds.map(() => '?').join(',');
+    const owned = await all(
+      `SELECT id FROM cards WHERE id IN (${placeholders}) AND set_id = ?`,
+      [...cardIds, source.id]
+    );
+    if (owned.length === 0) return res.redirect(`/my/lists/${source.id}`);
+
+    const posRow = await get('SELECT MAX(position) AS pos FROM cards WHERE set_id = ?', [target.id]);
+    let nextPos = posRow && posRow.pos ? Number(posRow.pos) : 0;
+
+    const ownedSet = new Set(owned.map(c => c.id));
+    for (const cardId of cardIds) {
+      if (!ownedSet.has(cardId)) continue;
+      nextPos += 1;
+      await run('UPDATE cards SET set_id = ?, position = ? WHERE id = ?', [target.id, nextPos, cardId]);
+    }
+
+    const remaining = await all('SELECT id FROM cards WHERE set_id = ? ORDER BY position ASC, id ASC', [source.id]);
+    for (let i = 0; i < remaining.length; i++) {
+      await run('UPDATE cards SET position = ? WHERE id = ?', [i + 1, remaining[i].id]);
+    }
+
+    res.redirect(`/my/lists/${target.id}`);
+  } catch (e) {
+    console.error('Move cards error:', e);
+    res.redirect(`/my/lists/${sourceId}`);
+  }
+});
+
+app.post('/my/lists/:id/copy', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const sourceId = Number(req.params.id);
+  const targetId = Number(req.body.target_set_id);
+  const cardIds = normalizeIds(req.body.card_ids);
+  if (!targetId || cardIds.length === 0) return res.redirect(`/my/lists/${sourceId}`);
+  try {
+    const source = await get('SELECT * FROM sets WHERE id = ? AND user_id = ?', [sourceId, userId]);
+    if (!source) return res.redirect('/my/lists');
+    const target = await get('SELECT * FROM sets WHERE id = ? AND user_id = ?', [targetId, userId]);
+    if (!target) return res.redirect(`/my/lists/${source.id}`);
+
+    const placeholders = cardIds.map(() => '?').join(',');
+    const owned = await all(
+      `SELECT * FROM cards WHERE id IN (${placeholders}) AND set_id = ?`,
+      [...cardIds, source.id]
+    );
+    if (owned.length === 0) return res.redirect(`/my/lists/${source.id}`);
+
+    const posRow = await get('SELECT MAX(position) AS pos FROM cards WHERE set_id = ?', [target.id]);
+    let nextPos = posRow && posRow.pos ? Number(posRow.pos) : 0;
+
+    for (const card of owned) {
+      nextPos += 1;
+      await run(
+        `INSERT INTO cards (set_id, french, hebrew, transliteration, position, active, favorite, memorized)
+         VALUES (?,?,?,?,?,?,?,?)`,
+        [
+          target.id,
+          card.french || '',
+          card.hebrew || '',
+          card.transliteration || null,
+          nextPos,
+          card.active ? 1 : 0,
+          card.favorite ? 1 : 0,
+          card.memorized ? 1 : 0
+        ]
+      );
+    }
+
+    res.redirect(`/my/lists/${target.id}`);
+  } catch (e) {
+    console.error('Copy cards error:', e);
+    res.redirect(`/my/lists/${sourceId}`);
+  }
+});
+
 app.get('/my/lists/:id/cards/:cardId/edit', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   try {
-    const set = await get('SELECT * FROM sets WHERE id = ? AND user_id = ?', [req.params.id, userId]);
+    const set = await get('SELECT * FROM sets WHERE id = ?', [req.params.id]);
     if (!set) return res.redirect('/my/lists');
+    const shared = await get('SELECT can_edit FROM set_shares WHERE set_id = ? AND user_id = ?', [set.id, userId]);
+    const canEdit = set.user_id === userId || (shared && Number(shared.can_edit) === 1);
+    if (!canEdit) return res.redirect('/my/lists');
     const card = await get('SELECT * FROM cards WHERE id = ? AND set_id = ?', [req.params.cardId, set.id]);
     if (!card) return res.redirect(`/my/lists/${set.id}`);
     res.render('my_card_form', {
@@ -1098,8 +1677,11 @@ app.get('/my/lists/:id/cards/:cardId/edit', requireAuth, async (req, res) => {
 app.put('/my/lists/:id/cards/:cardId', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   try {
-    const set = await get('SELECT * FROM sets WHERE id = ? AND user_id = ?', [req.params.id, userId]);
+    const set = await get('SELECT * FROM sets WHERE id = ?', [req.params.id]);
     if (!set) return res.redirect('/my/lists');
+    const shared = await get('SELECT can_edit FROM set_shares WHERE set_id = ? AND user_id = ?', [set.id, userId]);
+    const canEdit = set.user_id === userId || (shared && Number(shared.can_edit) === 1);
+    if (!canEdit) return res.redirect('/my/lists');
     const card = await get('SELECT * FROM cards WHERE id = ? AND set_id = ?', [req.params.cardId, set.id]);
     if (!card) return res.redirect(`/my/lists/${set.id}`);
     const { hebrew, french, transliteration, active, favorite, memorized } = req.body;
@@ -1127,20 +1709,103 @@ app.put('/my/lists/:id/cards/:cardId', requireAuth, async (req, res) => {
 app.get('/my/lists/:id/edit', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   try {
-    const set = await get('SELECT * FROM sets WHERE id = ? AND user_id = ?', [req.params.id, userId]);
+    const set = await get('SELECT * FROM sets WHERE id = ?', [req.params.id]);
     if (!set) return res.redirect('/my/lists');
+    const shared = await get('SELECT can_edit FROM set_shares WHERE set_id = ? AND user_id = ?', [set.id, userId]);
+    const canEdit = set.user_id === userId || (shared && Number(shared.can_edit) === 1);
+    if (!canEdit) return res.redirect('/my/lists');
     const cards = await all(
       'SELECT * FROM cards WHERE set_id = ? ORDER BY position ASC, id ASC',
       [set.id]
     );
     res.render('my_list_form', {
       set,
-      cards: cards.length > 0 ? cards : [{ hebrew: '', french: '', transliteration: '' }],
+      cards,
       action: `/my/lists/${set.id}?_method=PUT`,
       error: null
     });
   } catch (e) {
     console.error(e);
+    res.redirect('/my/lists');
+  }
+});
+
+app.get('/my/lists/:id/share', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  try {
+    const set = await get('SELECT * FROM sets WHERE id = ? AND user_id = ?', [req.params.id, userId]);
+    if (!set) return res.redirect('/my/lists');
+    const users = await all('SELECT id, display_name, email FROM users WHERE role = ? AND id != ? ORDER BY display_name ASC', ['user', userId]);
+    const sharedRows = await all('SELECT user_id, can_edit FROM set_shares WHERE set_id = ?', [set.id]);
+    const currentShared = sharedRows.filter(r => Number(r.can_edit) === 0).map(r => Number(r.user_id));
+    const currentCollaborators = sharedRows.filter(r => Number(r.can_edit) === 1).map(r => Number(r.user_id));
+    res.render('my_list_share', { set, users, currentShared, currentCollaborators });
+  } catch (e) {
+    console.error(e);
+    res.redirect('/my/lists');
+  }
+});
+
+app.post('/my/lists/:id/share', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const targetIds = normalizeIds(req.body.user_ids);
+  const collaboratorIds = normalizeIds(req.body.collaborator_ids);
+  try {
+    const set = await get('SELECT * FROM sets WHERE id = ? AND user_id = ?', [req.params.id, userId]);
+    if (!set) return res.redirect('/my/lists');
+    await run('DELETE FROM set_shares WHERE set_id = ?', [set.id]);
+    const collabSet = new Set(collaboratorIds);
+    const shareSet = new Set(targetIds);
+    const allTargets = new Set([...shareSet, ...collabSet]);
+    for (const uid of allTargets) {
+      const canEdit = collabSet.has(uid) ? 1 : 0;
+      await run('INSERT OR IGNORE INTO set_shares (set_id, user_id, can_edit) VALUES (?,?,?)', [set.id, uid, canEdit]);
+      await run('UPDATE set_shares SET can_edit = ? WHERE set_id = ? AND user_id = ?', [canEdit, set.id, uid]);
+    }
+    res.redirect('/my/lists');
+  } catch (e) {
+    console.error(e);
+    res.redirect('/my/lists');
+  }
+});
+
+app.post('/my/lists/:id/duplicate', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  try {
+    const source = await get('SELECT * FROM sets WHERE id = ? AND user_id = ?', [req.params.id, userId]);
+    if (!source) return res.redirect('/my/lists');
+    let suffix = 1;
+    let newName = `${source.name} (${suffix})`;
+    // Avoid name collisions similar to Windows
+    // Keep incrementing suffix until an available name is found
+    // Add small guard to avoid tight infinite loop
+    while (suffix < 200) {
+      const existing = await get('SELECT 1 FROM sets WHERE user_id = ? AND name = ?', [userId, newName]);
+      if (!existing) break;
+      suffix += 1;
+      newName = `${source.name} (${suffix})`;
+    }
+    const info = await run('INSERT INTO sets (name, user_id, active) VALUES (?,?,1)', [newName, userId]);
+    const cards = await all('SELECT * FROM cards WHERE set_id = ? ORDER BY position ASC, id ASC', [source.id]);
+    for (const card of cards) {
+      await run(
+        `INSERT INTO cards (set_id, french, hebrew, transliteration, position, active, favorite, memorized)
+         VALUES (?,?,?,?,?,?,?,?)`,
+        [
+          info.lastID,
+          card.french || '',
+          card.hebrew || '',
+          card.transliteration || null,
+          card.position || 1,
+          card.active ? 1 : 0,
+          card.favorite ? 1 : 0,
+          card.memorized ? 1 : 0
+        ]
+      );
+    }
+    res.redirect('/my/lists');
+  } catch (e) {
+    console.error('Duplicate list error:', e);
     res.redirect('/my/lists');
   }
 });
@@ -1153,17 +1818,9 @@ app.post('/my/lists', requireAuth, async (req, res) => {
   if (!title) {
     return res.render('my_list_form', {
       set: null,
-      cards: cards.length > 0 ? cards : [{ hebrew: '', french: '', transliteration: '' }],
+      cards,
       action: '/my/lists',
-      error: 'Donne un titre Ã  ta liste.'
-    });
-  }
-  if (cards.length === 0) {
-    return res.render('my_list_form', {
-      set: null,
-      cards: [{ hebrew: '', french: '', transliteration: '' }],
-      action: '/my/lists',
-      error: 'Ajoute au moins une carte (hÃ©breu + franÃ§ais).'
+      error: 'Donne un titre a ta liste.'
     });
   }
   try {
@@ -1184,9 +1841,9 @@ app.post('/my/lists', requireAuth, async (req, res) => {
     console.error(e);
     res.render('my_list_form', {
       set: null,
-      cards: cards.length > 0 ? cards : [{ hebrew: '', french: '', transliteration: '' }],
+      cards,
       action: '/my/lists',
-      error: 'Impossible de crÃ©er la liste pour le moment.'
+      error: 'Impossible de creer la liste pour le moment.'
     });
   }
 });
@@ -1196,16 +1853,12 @@ app.put('/my/lists/:id', requireAuth, async (req, res) => {
   const { name } = req.body;
   const cards = normalizeCardsPayload(req.body.cards);
   try {
-    const set = await get('SELECT * FROM sets WHERE id = ? AND user_id = ?', [req.params.id, userId]);
+    const set = await get('SELECT * FROM sets WHERE id = ?', [req.params.id]);
     if (!set) return res.redirect('/my/lists');
-    if (cards.length === 0) {
-      return res.render('my_list_form', {
-        set,
-        cards: [{ hebrew: '', french: '', transliteration: '' }],
-        action: `/my/lists/${set.id}?_method=PUT`,
-        error: 'Ajoute au moins une carte (hÃ©breu + franÃ§ais).'
-      });
-    }
+    const shared = await get('SELECT can_edit FROM set_shares WHERE set_id = ? AND user_id = ?', [set.id, userId]);
+    const isOwner = set.user_id === userId;
+    const isCollaborator = shared && Number(shared.can_edit) === 1;
+    if (!isOwner && !isCollaborator) return res.redirect('/my/lists');
     const title = name && name.trim() ? name.trim() : set.name;
     await run('UPDATE sets SET name = ? WHERE id = ?', [title, set.id]);
 
@@ -1246,9 +1899,11 @@ app.put('/my/lists/:id', requireAuth, async (req, res) => {
       }
     }
 
-    for (const id of existingIds) {
-      if (!keptIds.has(Number(id))) {
-        await run('DELETE FROM cards WHERE id = ? AND set_id = ?', [id, set.id]);
+    if (isOwner) {
+      for (const id of existingIds) {
+        if (!keptIds.has(Number(id))) {
+          await run('DELETE FROM cards WHERE id = ? AND set_id = ?', [id, set.id]);
+        }
       }
     }
 
@@ -1257,12 +1912,13 @@ app.put('/my/lists/:id', requireAuth, async (req, res) => {
     console.error(e);
     res.render('my_list_form', {
       set: { id: req.params.id, name: name || '' },
-      cards: cards.length > 0 ? cards : [{ hebrew: '', french: '', transliteration: '' }],
+      cards,
       action: `/my/lists/${req.params.id}?_method=PUT`,
       error: 'Impossible d\'enregistrer la liste.'
     });
   }
 });
+
 
 app.post('/my/lists/:id/cards/:cardId/action', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
@@ -1271,22 +1927,67 @@ app.post('/my/lists/:id/cards/:cardId/action', requireAuth, async (req, res) => 
   const allowedRedirects = ['/my/lists', '/my/words'];
   const backUrl = redirectTo && allowedRedirects.some(p => redirectTo.startsWith(p)) ? redirectTo : fallback;
   try {
-    const set = await get('SELECT * FROM sets WHERE id = ? AND user_id = ?', [req.params.id, userId]);
+    const set = await get('SELECT * FROM sets WHERE id = ?', [req.params.id]);
     if (!set) return res.redirect('/my/lists');
+    const isOwner = set.user_id === userId;
+    const shared = await get('SELECT can_edit FROM set_shares WHERE set_id = ? AND user_id = ?', [set.id, userId]);
+    const isCollaborator = shared && Number(shared.can_edit) === 1;
+    if (!isOwner && !shared) return res.redirect(backUrl);
     const card = await get('SELECT * FROM cards WHERE id = ? AND set_id = ?', [req.params.cardId, set.id]);
     if (!card) return res.redirect(backUrl);
+    const existingOverride = await get('SELECT * FROM card_overrides WHERE card_id = ? AND user_id = ?', [card.id, userId]);
 
-    if (action === 'toggle_fav') {
-      await run('UPDATE cards SET favorite = ? WHERE id = ?', [card.favorite ? 0 : 1, card.id]);
-    } else if (action === 'toggle_active') {
-      await run('UPDATE cards SET active = ? WHERE id = ?', [card.active ? 0 : 1, card.id]);
-    } else if (action === 'toggle_memorized') {
-      await run('UPDATE cards SET memorized = ? WHERE id = ?', [card.memorized ? 0 : 1, card.id]);
-    } else if (action === 'delete') {
-      await run('DELETE FROM cards WHERE id = ? AND set_id = ?', [card.id, set.id]);
-      const remaining = await all('SELECT id FROM cards WHERE set_id = ? ORDER BY position ASC, id ASC', [set.id]);
-      for (let i = 0; i < remaining.length; i++) {
-        await run('UPDATE cards SET position = ? WHERE id = ?', [i + 1, remaining[i].id]);
+    if (isOwner) {
+      if (action === 'toggle_fav') {
+        await run('UPDATE cards SET favorite = ? WHERE id = ?', [card.favorite ? 0 : 1, card.id]);
+      } else if (action === 'toggle_active') {
+        await run('UPDATE cards SET active = ? WHERE id = ?', [card.active ? 0 : 1, card.id]);
+      } else if (action === 'toggle_memorized') {
+        await run('UPDATE cards SET memorized = ? WHERE id = ?', [card.memorized ? 0 : 1, card.id]);
+      } else if (action === 'delete') {
+        await run('DELETE FROM cards WHERE id = ? AND set_id = ?', [card.id, set.id]);
+        const remaining = await all('SELECT id FROM cards WHERE set_id = ? ORDER BY position ASC, id ASC', [set.id]);
+        for (let i = 0; i < remaining.length; i++) {
+          await run('UPDATE cards SET position = ? WHERE id = ?', [i + 1, remaining[i].id]);
+        }
+      }
+    } else if (isCollaborator) {
+      if (action === 'toggle_fav') {
+        const currentFav = existingOverride
+          ? (existingOverride.favorite === null ? card.favorite : existingOverride.favorite)
+          : card.favorite;
+        await run(
+          'INSERT OR REPLACE INTO card_overrides (card_id, user_id, active, favorite, memorized) VALUES (?,?,?,?,?)',
+          [
+            card.id,
+            userId,
+            existingOverride && existingOverride.active !== null ? existingOverride.active : card.active,
+            currentFav ? 0 : 1,
+            existingOverride && existingOverride.memorized !== null ? existingOverride.memorized : card.memorized
+          ]
+        );
+      } else if (action === 'toggle_active') {
+        await run('UPDATE cards SET active = ? WHERE id = ?', [card.active ? 0 : 1, card.id]);
+      } else if (action === 'toggle_memorized') {
+        await run('UPDATE cards SET memorized = ? WHERE id = ?', [card.memorized ? 0 : 1, card.id]);
+      }
+    } else {
+      // Shared list: only overrides per user
+      const base = {
+        active: card.active,
+        favorite: card.favorite,
+        memorized: card.memorized
+      };
+      if (action === 'toggle_fav' || action === 'toggle_active' || action === 'toggle_memorized') {
+        const next = {
+          active: action === 'toggle_active' ? (existingOverride ? (existingOverride.active === null ? base.active : existingOverride.active) : base.active) ? 0 : 1 : (existingOverride ? existingOverride.active : null),
+          favorite: action === 'toggle_fav' ? (existingOverride ? (existingOverride.favorite === null ? base.favorite : existingOverride.favorite) : base.favorite) ? 0 : 1 : (existingOverride ? existingOverride.favorite : null),
+          memorized: action === 'toggle_memorized' ? (existingOverride ? (existingOverride.memorized === null ? base.memorized : existingOverride.memorized) : base.memorized) ? 0 : 1 : (existingOverride ? existingOverride.memorized : null)
+        };
+        await run(
+          'INSERT OR REPLACE INTO card_overrides (card_id, user_id, active, favorite, memorized) VALUES (?,?,?,?,?)',
+          [card.id, userId, next.active, next.favorite, next.memorized]
+        );
       }
     }
   } catch (e) {
@@ -1300,6 +2001,7 @@ app.delete('/my/lists/:id', requireAuth, async (req, res) => {
   try {
     const set = await get('SELECT * FROM sets WHERE id = ? AND user_id = ?', [req.params.id, userId]);
     if (!set) return res.redirect('/my/lists');
+    await run('DELETE FROM set_shares WHERE set_id = ?', [set.id]);
     await run('DELETE FROM cards WHERE set_id = ?', [set.id]);
     await run('DELETE FROM sets WHERE id = ?', [set.id]);
     res.redirect('/my/lists');
@@ -1314,50 +2016,60 @@ async function renderThemeList(req, res) {
   const userId = req.session.user.id;
   const isAdmin = req.session.user && req.session.user.role === 'admin';
   try {
-    const proposedThemes = await all(
+    const allThemes = await all(
       `SELECT t.*,
+        COALESCE(uto.active, t.active) AS effective_active,
+        uto.active AS user_active,
         (SELECT COUNT(*) FROM theme_levels l WHERE l.theme_id = t.id) AS level_count
        FROM themes t
-       WHERE t.user_id IS NULL AND t.active = 1
-       ORDER BY t.id ASC`
+       LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
+       WHERE t.user_id IS NULL
+       ORDER BY t.id ASC`,
+      [userId]
     );
-    const inactiveProposed = await all(
-      `SELECT t.*
-       FROM themes t
-       WHERE t.user_id IS NULL AND t.active = 0
-       ORDER BY t.id ASC`
-    );
-
-    const allIds = [...proposedThemes].map(t => t.id);
-    let levelsByTheme = {};
-    if (allIds.length > 0) {
-      const placeholders = allIds.map(() => '?').join(',');
-      const levels = await all(
-        `SELECT * FROM theme_levels WHERE theme_id IN (${placeholders}) AND active = 1 ORDER BY level_order, id`,
-        allIds
-      );
-      levelsByTheme = levels.reduce((acc, lvl) => {
-        if (!acc[lvl.theme_id]) acc[lvl.theme_id] = [];
-        acc[lvl.theme_id].push(lvl);
-        return acc;
-      }, {});
-    }
+    const activeThemes = allThemes.filter(t => Number(t.effective_active) === 1 && Number(t.active) === 1);
+    const inactiveProposed = allThemes.filter(t => Number(t.active) === 0);
+    const inactivePersonal = allThemes.filter(t => Number(t.active) === 1 && Number(t.effective_active) === 0);
     res.render('themes', {
-      proposedThemes,
+      activeThemes,
       inactiveProposed,
-      personalThemes: [],
-      inactivePersonal: [],
-      levelsByTheme,
+      inactivePersonal,
+      isAdmin,
       pageClass: 'page-compact'
     });
   } catch (e) {
     console.error(e);
-    res.render('themes', { proposedThemes: [], personalThemes: [], inactiveProposed: [], inactivePersonal: [], levelsByTheme: {}, pageClass: 'page-compact' });
+    res.render('themes', { activeThemes: [], inactiveProposed: [], inactivePersonal: [], isAdmin, pageClass: 'page-compact' });
   }
 }
 
 app.get('/themes', requireAuth, renderThemeList);
 app.get('/my/themes', requireAuth, renderThemeList);
+
+app.post('/themes/:id/toggle-visibility', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const backUrl = req.get('referer') || '/themes';
+  try {
+    const theme = await get(
+      `SELECT t.*, COALESCE(uto.active, t.active) AS effective_active
+       FROM themes t
+       LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
+       WHERE t.id = ?`,
+      [userId, req.params.id]
+    );
+    if (!theme) return res.redirect('/themes');
+    if (theme.user_id && theme.user_id !== userId) return res.redirect('/themes');
+    if (!theme.active) return res.redirect(backUrl);
+    const nextStatus = theme.effective_active ? 0 : 1;
+    await run(
+      'INSERT INTO user_theme_overrides (theme_id, user_id, active) VALUES (?,?,?) ON CONFLICT(theme_id, user_id) DO UPDATE SET active=excluded.active',
+      [theme.id, userId, nextStatus]
+    );
+  } catch (e) {
+    console.error('Toggle theme visibility error:', e);
+  }
+  res.redirect(backUrl);
+});
 
 // ---------- Sets (Quizlet-like) ----------
 app.get('/my/themes/new', requireAuth, async (req, res) => {
@@ -1423,10 +2135,11 @@ app.get('/themes/:id', requireAuth, async (req, res) => {
   const isAdmin = req.session.user && req.session.user.role === 'admin';
   try {
     const theme = await get(
-      `SELECT t.*
+      `SELECT t.*, COALESCE(uto.active, t.active) AS effective_active, uto.active AS user_active
        FROM themes t
+       LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
        WHERE t.id = ?`,
-      [req.params.id]
+      [userId, req.params.id]
     );
     if (!theme || (theme.user_id && theme.user_id !== userId) || (!theme.active && !isAdmin)) {
       return res.redirect('/themes');
@@ -1434,12 +2147,14 @@ app.get('/themes/:id', requireAuth, async (req, res) => {
     const words = await all(
       `SELECT w.id, w.hebrew, w.transliteration, w.french, w.active AS global_active, w.user_id,
         uwo.active AS override_active,
-        CASE WHEN w.active = 0 THEN 0 ELSE COALESCE(uwo.active, w.active) END AS effective_active
+        CASE WHEN w.active = 0 OR t.active = 0 OR COALESCE(uto.active, 1) = 0 THEN 0 ELSE COALESCE(uwo.active, w.active) END AS effective_active
        FROM words w
+       LEFT JOIN themes t ON t.id = w.theme_id
+       LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
        LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
        WHERE w.theme_id = ? AND (w.user_id IS NULL OR w.user_id = ?)
        ORDER BY w.id ASC`,
-      [userId, theme.id, userId]
+      [userId, userId, theme.id, userId]
     );
     res.render('theme_show', { theme, words, isOwner: theme.user_id === userId, isGlobal: !theme.user_id });
   } catch (e) {
@@ -1451,40 +2166,67 @@ app.get('/themes/:id', requireAuth, async (req, res) => {
 // ---------- EntraÃ®nement ----------
 	app.get('/train/setup', requireAuth, async (req, res) => {
 	  const userId = req.session.user.id;
-	  const themes = await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]);
+	  const themes = await getActiveThemesForUser(userId);
 	  const levels = await getLevelsForUser(userId);
-	  const sets = await all('SELECT id, name FROM sets WHERE user_id = ? AND active = 1 ORDER BY created_at DESC', [userId]);
+	  const sets = await all(
+      `SELECT s.id, s.name
+       FROM sets s
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+       WHERE s.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
+       ORDER BY s.created_at DESC`,
+      [userId, userId]
+    );
+    const sharedSets = await all(
+      `SELECT s.id, s.name, owner.display_name AS owner_name
+       FROM set_shares sh
+       JOIN sets s ON s.id = sh.set_id
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+       JOIN users owner ON owner.id = s.user_id
+       WHERE sh.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
+       ORDER BY s.created_at DESC`,
+      [userId, userId]
+    );
 	  const state = req.session.trainState || null;
 	  const useSessionParams = (req.query.current === '1' || req.query.current === 'true' || req.query.source === 'session');
 
   const baseParams = {
     modes: ['flashcards'],
-    rev_mode: 'order',
-    difficulty: '',
-    theme_ids: [],
-    set_ids: [],
-    level_id: '',
-    scope: 'all',
-    remaining: 10,
+  rev_mode: 'order',
+  show_phonetic: 1,
+  theme_ids: [],
+  set_ids: [],
+  level_id: '',
+  scope: 'all',
+  remaining: 10,
     total: 10
   };
 
-	  let params = { ...baseParams };
+  let params = { ...baseParams };
 	  if (useSessionParams && state) {
-	    const themeIds = Array.isArray(state.theme_ids) ? state.theme_ids : state.theme_ids ? [state.theme_ids] : [];
-	    const setIds = Array.isArray(state.set_ids) ? state.set_ids : state.set_ids ? [state.set_ids] : [];
-	    const remainingVal = state.remaining === null || typeof state.remaining === 'undefined' ? baseParams.remaining : state.remaining;
-	    const totalVal = state.total === null || typeof state.total === 'undefined' ? remainingVal : state.total;
-	    params = {
-	      ...baseParams,
-	      modes: normalizeModes(state.modes || state.mode),
-      rev_mode: state.rev_mode || baseParams.rev_mode,
-      difficulty: state.difficulty || baseParams.difficulty,
-	      theme_ids: themeIds,
-	      set_ids: setIds,
-	      level_id: state.level_id || '',
-	      scope: state.scope || baseParams.scope,
-	      remaining: remainingVal,
+	    const allowedThemeIds = new Set(await getActiveThemeIdsForUser(userId));
+	    const themeIdsRaw = Array.isArray(state.theme_ids) ? state.theme_ids : state.theme_ids ? [state.theme_ids] : [];
+      const themeIds = themeIdsRaw
+        .flatMap(t => String(t).split(','))
+        .map(id => Number(id))
+        .filter(id => !Number.isNaN(id) && allowedThemeIds.has(id));
+    const allowedSets = new Set(await getAccessibleSetIds(userId));
+    const setIdsRaw = Array.isArray(state.set_ids) ? state.set_ids : state.set_ids ? [state.set_ids] : [];
+    const setIds = setIdsRaw
+      .flatMap(s => String(s).split(','))
+      .map(id => Number(id))
+      .filter(id => !Number.isNaN(id) && allowedSets.has(id));
+    const remainingVal = state.remaining === null || typeof state.remaining === 'undefined' ? baseParams.remaining : state.remaining;
+    const totalVal = state.total === null || typeof state.total === 'undefined' ? remainingVal : state.total;
+    params = {
+      ...baseParams,
+      modes: normalizeModes(state.modes || state.mode),
+  rev_mode: state.rev_mode || baseParams.rev_mode,
+      show_phonetic: typeof state.show_phonetic === 'undefined' ? baseParams.show_phonetic : state.show_phonetic,
+      theme_ids: themeIds,
+      set_ids: setIds,
+      level_id: state.level_id || '',
+      scope: state.scope || baseParams.scope,
+      remaining: remainingVal,
 	      total: totalVal
 	    };
 	  }
@@ -1493,39 +2235,64 @@ app.get('/themes/:id', requireAuth, async (req, res) => {
 	    themes,
 	    levels,
 	    sets,
+      sharedSets,
 	    params
 	  });
 	});
 
 app.post('/train/session', requireAuth, async (req, res) => {
-  const { modes, mode, theme_ids, set_ids, level_id, difficulty, rev_mode, remaining } = req.body;
+  const { modes, mode, theme_ids, set_ids, level_id, rev_mode, remaining, show_phonetic } = req.body;
   const rawModes = modes || req.body['modes[]'] || mode;
   const modeList = normalizeModes(rawModes);
   const themeRaw = Array.isArray(theme_ids) ? theme_ids.filter(Boolean) : theme_ids ? [theme_ids] : [];
   const setRaw = Array.isArray(set_ids) ? set_ids.filter(Boolean) : set_ids ? [set_ids] : [];
-  const themeList = themeRaw.flatMap(t => String(t).split(',')).filter(Boolean);
-  const setList = setRaw.flatMap(s => String(s).split(',')).filter(Boolean).map(Number).filter(Boolean);
+  const themeIdsRaw = themeRaw.flatMap(t => String(t).split(',')).filter(Boolean).map(id => Number(id)).filter(Boolean);
+  const setListRaw = setRaw.flatMap(s => String(s).split(',')).filter(Boolean).map(Number).filter(Boolean);
+  const allowedSetIds = await getAccessibleSetIds(req.session.user.id);
+  const allowedSetSet = new Set(allowedSetIds);
+  const allowedThemeIds = new Set(await getActiveThemeIdsForUser(req.session.user.id));
+  const themeList = themeIdsRaw.filter(id => allowedThemeIds.has(id));
+  const setList = setListRaw.filter(id => allowedSetSet.has(id));
   let remain = remaining === 'all' ? null : Number(remaining || 10);
+  const showPhonetic = String(show_phonetic) === '0' ? 0 : 1;
 
   if (themeList.length === 0 && setList.length === 0) {
     const userId = req.session.user.id;
-    const themes = await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]);
+    const themes = await getActiveThemesForUser(userId);
     const levels = await getLevelsForUser(userId);
-    const sets = await all('SELECT id, name FROM sets WHERE user_id = ? AND active = 1 ORDER BY created_at DESC', [userId]);
+    const sets = await all(
+      `SELECT s.id, s.name
+       FROM sets s
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+       WHERE s.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
+       ORDER BY s.created_at DESC`,
+      [userId, userId]
+    );
+    const sharedSets = await all(
+      `SELECT s.id, s.name, owner.display_name AS owner_name
+       FROM set_shares sh
+       JOIN sets s ON s.id = sh.set_id
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+       JOIN users owner ON owner.id = s.user_id
+       WHERE sh.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
+       ORDER BY s.created_at DESC`,
+      [userId, userId]
+    );
     return res.render('train_setup', {
       themes,
       levels,
       sets,
+      sharedSets,
       error: 'Selectionne au moins un theme ou une liste.',
       params: {
         modes: modeList,
-      rev_mode: rev_mode || 'order',
-        difficulty: difficulty || '',
+    rev_mode: rev_mode || 'order',
         theme_id: '',
         level_id: level_id || '',
         scope: 'all',
         remaining: remain || 10,
-        total: remain || 10
+        total: remain || 10,
+        show_phonetic: showPhonetic
       }
     });
   }
@@ -1534,11 +2301,8 @@ app.post('/train/session', requireAuth, async (req, res) => {
   let poolCards = null;
   if (remain === null) {
     if (setList.length > 0) {
-      const placeholders = setList.map(() => '?').join(',');
-      poolCards = await all(
-        `SELECT id FROM cards WHERE set_id IN (${placeholders}) AND active = 1 ORDER BY set_id ASC, position ASC, id ASC`,
-        setList
-      );
+      const poolCardsFull = await getEffectiveCardsForUser(req.session.user.id, setList);
+      poolCards = poolCardsFull.map(c => ({ id: c.id }));
       remain = poolCards.length;
     } else {
       const params = [];
@@ -1547,11 +2311,12 @@ app.post('/train/session', requireAuth, async (req, res) => {
         LEFT JOIN themes t ON t.id = w.theme_id
         LEFT JOIN theme_levels l ON l.id = w.level_id
         LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
+        LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
         WHERE w.active = 1
           AND COALESCE(uwo.active, 1) = 1
-          AND (w.theme_id IS NULL OR t.active = 1)
+          AND (w.theme_id IS NULL OR (t.active = 1 AND COALESCE(uto.active, 1) = 1))
           AND (w.level_id IS NULL OR l.active = 1)`;
-      params.push(req.session.user.id);
+      params.push(req.session.user.id, req.session.user.id);
       if (themeList.length === 1) {
         baseSql += ' AND w.theme_id = ?';
         params.push(themeList[0]);
@@ -1564,10 +2329,6 @@ app.post('/train/session', requireAuth, async (req, res) => {
         baseSql += ' AND w.level_id = ?';
         params.push(level_id);
       }
-      if (difficulty) {
-        baseSql += ' AND w.difficulty = ?';
-        params.push(difficulty);
-      }
       baseSql += ' AND (w.user_id IS NULL OR w.user_id = ?)';
       params.push(req.session.user.id);
       baseSql += ' ORDER BY w.id ASC';
@@ -1578,23 +2339,41 @@ app.post('/train/session', requireAuth, async (req, res) => {
 
   if (!remain || Number(remain) <= 0) {
     const userId = req.session.user.id;
-    const themes = await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]);
+    const themes = await getActiveThemesForUser(userId);
     const levels = await getLevelsForUser(userId);
-    const sets = await all('SELECT id, name FROM sets WHERE user_id = ? AND active = 1 ORDER BY created_at DESC', [userId]);
+    const sets = await all(
+      `SELECT s.id, s.name
+       FROM sets s
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+       WHERE s.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
+       ORDER BY s.created_at DESC`,
+      [userId, userId]
+    );
+    const sharedSets = await all(
+      `SELECT s.id, s.name, owner.display_name AS owner_name
+       FROM set_shares sh
+       JOIN sets s ON s.id = sh.set_id
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+       JOIN users owner ON owner.id = s.user_id
+       WHERE sh.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
+       ORDER BY s.created_at DESC`,
+      [userId, userId]
+    );
     return res.render('train_setup', {
       themes,
       levels,
       sets,
+      sharedSets,
       error: 'Aucun mot disponible avec cette selection.',
       params: {
         modes: modeList,
-      rev_mode: rev_mode || 'order',
-        difficulty: difficulty || '',
+    rev_mode: rev_mode || 'order',
         theme_id: '',
         level_id: level_id || '',
         scope: 'all',
         remaining: 10,
-        total: 10
+        total: 10,
+        show_phonetic: showPhonetic
       }
     });
   }
@@ -1604,11 +2383,11 @@ app.post('/train/session', requireAuth, async (req, res) => {
     theme_ids: themeList,
     set_ids: setList,
     level_id: level_id || '',
-    difficulty: difficulty || '',
     rev_mode: rev_mode || 'order',
     scope: 'all',
     remaining: remain,
     total: remain,
+    show_phonetic: showPhonetic,
     answered: 0,
     correct: 0,
     usedWordIds: [],
@@ -1631,6 +2410,8 @@ app.get('/train', requireAuth, async (req, res) => {
   state.usedCardIds = Array.isArray(state.usedCardIds)
     ? state.usedCardIds.map(id => Number(id)).filter(id => !Number.isNaN(id))
     : [];
+  const allowedSets = await getAccessibleSetIds(userId);
+  state.set_ids = Array.isArray(state.set_ids) ? state.set_ids.filter(id => allowedSets.includes(Number(id))) : [];
   const mode = modeList[0] || MODE_FLASHCARDS;
   const questionMode = pickQuestionMode(modeList);
   state.currentMode = questionMode;
@@ -1639,14 +2420,17 @@ app.get('/train', requireAuth, async (req, res) => {
   const totalCount = Number(state.total || 0);
   const answeredCount = Number(state.answered || 0);
   const correctCount = Number(state.correct || 0);
-  const themeList = state.theme_ids || [];
+  const allowedThemeIds = new Set(await getActiveThemeIdsForUser(userId));
+  const themeListRaw = state.theme_ids || [];
+  const themeList = themeListRaw.filter(id => allowedThemeIds.has(Number(id)));
+  state.theme_ids = themeList;
   const selectedSetIds = state.set_ids || [];
 
   const filters = {
     theme_id: themeList.length === 1 ? themeList[0] : null,
     theme_ids: themeList,
     level_id: state.level_id || null,
-    difficulty: state.difficulty || '',
+    show_phonetic: typeof state.show_phonetic === 'undefined' ? 1 : state.show_phonetic,
     rev_mode: state.rev_mode || 'random',
     scope: 'all',
     scope_list: [],
@@ -1654,7 +2438,7 @@ app.get('/train', requireAuth, async (req, res) => {
     set_ids: selectedSetIds
   };
 
-  const themes = await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]);
+  const themes = await getActiveThemesForUser(userId);
 
   if (remainingCount <= 0) {
     delete req.session.trainState;
@@ -1683,11 +2467,28 @@ app.get('/train', requireAuth, async (req, res) => {
 
   try {
     if (filters.source === 'cards') {
-      const placeholders = filters.set_ids.map(() => '?').join(',');
-      const cardsPool = await all(
-        `SELECT * FROM cards WHERE set_id IN (${placeholders}) AND active = 1`,
-        filters.set_ids
-      );
+      const allowedSetIds = await getAccessibleSetIds(userId);
+      const filteredIds = (filters.set_ids || []).filter(id => allowedSetIds.includes(Number(id)));
+      if (filteredIds.length === 0) {
+        delete req.session.trainState;
+        return res.render('train', {
+          word: null,
+          message: 'Aucune carte disponible.',
+          result: null,
+          mode,
+          modes: modeList,
+          questionMode,
+          filters: { ...filters, set_ids: [] },
+          options: null,
+          themes,
+          remaining: 0,
+          total: totalCount,
+          answered: answeredCount,
+          correct: correctCount,
+          nextUrl: null
+        });
+      }
+      const cardsPool = await getEffectiveCardsForUser(userId, filteredIds);
       if (!cardsPool || cardsPool.length === 0) {
         req.session.trainState = state;
         return res.render('train', {
@@ -1844,7 +2645,7 @@ app.post('/train/answer', requireAuth, async (req, res) => {
     theme_id: state.theme_id || null,
     theme_ids: state.theme_ids || [],
     level_id: state.level_id || null,
-    difficulty: state.difficulty || '',
+    show_phonetic: typeof state.show_phonetic === 'undefined' ? 1 : state.show_phonetic,
     rev_mode: state.rev_mode || 'random',
     scope: state.scope || 'all',
     scope_list: [],
@@ -1859,7 +2660,7 @@ app.post('/train/answer', requireAuth, async (req, res) => {
   const normalizedAnswer = (user_answer || '').trim().toLowerCase();
 
   try {
-    const themes = await all('SELECT * FROM themes WHERE (user_id IS NULL OR user_id = ?) AND active = 1 ORDER BY id ASC', [userId]);
+    const themes = await getActiveThemesForUser(userId);
 
     if (filters.source === 'cards' && String(word_id).startsWith('card_')) {
       const cardId = Number(String(word_id).replace('card_', ''));
@@ -2172,8 +2973,6 @@ app.get('/admin/themes', requireAdmin, async (req, res) => {
     let orderBy = 'COALESCE(t.created_at, t.id) ASC';
     if (sort === 'created_desc') orderBy = 'COALESCE(t.created_at, t.id) DESC';
     if (sort === 'alpha') orderBy = 't.name COLLATE NOCASE ASC';
-    const importError = req.query.import_error || null;
-    const importSuccess = req.query.import_success || null;
     const themes = await all(
       `SELECT t.*,
         COUNT(w.id) AS word_count
@@ -2183,59 +2982,19 @@ app.get('/admin/themes', requireAdmin, async (req, res) => {
        GROUP BY t.id
        ORDER BY ${orderBy}`
     );
-    res.render('admin/themes', { themes, sort, importError, importSuccess });
+    res.render('admin/themes', { themes, sort });
   } catch (e) {
     console.error(e);
-    res.render('admin/themes', { themes: [], sort: req.query.sort || 'created_asc', importError: null, importSuccess: null });
+    res.render('admin/themes', { themes: [], sort: req.query.sort || 'created_asc' });
   }
 });
 
-// Import d'un thème par défaut (JSON)
-app.post('/admin/themes/import', requireAdmin, async (req, res) => {
-  const redirectErr = msg => res.redirect(`/admin/themes?import_error=${encodeURIComponent(msg)}`);
-  try {
-    const payload = req.body.payload;
-    if (!payload || !payload.trim()) return redirectErr('Fichier JSON manquant');
-    let data;
-    try {
-      data = JSON.parse(payload);
-    } catch (e) {
-      return redirectErr('JSON invalide');
-    }
-    const name = data && data.name && String(data.name).trim();
-    if (!name) return redirectErr('Nom de theme manquant');
-    const words = Array.isArray(data.words) ? data.words : [];
-    if (words.length === 0) return redirectErr('Aucun mot dans le fichier');
-
-    const active = data.active === 0 ? 0 : 1;
-    const themeRes = await run('INSERT INTO themes (name, active, user_id, created_at) VALUES (?,?,NULL, CURRENT_TIMESTAMP)', [name, active]);
-    const themeId = themeRes.lastID;
-
-    for (const w of words) {
-      const hebrew = w.hebrew ? String(w.hebrew).trim() : '';
-      const french = w.french ? String(w.french).trim() : '';
-      if (!hebrew || !french) continue;
-      const translit = w.transliteration ? String(w.transliteration).trim() : null;
-      const wActive = w.active === 0 ? 0 : 1;
-      await run(
-        `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id)
-         VALUES (?,?,?,?,?,?,?,NULL)`,
-        [hebrew, translit, french, themeId, null, 1, wActive]
-      );
-    }
-
-    return res.redirect(`/admin/themes?import_success=${encodeURIComponent('Theme importe avec succes')}`);
-  } catch (e) {
-    console.error('Import theme error:', e);
-    return res.redirect(`/admin/themes?import_error=${encodeURIComponent('Erreur pendant l import')}`);
-  }
-});
 
 app.get('/admin/themes/new', requireAdmin, async (req, res) => {
   try {
     res.render('admin/theme_form', {
       theme: null,
-      cards: [{ hebrew: '', french: '', transliteration: '' }],
+      cards: [],
       action: '/admin/themes'
     });
   } catch (e) {
@@ -2279,7 +3038,7 @@ app.get('/admin/themes/:id/edit', requireAdmin, async (req, res) => {
     );
     res.render('admin/theme_form', {
       theme,
-      cards: cards.length > 0 ? cards : [{ hebrew: '', french: '', transliteration: '' }],
+      cards,
       action: `/admin/themes/${theme.id}?_method=PUT`
     });
   } catch (e) {
@@ -2352,7 +3111,11 @@ app.get('/admin/themes/:id', requireAdmin, async (req, res) => {
       'SELECT id, hebrew, french, transliteration, active FROM words WHERE theme_id = ? AND user_id IS NULL ORDER BY id ASC',
       [theme.id]
     );
-    res.render('admin/theme_show', { theme, words });
+    const targetThemes = await all(
+      'SELECT id, name FROM themes WHERE user_id IS NULL AND id != ? ORDER BY name ASC',
+      [theme.id]
+    );
+    res.render('admin/theme_show', { theme, words, targetThemes });
   } catch (e) {
     console.error(e);
     res.redirect('/admin/themes');
@@ -2376,6 +3139,37 @@ app.post('/admin/themes/:themeId/words/:wordId/action', requireAdmin, async (req
     console.error(e);
   }
   res.redirect(redirectTo);
+});
+
+app.post('/admin/themes/:id/move', requireAdmin, async (req, res) => {
+  const sourceId = Number(req.params.id);
+  const targetId = Number(req.body.target_theme_id);
+  const wordIds = normalizeIds(req.body.word_ids);
+  if (!targetId || wordIds.length === 0) return res.redirect(`/admin/themes/${sourceId}`);
+  try {
+    const source = await get('SELECT * FROM themes WHERE id = ? AND user_id IS NULL', [sourceId]);
+    if (!source) return res.redirect('/admin/themes');
+    const target = await get('SELECT * FROM themes WHERE id = ? AND user_id IS NULL', [targetId]);
+    if (!target || target.id === source.id) return res.redirect(`/admin/themes/${source.id}`);
+
+    const placeholders = wordIds.map(() => '?').join(',');
+    const owned = await all(
+      `SELECT id FROM words WHERE id IN (${placeholders}) AND theme_id = ? AND user_id IS NULL`,
+      [...wordIds, source.id]
+    );
+    if (owned.length === 0) return res.redirect(`/admin/themes/${source.id}`);
+
+    const ownedSet = new Set(owned.map(w => w.id));
+    for (const wordId of wordIds) {
+      if (!ownedSet.has(wordId)) continue;
+      await run('UPDATE words SET theme_id = ?, level_id = NULL WHERE id = ?', [target.id, wordId]);
+    }
+
+    res.redirect(`/admin/themes/${target.id}`);
+  } catch (e) {
+    console.error('Move theme words error:', e);
+    res.redirect(`/admin/themes/${sourceId}`);
+  }
 });
 
 app.post('/admin/themes/:id/levels', requireAdmin, async (req, res) => {
@@ -2642,6 +3436,7 @@ app.delete('/admin/words/:id', requireAdmin, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server started at http://localhost:${PORT}`);
 });
+
 
 
 

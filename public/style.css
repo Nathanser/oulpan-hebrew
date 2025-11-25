@@ -1111,6 +1111,21 @@ details.advanced summary {
   border-color: transparent;
 }
 
+.tab-btn {
+  background: #0b1224;
+  border: 1px solid #1f2937;
+  color: #e5e7eb;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.tab-btn.active {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #fff;
+  border-color: transparent;
+}
+
 .cards-wall {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -1336,7 +1351,8 @@ details.advanced summary {
 }
 
 .search-row {
-  margin-top: 0.25rem;
+  margin-top: 0.15rem;
+  margin-bottom: 0.25rem;
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -1356,6 +1372,85 @@ details.advanced summary {
 
 .search-icon {
   color: #94a3b8;
+}
+
+.search-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 0.35rem;
+}
+
+.search-bar-row .search-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card-select {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  display: none;
+}
+
+.card-select input {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 30;
+}
+
+.modal-card {
+  background: #0b1224;
+  border: 1px solid #1f2937;
+  border-radius: 0.9rem;
+  padding: 1rem;
+  width: 100%;
+  max-width: 440px;
+}
+
+.options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.modal-actions {
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.btn[disabled],
+.cta[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn.is-disabled,
+.cta.is-disabled {
+  opacity: 0.6;
 }
 
 @media (max-width: 540px) {
