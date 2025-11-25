@@ -580,6 +580,54 @@ async function reloadUser(req, res) {
   return normalized;
 }
 
+async function nextDisplayNo(table, userIdCondition) {
+  let sql = `SELECT MAX(display_no) AS max_no FROM ${table} WHERE `;
+  const params = [];
+  if (userIdCondition === null) {
+    sql += 'user_id IS NULL';
+  } else {
+    sql += 'user_id = ?';
+    params.push(userIdCondition);
+  }
+  const row = await get(sql, params);
+  return (row && row.max_no ? Number(row.max_no) : 0) + 1;
+}
+
+async function renumberThemes(userId) {
+  const rows = await all(
+    userId === null
+      ? 'SELECT id FROM themes WHERE user_id IS NULL ORDER BY COALESCE(created_at, id) ASC'
+      : 'SELECT id FROM themes WHERE user_id = ? ORDER BY COALESCE(created_at, id) ASC',
+    userId === null ? [] : [userId]
+  );
+  for (let i = 0; i < rows.length; i++) {
+    await run('UPDATE themes SET display_no = ? WHERE id = ?', [i + 1, rows[i].id]);
+  }
+}
+
+async function renumberSets(userId) {
+  const rows = await all(
+    'SELECT id FROM sets WHERE user_id = ? ORDER BY COALESCE(created_at, id) ASC',
+    [userId]
+  );
+  for (let i = 0; i < rows.length; i++) {
+    await run('UPDATE sets SET display_no = ? WHERE id = ?', [i + 1, rows[i].id]);
+  }
+}
+
+async function renumberAllThemesAndSets() {
+  const themeOwners = await all('SELECT DISTINCT user_id FROM themes');
+  const owners = themeOwners.map(r => r.user_id);
+  if (!owners.includes(null)) owners.push(null);
+  for (const owner of owners) {
+    await renumberThemes(owner);
+  }
+  const setOwners = await all('SELECT DISTINCT user_id FROM sets');
+  for (const row of setOwners) {
+    await renumberSets(row.user_id);
+  }
+}
+
 async function requireAuth(req, res, next) {
   if (!req.session.user) return res.redirect('/login');
   try {
@@ -670,9 +718,11 @@ async function ensureBaseThemes() {
       'Les mots pour commenter',
       'Alimentation'
     ];
+    let idx = 1;
     for (const name of seedThemes) {
-      const created = await run('INSERT INTO themes (name, active, created_at) VALUES (?,1, CURRENT_TIMESTAMP)', [name]);
+      const created = await run('INSERT INTO themes (name, active, created_at, display_no) VALUES (?,1, CURRENT_TIMESTAMP, ?)', [name, idx]);
       await run('INSERT INTO theme_levels (theme_id, name, level_order, active) VALUES (?,?,?,1)', [created.lastID, 'Niveau 1', 1]);
+      idx += 1;
     }
     console.log('ThÃ¨mes de base crÃ©Ã©s (liste fournie).');
   }
@@ -680,6 +730,7 @@ async function ensureBaseThemes() {
 (async () => {
   try {
     await ensureAdmin();
+    await renumberAllThemesAndSets();
   } catch (e) {
     console.error('Erreur init DB :', e);
   }
@@ -1034,7 +1085,7 @@ app.post('/import', requireAuth, async (req, res) => {
 
       const themeId = existing
         ? existing.id
-        : (await run('INSERT INTO themes (name, active, user_id, created_at) VALUES (?,?,NULL, CURRENT_TIMESTAMP)', [name, active])).lastID;
+        : (await run('INSERT INTO themes (name, active, user_id, created_at, display_no) VALUES (?,?,NULL, CURRENT_TIMESTAMP, ?)', [name, active, await nextDisplayNo('themes', null)])).lastID;
 
       for (const w of words) {
         await run(
@@ -1061,7 +1112,7 @@ app.post('/import', requireAuth, async (req, res) => {
 
     const setId = existing
       ? existing.id
-      : (await run('INSERT INTO sets (name, user_id, active) VALUES (?,?,?)', [name, userId, active ? 1 : 0])).lastID;
+      : (await run('INSERT INTO sets (name, user_id, active, display_no) VALUES (?,?,?,?)', [name, userId, active ? 1 : 0, await nextDisplayNo('sets', userId)])).lastID;
 
     const posRow = await get('SELECT MAX(position) AS pos FROM cards WHERE set_id = ?', [setId]);
     const startPos = posRow && posRow.pos ? Number(posRow.pos) : 0;
@@ -1937,7 +1988,8 @@ app.post('/my/lists/:id/duplicate', requireAuth, async (req, res) => {
       suffix += 1;
       newName = `${source.name} (${suffix})`;
     }
-    const info = await run('INSERT INTO sets (name, user_id, active) VALUES (?,?,1)', [newName, userId]);
+    const displayNo = await nextDisplayNo('sets', userId);
+    const info = await run('INSERT INTO sets (name, user_id, active, display_no) VALUES (?,?,1,?)', [newName, userId, displayNo]);
     const cards = await all('SELECT * FROM cards WHERE set_id = ? ORDER BY position ASC, id ASC', [source.id]);
     for (const card of cards) {
       await run(
@@ -1966,7 +2018,7 @@ app.post('/my/lists', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   const { name } = req.body;
   const cards = normalizeCardsPayload(req.body.cards);
-  const title = name ? name.trim() : '';
+    const title = name ? name.trim() : '';
   if (!title) {
     return res.render('my_list_form', {
       set: null,
@@ -1976,9 +2028,10 @@ app.post('/my/lists', requireAuth, async (req, res) => {
     });
   }
   try {
+    const displayNo = await nextDisplayNo('sets', userId);
     const info = await run(
-      'INSERT INTO sets (name, user_id, active) VALUES (?,?,1)',
-      [title, userId]
+      'INSERT INTO sets (name, user_id, active, display_no) VALUES (?,?,1,?)',
+      [title, userId, displayNo]
     );
     for (let i = 0; i < cards.length; i++) {
       const card = cards[i];
@@ -2156,6 +2209,7 @@ app.delete('/my/lists/:id', requireAuth, async (req, res) => {
     await run('DELETE FROM set_shares WHERE set_id = ?', [set.id]);
     await run('DELETE FROM cards WHERE set_id = ?', [set.id]);
     await run('DELETE FROM sets WHERE id = ?', [set.id]);
+    await renumberSets(userId);
     res.redirect('/my/lists');
   } catch (e) {
     console.error(e);
@@ -2233,7 +2287,8 @@ app.post('/my/themes', requireAuth, async (req, res) => {
   const { name } = req.body;
   if (!name) return res.redirect('/themes');
   try {
-    await run('INSERT INTO themes (name, user_id, created_at) VALUES (?,?, CURRENT_TIMESTAMP)', [name, userId]);
+    const displayNo = await nextDisplayNo('themes', userId);
+    await run('INSERT INTO themes (name, user_id, created_at, display_no) VALUES (?,?, CURRENT_TIMESTAMP, ?)', [name, userId, displayNo]);
     res.redirect('/themes');
   } catch (e) {
     console.error(e);
@@ -2275,6 +2330,7 @@ app.delete('/my/themes/:id', requireAuth, async (req, res) => {
     await run('UPDATE words SET theme_id = NULL WHERE theme_id = ? AND user_id = ?', [req.params.id, userId]);
     await run('DELETE FROM theme_levels WHERE theme_id = ?', [req.params.id]);
     await run('DELETE FROM themes WHERE id = ? AND user_id = ?', [req.params.id, userId]);
+    await renumberThemes(userId);
     res.redirect('/themes');
   } catch (e) {
     console.error(e);
@@ -3183,9 +3239,10 @@ app.post('/admin/themes', requireAdmin, async (req, res) => {
   const { name, active } = req.body;
   const cards = normalizeCardsPayload(req.body.cards);
   try {
+    const displayNo = await nextDisplayNo('themes', null);
     const createdTheme = await run(
-      'INSERT INTO themes (name, active, user_id, created_at) VALUES (?,?,NULL, CURRENT_TIMESTAMP)',
-      [name, active ? 1 : 0]
+      'INSERT INTO themes (name, active, user_id, created_at, display_no) VALUES (?,?,NULL, CURRENT_TIMESTAMP, ?)',
+      [name, active ? 1 : 0, displayNo]
     );
     const newThemeId = createdTheme.lastID;
     if (newThemeId && cards.length > 0) {
@@ -3445,6 +3502,7 @@ app.delete('/admin/themes/:id', requireAdmin, async (req, res) => {
     await run('DELETE FROM words WHERE theme_id = ? AND user_id IS NULL', [req.params.id]);
     await run('DELETE FROM theme_levels WHERE theme_id = ?', [req.params.id]);
     await run('DELETE FROM themes WHERE id = ? AND user_id IS NULL', [req.params.id]);
+    await renumberThemes(null);
     res.redirect('/admin/themes');
   } catch (e) {
     console.error(e);
@@ -3612,6 +3670,9 @@ app.delete('/admin/words/:id', requireAdmin, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server started at http://localhost:${PORT}`);
 });
+
+
+
 
 
 
