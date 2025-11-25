@@ -122,6 +122,10 @@ safeAlter('CREATE TABLE IF NOT EXISTS card_overrides (id INTEGER PRIMARY KEY AUT
 safeAlter('CREATE TABLE IF NOT EXISTS user_set_overrides (id INTEGER PRIMARY KEY AUTOINCREMENT, set_id INTEGER NOT NULL, user_id INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 1, UNIQUE(set_id, user_id))');
 safeAlter('CREATE TABLE IF NOT EXISTS user_theme_overrides (id INTEGER PRIMARY KEY AUTOINCREMENT, theme_id INTEGER NOT NULL, user_id INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 1, UNIQUE(theme_id, user_id))');
 safeAlter('ALTER TABLE set_shares ADD COLUMN can_edit INTEGER DEFAULT 0');
+safeAlter('ALTER TABLE users ADD COLUMN first_name TEXT');
+safeAlter('ALTER TABLE users ADD COLUMN last_name TEXT');
+safeAlter('ALTER TABLE users ADD COLUMN level TEXT');
+safeAlter('ALTER TABLE users ADD COLUMN password_plain TEXT');
 db.run('UPDATE themes SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL', err => {
   if (err && !/no such column/i.test(err.message)) {
     console.error('Alter fill error:', err.message);

@@ -2,16 +2,36 @@
   <h1><%= user ? 'Modifier un utilisateur' : 'Ajouter un utilisateur' %></h1>
 
   <form method="post" action="<%= action %>" class="form">
+    <label>Prénom
+      <input type="text" name="first_name" value="<%= user ? user.first_name : '' %>" placeholder="David" required />
+    </label>
+
+    <label>Nom
+      <input type="text" name="last_name" value="<%= user ? user.last_name : '' %>" placeholder="COHEN" />
+    </label>
+
     <label>Nom affiché
-      <input type="text" name="display_name" value="<%= user ? user.display_name : '' %>" required />
+      <input type="text" name="display_name" value="<%= user ? user.display_name : '' %>" placeholder="David COHEN" required />
     </label>
 
     <label>Email
-      <input type="email" name="email" value="<%= user ? user.email : '' %>" required />
+      <input type="email" name="email" value="<%= user ? user.email : '' %>" placeholder="david@hebrewlearn.fr" required />
+    </label>
+
+    <label>Niveau
+      <select name="level" required>
+        <option value="Debutant" <%= user && user.level === 'Debutant' ? 'selected' : '' %>>Débutant</option>
+        <option value="Intermediaire" <%= user && user.level === 'Intermediaire' ? 'selected' : '' %>>Intermédiaire</option>
+        <option value="Avance" <%= user && user.level === 'Avance' ? 'selected' : '' %>>Avancé</option>
+        <option value="Expert" <%= user && user.level === 'Expert' ? 'selected' : '' %>>Expert</option>
+      </select>
     </label>
 
     <label>Mot de passe <%= user ? '(laisser vide pour conserver)' : '' %>
       <input type="password" name="password" <%= user ? '' : 'required' %> />
+      <% if (user && user.password_plain) { %>
+        <small>Actuel : <%= user.password_plain %></small>
+      <% } %>
     </label>
 
     <label>Role

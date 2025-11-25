@@ -8,8 +8,11 @@
     <thead>
       <tr>
         <th>#</th>
+        <th>Prenom</th>
         <th>Nom</th>
+        <th>Nom affiche</th>
         <th>Email</th>
+        <th>Niveau</th>
         <th>Role</th>
         <th>Cree le</th>
         <th>Actions</th>
@@ -19,21 +22,51 @@
       <% users.forEach((u, idx) => { %>
         <tr>
           <td><%= idx + 1 %></td>
+          <td><%= u.first_name || '' %></td>
+          <td><%= u.last_name || '' %></td>
           <td><%= u.display_name %></td>
           <td><%= u.email %></td>
+          <td><%= u.level || '-' %></td>
           <td><%= u.role %></td>
           <td><%= u.created_at %></td>
           <td>
-            <a class="link" href="/admin/users/<%= u.id %>/edit">Modifier</a>
-            <form action="/admin/users/<%= u.id %>/reset" method="post" style="display:inline; margin-left:4px;">
-              <button type="submit" onclick="return confirm('Reset des stats pour cet utilisateur ?');">Reset stats</button>
-            </form>
-            <form action="/admin/users/<%= u.id %>?_method=DELETE" method="post" style="display:inline;">
-              <button type="submit" onclick="return confirm('Supprimer cet utilisateur ?');">Supprimer</button>
-            </form>
+            <div class="table-menu">
+              <button class="btn ghost icon-btn dots-btn" type="button" aria-label="Actions">&#8942;</button>
+              <div class="card-menu">
+                <a class="menu-item" href="/admin/users/<%= u.id %>/edit">&#9998; Modifier</a>
+                <form action="/admin/users/<%= u.id %>/reset" method="post">
+                  <button type="submit" class="menu-item">&#128472; Reset stats</button>
+                </form>
+                <form action="/admin/users/<%= u.id %>?_method=DELETE" method="post" data-confirm="Supprimer cet utilisateur ?">
+                  <button type="submit" class="menu-item danger">&#128465; Supprimer</button>
+                </form>
+              </div>
+            </div>
           </td>
         </tr>
       <% }) %>
     </tbody>
   </table>
 </section>
+
+<script>
+  (() => {
+    const menus = Array.from(document.querySelectorAll('.table-menu'));
+    menus.forEach(menu => {
+      const btn = menu.querySelector('.dots-btn');
+      const panel = menu.querySelector('.card-menu');
+      if (!btn || !panel) return;
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        document.querySelectorAll('.table-menu .card-menu').forEach(p => {
+          if (p !== panel) p.classList.remove('open');
+        });
+        panel.classList.toggle('open');
+      });
+    });
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.table-menu .card-menu').forEach(p => p.classList.remove('open'));
+    });
+  })();
+</script>

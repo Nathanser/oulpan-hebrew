@@ -1,42 +1,72 @@
-<section>
-  <h1>Profil de <%= user.display_name %></h1>
+<section class="card">
+  <h1>Mes informations</h1>
 
-  <div class="grid">
-    <div class="card">
-      <h2>Statistiques</h2>
-      <ul class="stats">
-        <li><strong>Email :</strong> <%= user.email %></li>
-        <li><strong>Mots vus :</strong> <%= stats && stats.words_seen || 0 %></li>
-        <li><strong>Réussites :</strong> <%= stats && stats.total_success || 0 %></li>
-        <li><strong>Échecs :</strong> <%= stats && stats.total_fail || 0 %></li>
-        <li><strong>Maîtrise moyenne :</strong> <%= stats && stats.avg_strength ? stats.avg_strength.toFixed(1) : 0 %>%</li>
-      </ul>
-    </div>
+  <% if (message) { %>
+    <div class="alert alert-success"><%= message %></div>
+  <% } %>
+  <% if (pwdMessage) { %>
+    <div class="alert alert-success"><%= pwdMessage %></div>
+  <% } %>
+  <% if (error) { %>
+    <div class="alert alert-error"><%= error %></div>
+  <% } %>
 
-    <div class="card">
-      <h2>Mots les moins maîtrisés</h2>
-      <% if (!weakWords || weakWords.length === 0) { %>
-        <p>Encore aucun mot entraîné.</p>
-      <% } else { %>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Français</th>
-              <th>Hébreu</th>
-              <th>Maîtrise</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% weakWords.forEach(w => { %>
-              <tr>
-                <td><%= w.french %></td>
-                <td><%= w.hebrew %></td>
-                <td><%= w.strength %>%</td>
-              </tr>
-            <% }) %>
-          </tbody>
-        </table>
-      <% } %>
-    </div>
+  <form method="post" action="/profile/info" class="form">
+    <label>Prénom
+      <input type="text" name="first_name" value="<%= user ? user.first_name : '' %>" placeholder="David" required />
+    </label>
+
+    <label>Nom
+      <input type="text" name="last_name" value="<%= user ? user.last_name : '' %>" placeholder="COHEN" />
+    </label>
+
+    <label>Nom affiché
+      <input type="text" name="display_name" value="<%= user ? user.display_name : '' %>" placeholder="David COHEN" required />
+    </label>
+
+    <label>Email
+      <input type="email" name="email" value="<%= user ? user.email : '' %>" placeholder="david@hebrewlearn.fr" required />
+    </label>
+
+    <label>Niveau
+      <select name="level" required>
+        <% (levels || []).forEach(lvl => { %>
+          <option value="<%= lvl %>" <%= user && user.level === lvl ? 'selected' : '' %>><%= lvl %></option>
+        <% }) %>
+      </select>
+    </label>
+
+    <button type="submit" class="btn ghost">✏️ Mettre à jour</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Sécurité</h2>
+  <form method="post" action="/profile/password" class="form">
+    <label>Mot de passe actuel
+      <input type="password" name="current_password" required />
+    </label>
+    <label>Nouveau mot de passe
+      <input type="password" name="new_password" required />
+    </label>
+    <button type="submit">Changer mon mot de passe</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Actions</h2>
+  <div class="actions-grid" style="display:grid; gap:0.75rem;">
+    <form method="post" action="/profile/reset-stats" data-confirm="Réinitialiser toutes mes stats ?">
+      <button type="submit" class="btn secondary danger">Réinitialiser les stats du profil</button>
+    </form>
+    <br>
+
+    <form method="post" action="/profile/delete" onsubmit="return confirm('Voulez-vous vraiment supprimer votre compte ? Cette action est irréversible.');">
+      <label>Mot de passe (confirmation)
+        <input type="password" name="password" required />
+      </label>
+      <br><br>
+      <button type="submit" class="btn danger">Suppression du compte</button>
+    </form>
   </div>
 </section>

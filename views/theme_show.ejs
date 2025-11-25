@@ -5,6 +5,7 @@
   <div class="list-screen-head">
     <div>
       <a class="link back-link" href="/themes">&#8592; Retour</a>
+      <br><br>
       <h1><%= theme.name %></h1>
       <% const activeLabel = theme.active ? (Number(theme.effective_active) === 1 ? 'Actif' : 'Inactif pour moi') : 'Inactif'; %>
       <p class="muted mini"><%= activeLabel %> - <%= isGlobal ? 'Theme propose' : 'Theme personnel' %></p>

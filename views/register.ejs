@@ -7,12 +7,29 @@
     <% } %>
 
     <form method="post" action="/register" class="form">
+      <label>Pr&eacute;nom
+        <input type="text" name="first_name" placeholder="David" required />
+      </label>
+
+      <label>Nom
+        <input type="text" name="last_name" placeholder="COHEN" />
+      </label>
+
       <label>Nom affich&eacute;
-        <input type="text" name="display_name" required />
+        <input type="text" name="display_name" placeholder="David COHEN" required />
       </label>
 
       <label>Email
-        <input type="email" name="email" required />
+        <input type="email" name="email" placeholder="david@hebrewlearn.fr" required />
+      </label>
+
+      <label>Niveau
+        <select name="level" required>
+          <option value="Debutant">D&eacute;butant</option>
+          <option value="Intermediaire">Interm&eacute;diaire</option>
+          <option value="Avance">Avanc&eacute;</option>
+          <option value="Expert">Expert</option>
+        </select>
       </label>
 
       <label>Mot de passe
@@ -21,6 +38,31 @@
 
       <button type="submit">Cr&eacute;er mon compte</button>
     </form>
+
+    <script>
+      (() => {
+        const first = document.querySelector('input[name="first_name"]');
+        const last = document.querySelector('input[name="last_name"]');
+        const display = document.querySelector('input[name="display_name"]');
+        if (!first || !display) return;
+        let userEdited = false;
+        let lastAuto = '';
+        display.addEventListener('input', () => {
+          userEdited = display.value !== lastAuto;
+        });
+        const sync = () => {
+          const parts = [first.value.trim(), last ? last.value.trim() : ''].filter(Boolean);
+          const val = parts.join(' ').trim();
+          if (!userEdited || val === '') {
+            display.value = val;
+            lastAuto = val;
+            userEdited = false;
+          }
+        };
+        first.addEventListener('input', sync);
+        if (last) last.addEventListener('input', sync);
+      })();
+    </script>
 
     <p>D&eacute;j&agrave; inscrit ? <a href="/login">Connexion</a></p>
   </section>

@@ -5,6 +5,7 @@
   <div class="list-screen-head">
     <div>
       <a class="link back-link" id="back-link" href="/admin/themes">&#8592; Retour</a>
+      <br><br>
       <h1><%= theme.name %></h1>
       <p class="muted mini">Theme par defaut - <%= theme.active ? 'Actif' : 'Inactif' %></p>
     </div>
@@ -15,6 +16,8 @@
       <a class="btn ghost" href="/admin/themes/<%= theme.id %>/edit">Modifier le theme</a>
     </div>
   </div>
+
+  <br>
 
   <div class="tab-row" id="card-tabs">
     <button class="tab-chip active" data-tab="all">Tous les mots (<%= words.length %>)</button>

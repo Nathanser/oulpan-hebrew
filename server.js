@@ -562,16 +562,51 @@ app.use((req, res, next) => {
   next();
 });
 
-function requireAuth(req, res, next) {
-  if (!req.session.user) return res.redirect('/login');
-  next();
+async function reloadUser(req, res) {
+  if (!req.session.user) return null;
+  const fresh = await get('SELECT * FROM users WHERE id = ?', [req.session.user.id]);
+  if (!fresh) return null;
+  const normalized = {
+    id: fresh.id,
+    email: fresh.email,
+    display_name: fresh.display_name,
+    first_name: fresh.first_name,
+    last_name: fresh.last_name,
+    level: fresh.level || 'Debutant',
+    role: fresh.role
+  };
+  req.session.user = normalized;
+  res.locals.currentUser = normalized;
+  return normalized;
 }
 
-function requireAdmin(req, res, next) {
-  if (!req.session.user || req.session.user.role !== 'admin') {
-    return res.status(403).send('AccÃ¨s refusÃ©');
+async function requireAuth(req, res, next) {
+  if (!req.session.user) return res.redirect('/login');
+  try {
+    const updated = await reloadUser(req, res);
+    if (!updated) {
+      req.session.destroy(() => {});
+      return res.redirect('/login');
+    }
+    next();
+  } catch (err) {
+    console.error(err);
+    res.redirect('/login');
   }
-  next();
+}
+
+async function requireAdmin(req, res, next) {
+  if (!req.session.user) return res.redirect('/login');
+  try {
+    const updated = await reloadUser(req, res);
+    if (!updated || updated.role !== 'admin') {
+      return res.status(403).send('Accès refusé');
+    }
+    next();
+  } catch (err) {
+    console.error(err);
+    res.status(403).send('Accès refusé');
+  }
 }
 
 // Admin par dÃ©faut
@@ -580,8 +615,8 @@ async function ensureAdmin() {
   if (!admin) {
     const hash = await bcrypt.hash('admin123', 10);
     await run(
-      'INSERT INTO users (email, password_hash, display_name, role) VALUES (?,?,?,?)',
-      ['admin@example.com', hash, 'Admin', 'admin']
+      'INSERT INTO users (email, password_hash, password_plain, display_name, first_name, last_name, level, role) VALUES (?,?,?,?,?,?,?,?)',
+      ['admin@example.com', hash, 'admin123', 'Admin', 'Admin', 'System', 'Expert', 'admin']
     );
     console.log('Admin crÃ©Ã© : admin@example.com / admin123');
   }
@@ -662,24 +697,34 @@ app.get('/register', (req, res) => {
 });
 
 app.post('/register', async (req, res) => {
-  const { email, password, display_name } = req.body;
-  if (!email || !password || !display_name) {
+  const email = (req.body.email || '').trim();
+  const password = req.body.password || '';
+  const firstName = (req.body.first_name || '').trim();
+  const lastNameClean = (req.body.last_name || '').trim();
+  const displayRaw = (req.body.display_name || '').trim();
+  const level = (req.body.level || '').trim();
+  const displayNameValue =
+    displayRaw || [firstName, lastNameClean].filter(Boolean).join(' ').trim();
+  if (!email || !password || !firstName || !displayNameValue || !level) {
     return res.render('register', { error: 'Tous les champs sont obligatoires.' });
   }
   try {
     const existing = await get('SELECT * FROM users WHERE email = ?', [email]);
     if (existing) {
-      return res.render('register', { error: 'Cet email est dÃ©jÃ  utilisÃ©.' });
+      return res.render('register', { error: 'Cet email est déjà  utilisé.' });
     }
     const hash = await bcrypt.hash(password, 10);
     const info = await run(
-      'INSERT INTO users (email, password_hash, display_name, role) VALUES (?,?,?,?)',
-      [email, hash, display_name, 'user']
+      'INSERT INTO users (email, password_hash, password_plain, display_name, first_name, last_name, level, role) VALUES (?,?,?,?,?,?,?,?)',
+      [email, hash, password, displayNameValue, firstName, lastNameClean, level, 'user']
     );
     req.session.user = {
       id: info.lastID,
       email,
-      display_name,
+      display_name: displayNameValue,
+      first_name: firstName,
+      last_name: lastNameClean,
+      level,
       role: 'user'
     };
     res.redirect('/app');
@@ -708,6 +753,9 @@ app.post('/login', async (req, res) => {
       id: user.id,
       email: user.email,
       display_name: user.display_name,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      level: user.level || 'Debutant',
       role: user.role
     };
     res.redirect('/app');
@@ -807,19 +855,123 @@ app.get('/profile', requireAuth, async (req, res) => {
        FROM progress WHERE user_id = ?`,
       [userId]
     );
-    const weakWords = await all(
-      `SELECT w.*, p.strength
-       FROM progress p
-       JOIN words w ON w.id = p.word_id
-       WHERE p.user_id = ?
-       ORDER BY p.strength ASC
-       LIMIT 10`,
-      [userId]
-    );
-    res.render('profile', { user, stats, weakWords });
+    const levelValue = user && user.level ? user.level : 'Debutant';
+    res.render('profile', {
+      user: { ...user, level: levelValue },
+      stats,
+      levels: ['Debutant', 'Intermediaire', 'Avance', 'Expert'],
+      message: req.query.msg || null,
+      error: req.query.err || null,
+      pwdMessage: req.query.pwd || null
+    });
   } catch (e) {
     console.error(e);
-    res.render('profile', { user: req.session.user, stats: null, weakWords: [] });
+    res.render('profile', {
+      user: req.session.user,
+      stats: null,
+      levels: ['Debutant', 'Intermediaire', 'Avance', 'Expert'],
+      message: null,
+      error: 'Impossible de charger le profil.',
+      pwdMessage: null
+    });
+  }
+});
+
+app.post('/profile/info', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const firstName = (req.body.first_name || '').trim();
+  const lastNameClean = (req.body.last_name || '').trim();
+  const displayRaw = (req.body.display_name || '').trim();
+  const email = (req.body.email || '').trim();
+  const level = (req.body.level || '').trim();
+  const displayNameValue = displayRaw || [firstName, lastNameClean].filter(Boolean).join(' ').trim();
+  if (!firstName || !displayNameValue || !email || !level) {
+    return res.redirect('/profile?err=Champs manquants');
+  }
+  try {
+    const existing = await get('SELECT id FROM users WHERE email = ? AND id <> ?', [email, userId]);
+    if (existing) {
+      return res.redirect('/profile?err=Email deja utilise');
+    }
+    await run(
+      'UPDATE users SET first_name = ?, last_name = ?, display_name = ?, email = ?, level = ? WHERE id = ?',
+      [firstName, lastNameClean, displayNameValue, email, level, userId]
+    );
+    req.session.user = {
+      ...req.session.user,
+      first_name: firstName,
+      last_name: lastNameClean,
+      display_name: displayNameValue,
+      email,
+      level
+    };
+    res.redirect('/profile?msg=Profil mis a jour');
+  } catch (e) {
+    console.error(e);
+    res.redirect('/profile?err=Erreur de mise a jour');
+  }
+});
+
+app.post('/profile/password', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password) {
+    return res.redirect('/profile?err=Champs manquants');
+  }
+  try {
+    const user = await get('SELECT password_hash FROM users WHERE id = ?', [userId]);
+    if (!user) return res.redirect('/profile?err=Profil introuvable');
+    const ok = await bcrypt.compare(current_password, user.password_hash);
+    if (!ok) return res.redirect('/profile?err=Mot de passe invalide');
+    const hash = await bcrypt.hash(new_password, 10);
+    await run('UPDATE users SET password_hash = ?, password_plain = ? WHERE id = ?', [
+      hash,
+      new_password,
+      userId
+    ]);
+    res.redirect('/profile?pwd=Mot de passe mis a jour');
+  } catch (e) {
+    console.error(e);
+    res.redirect('/profile?err=Erreur lors du changement de mot de passe');
+  }
+});
+
+app.post('/profile/reset-stats', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  try {
+    await run('DELETE FROM progress WHERE user_id = ?', [userId]);
+    await run('DELETE FROM card_progress WHERE user_id = ?', [userId]);
+    res.redirect('/profile?msg=Statistiques reinitialisees');
+  } catch (e) {
+    console.error(e);
+    res.redirect('/profile?err=Impossible de reinitialiser');
+  }
+});
+
+app.post('/profile/delete', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const { password } = req.body;
+  if (!password) return res.redirect('/profile?err=Mot de passe requis');
+  try {
+    const user = await get('SELECT password_hash FROM users WHERE id = ?', [userId]);
+    if (!user) return res.redirect('/profile?err=Profil introuvable');
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return res.redirect('/profile?err=Mot de passe invalide');
+    await run('DELETE FROM favorites WHERE user_id = ?', [userId]);
+    await run('DELETE FROM user_word_overrides WHERE user_id = ?', [userId]);
+    await run('DELETE FROM user_set_overrides WHERE user_id = ?', [userId]);
+    await run('DELETE FROM user_theme_overrides WHERE user_id = ?', [userId]);
+    await run('DELETE FROM card_overrides WHERE user_id = ?', [userId]);
+    await run('DELETE FROM set_shares WHERE user_id = ?', [userId]);
+    await run('DELETE FROM progress WHERE user_id = ?', [userId]);
+    await run('DELETE FROM card_progress WHERE user_id = ?', [userId]);
+    await run('DELETE FROM users WHERE id = ?', [userId]);
+    req.session.destroy(() => {
+      res.redirect('/register');
+    });
+  } catch (e) {
+    console.error(e);
+    res.redirect('/profile?err=Erreur lors de la suppression');
   }
 });
 
@@ -2878,7 +3030,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
 app.get('/admin/users', requireAdmin, async (req, res) => {
   try {
     const users = await all(
-      'SELECT id, email, display_name, role, created_at FROM users ORDER BY id ASC'
+      'SELECT id, email, display_name, first_name, last_name, level, role, created_at FROM users ORDER BY id ASC'
     );
     res.render('admin/users', { users });
   } catch (e) {
@@ -2892,15 +3044,22 @@ app.get('/admin/users/new', requireAdmin, (req, res) => {
 });
 
 app.post('/admin/users', requireAdmin, async (req, res) => {
-  const { email, password, display_name, role } = req.body;
-  if (!email || !password || !display_name || !role) {
+  const email = (req.body.email || '').trim();
+  const password = req.body.password || '';
+  const firstName = (req.body.first_name || '').trim();
+  const lastNameClean = (req.body.last_name || '').trim();
+  const displayRaw = (req.body.display_name || '').trim();
+  const level = (req.body.level || '').trim();
+  const role = req.body.role || 'user';
+  const displayNameValue = displayRaw || [firstName, lastNameClean].filter(Boolean).join(' ').trim();
+  if (!email || !password || !displayNameValue || !role || !firstName || !level) {
     return res.redirect('/admin/users');
   }
   try {
     const hash = await bcrypt.hash(password, 10);
     await run(
-      'INSERT INTO users (email, password_hash, display_name, role) VALUES (?,?,?,?)',
-      [email, hash, display_name, role]
+      'INSERT INTO users (email, password_hash, password_plain, display_name, first_name, last_name, level, role) VALUES (?,?,?,?,?,?,?,?)',
+      [email, hash, password, displayNameValue, firstName, lastNameClean, level, role]
     );
     res.redirect('/admin/users');
   } catch (e) {
@@ -2924,18 +3083,28 @@ app.get('/admin/users/:id/edit', requireAdmin, async (req, res) => {
 });
 
 app.put('/admin/users/:id', requireAdmin, async (req, res) => {
-  const { email, password, display_name, role } = req.body;
+  const email = (req.body.email || '').trim();
+  const password = req.body.password || '';
+  const firstName = (req.body.first_name || '').trim();
+  const lastNameClean = (req.body.last_name || '').trim();
+  const displayRaw = (req.body.display_name || '').trim();
+  const level = (req.body.level || '').trim();
+  const role = req.body.role || 'user';
+  const displayNameValue = displayRaw || [firstName, lastNameClean].filter(Boolean).join(' ').trim();
+  if (!email || !firstName || !displayNameValue || !role || !level) {
+    return res.redirect('/admin/users');
+  }
   try {
     if (password) {
       const hash = await bcrypt.hash(password, 10);
       await run(
-        `UPDATE users SET email = ?, display_name = ?, role = ?, password_hash = ? WHERE id = ?`,
-        [email, display_name, role, hash, req.params.id]
+        `UPDATE users SET email = ?, display_name = ?, role = ?, first_name = ?, last_name = ?, level = ?, password_hash = ?, password_plain = ? WHERE id = ?`,
+        [email, displayNameValue, role, firstName, lastNameClean, level, hash, password, req.params.id]
       );
     } else {
       await run(
-        `UPDATE users SET email = ?, display_name = ?, role = ? WHERE id = ?`,
-        [email, display_name, role, req.params.id]
+        `UPDATE users SET email = ?, display_name = ?, role = ?, first_name = ?, last_name = ?, level = ? WHERE id = ?`,
+        [email, displayNameValue, role, firstName, lastNameClean, level, req.params.id]
       );
     }
     res.redirect('/admin/users');
@@ -2947,7 +3116,14 @@ app.put('/admin/users/:id', requireAdmin, async (req, res) => {
 
 app.delete('/admin/users/:id', requireAdmin, async (req, res) => {
   try {
+    await run('DELETE FROM favorites WHERE user_id = ?', [req.params.id]);
+    await run('DELETE FROM user_word_overrides WHERE user_id = ?', [req.params.id]);
+    await run('DELETE FROM user_set_overrides WHERE user_id = ?', [req.params.id]);
+    await run('DELETE FROM user_theme_overrides WHERE user_id = ?', [req.params.id]);
+    await run('DELETE FROM card_overrides WHERE user_id = ?', [req.params.id]);
+    await run('DELETE FROM set_shares WHERE user_id = ?', [req.params.id]);
     await run('DELETE FROM progress WHERE user_id = ?', [req.params.id]);
+    await run('DELETE FROM card_progress WHERE user_id = ?', [req.params.id]);
     await run('DELETE FROM users WHERE id = ?', [req.params.id]);
     res.redirect('/admin/users');
   } catch (e) {
@@ -3436,6 +3612,7 @@ app.delete('/admin/words/:id', requireAdmin, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server started at http://localhost:${PORT}`);
 });
+
 
 
 
