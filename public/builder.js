@@ -1,5 +1,5 @@
 (() => {
-  const HOLD_DELAY_MS = 1500;
+  const HOLD_DELAY_MS = 900;
   const AUTO_SCROLL_EDGE = 110;
   const AUTO_SCROLL_STEP = 22;
 
@@ -20,8 +20,17 @@
       setTimeout(() => { banner.style.display = 'none'; }, 2500);
     };
 
+    function updateSelectLock() {
+      const active = !!dragState || container.querySelector('.builder-card.drag-ready');
+      document.body.classList.toggle('no-text-select', !!active);
+      if (active && document.activeElement && document.activeElement !== document.body) {
+        document.activeElement.blur();
+      }
+    }
+
     function closeMenus() {
       container.querySelectorAll('.builder-card.menu-open').forEach(card => card.classList.remove('menu-open'));
+      updateSelectLock();
     }
 
     function updateOrder() {
@@ -45,6 +54,7 @@
         input.readOnly = frozen;
         input.classList.toggle('input-frozen', frozen);
       });
+      updateSelectLock();
     }
 
     function handleAction(card, action) {
@@ -68,6 +78,7 @@
       }
       closeMenus();
       updateOrder();
+      updateSelectLock();
     }
 
     function attachActions(card) {
@@ -127,6 +138,7 @@
       placeholder.remove();
       dragState = null;
       updateOrder();
+      updateSelectLock();
       card.classList.add('drag-settled');
       setTimeout(() => card.classList.remove('drag-settled'), 300);
     }
@@ -146,6 +158,7 @@
       container.insertBefore(placeholder, card.nextElementSibling);
 
       card.classList.add('dragging');
+      updateSelectLock();
       card.style.width = `${rect.width}px`;
       card.style.height = `${rect.height}px`;
       card.style.left = `${rect.left}px`;

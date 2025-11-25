@@ -1065,6 +1065,13 @@ details.advanced summary {
   color: #22c55e;
 }
 
+.builder-card.drag-ready,
+.builder-card.drag-ready * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 .builder-card.dragging {
   cursor: grabbing;
   box-shadow: 0 20px 55px rgba(0, 0, 0, 0.6);
@@ -1104,7 +1111,24 @@ details.advanced summary {
 }
 
 .builder-card.dragging * {
+  -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.no-text-select,
+.no-text-select * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.no-text-select input,
+.no-text-select textarea,
+.no-text-select select,
+.no-text-select [contenteditable] {
+  pointer-events: none;
+  caret-color: transparent;
 }
 
 @keyframes placeholder-pulse {
