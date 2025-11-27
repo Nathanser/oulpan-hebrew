@@ -129,6 +129,7 @@ safeAlter('ALTER TABLE users ADD COLUMN level TEXT');
 safeAlter('ALTER TABLE users ADD COLUMN password_plain TEXT');
 safeAlter('ALTER TABLE sets ADD COLUMN display_no INTEGER');
 safeAlter('ALTER TABLE themes ADD COLUMN display_no INTEGER');
+safeAlter('CREATE TABLE IF NOT EXISTS user_revision_defaults (user_id INTEGER PRIMARY KEY, prefs_json TEXT)');
 db.run('UPDATE themes SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL', err => {
   if (err && !/no such column/i.test(err.message)) {
     console.error('Alter fill error:', err.message);

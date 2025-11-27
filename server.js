@@ -43,6 +43,17 @@ const MODE_FLASHCARDS = 'flashcards';
 const MODE_FLASHCARDS_REVERSE = 'flashcards_reverse';
 const MODE_WRITTEN = 'written';
 const ALLOWED_MODES = [MODE_FLASHCARDS, MODE_FLASHCARDS_REVERSE, MODE_WRITTEN];
+const DEFAULT_TRAIN_PARAMS = {
+  modes: [MODE_FLASHCARDS],
+  rev_mode: 'order',
+  show_phonetic: 1,
+  theme_ids: [],
+  set_ids: [],
+  level_id: '',
+  scope: 'all',
+  remaining: 10,
+  total: 10
+};
 
 function normalizeMode(raw) {
   const value = (raw || '').toLowerCase();
@@ -81,7 +92,7 @@ function modeLabel(mode) {
 }
 
 async function fetchNextWord(userId, filters = {}) {
-  const mode = (filters.rev_mode || 'weak').toLowerCase();
+  const mode = (filters.rev_mode || 'order').toLowerCase();
   const params = [userId, userId, userId, userId];
   const excludedIds = Array.isArray(filters.excludedIds)
     ? filters.excludedIds.map(id => Number(id)).filter(id => !Number.isNaN(id))
@@ -154,6 +165,8 @@ async function fetchNextWord(userId, filters = {}) {
     sql += ' ORDER BY RANDOM() LIMIT 1';
   } else if (mode === 'new') {
     sql += ' ORDER BY w.created_at DESC LIMIT 1';
+  } else if (mode === 'order') {
+    sql += ' ORDER BY w.position ASC, w.id ASC LIMIT 1';
   } else {
     sql += ' ORDER BY strength ASC, IFNULL(p.last_seen, 0) ASC LIMIT 1';
   }
@@ -362,6 +375,80 @@ function normalizeIds(raw) {
   return list
     .map(id => Number(id))
     .filter(id => Number.isInteger(id) && id > 0);
+}
+
+function normalizeTrainParams(raw = {}) {
+  const params = { ...DEFAULT_TRAIN_PARAMS };
+  params.modes = normalizeModes(raw.modes || raw.mode);
+  params.rev_mode = raw.rev_mode || params.rev_mode;
+  params.show_phonetic =
+    typeof raw.show_phonetic === 'undefined' ? params.show_phonetic : String(raw.show_phonetic) === '0' ? 0 : 1;
+  params.theme_ids = normalizeIds(raw.theme_ids || []);
+  params.set_ids = normalizeIds(raw.set_ids || []);
+  params.level_id = raw.level_id ? Number(raw.level_id) : '';
+  params.scope = raw.scope || params.scope;
+
+  const remainingVal = raw.remaining === 'all' ? 'all' : Number(raw.remaining || params.remaining);
+  params.remaining =
+    remainingVal === 'all'
+      ? 'all'
+      : !Number.isNaN(remainingVal) && remainingVal > 0
+        ? remainingVal
+        : DEFAULT_TRAIN_PARAMS.remaining;
+  const totalVal =
+    raw.total === 'all' || params.remaining === 'all'
+      ? 'all'
+      : Number(raw.total || params.remaining || DEFAULT_TRAIN_PARAMS.total);
+  params.total =
+    totalVal === 'all'
+      ? 'all'
+      : !Number.isNaN(totalVal) && totalVal > 0
+        ? totalVal
+        : params.remaining;
+  return params;
+}
+
+async function getUserTrainDefaults(userId) {
+  const row = await get('SELECT prefs_json FROM user_revision_defaults WHERE user_id = ?', [userId]);
+  if (!row) return null;
+  try {
+    return normalizeTrainParams(row.prefs_json ? JSON.parse(row.prefs_json) : {});
+  } catch (e) {
+    console.error('parse prefs error', e);
+    return normalizeTrainParams({});
+  }
+}
+
+async function saveUserTrainDefaults(userId, params = {}) {
+  const normalized = normalizeTrainParams(params);
+  const payload = JSON.stringify(normalized);
+  const existing = await get('SELECT user_id FROM user_revision_defaults WHERE user_id = ?', [userId]);
+  if (existing) {
+    await run('UPDATE user_revision_defaults SET prefs_json = ? WHERE user_id = ?', [payload, userId]);
+  } else {
+    await run('INSERT INTO user_revision_defaults (user_id, prefs_json) VALUES (?,?)', [userId, payload]);
+  }
+  return normalized;
+}
+
+async function clearUserTrainDefaults(userId) {
+  await run('DELETE FROM user_revision_defaults WHERE user_id = ?', [userId]);
+}
+
+async function filterTrainParamsForUser(userId, params = {}) {
+  const normalized = normalizeTrainParams(params);
+  const allowedThemeIds = new Set(await getActiveThemeIdsForUser(userId));
+  const allowedSetIds = new Set(await getAccessibleSetIds(userId));
+  normalized.theme_ids = normalized.theme_ids.filter(id => allowedThemeIds.has(Number(id)));
+  normalized.set_ids = normalized.set_ids.filter(id => allowedSetIds.has(Number(id)));
+  if (normalized.remaining === 'all') {
+    normalized.total = 'all';
+  } else if (normalized.total === 'all') {
+    normalized.remaining = normalized.remaining || DEFAULT_TRAIN_PARAMS.remaining;
+  } else if (!normalized.total || Number(normalized.total) <= 0) {
+    normalized.total = normalized.remaining || DEFAULT_TRAIN_PARAMS.total;
+  }
+  return normalized;
 }
 
 function slugify(str = '') {
@@ -875,7 +962,7 @@ app.get('/app', requireAuth, async (req, res) => {
 
     let ongoing = null;
     const state = req.session.trainState;
-    if (state && Number(state.answered || 0) > 0) {
+    if (state && Number(state.remaining || 0) > 0) {
       const themeIds = state.theme_ids || [];
       const setIds = state.set_ids || [];
       let themeNames = [];
@@ -920,6 +1007,28 @@ app.get('/profile', requireAuth, async (req, res) => {
        FROM progress WHERE user_id = ?`,
       [userId]
     );
+    const trainThemes = await getActiveThemesForUser(userId);
+    const trainLevels = await getLevelsForUser(userId);
+    const trainSets = await all(
+      `SELECT s.id, s.name
+       FROM sets s
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+       WHERE s.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
+       ORDER BY s.created_at DESC`,
+      [userId, userId]
+    );
+    const trainSharedSets = await all(
+      `SELECT s.id, s.name, owner.display_name AS owner_name
+       FROM set_shares sh
+       JOIN sets s ON s.id = sh.set_id
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+       JOIN users owner ON owner.id = s.user_id
+       WHERE sh.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
+       ORDER BY s.created_at DESC`,
+      [userId, userId]
+    );
+    const storedDefaults = await getUserTrainDefaults(userId);
+    const defaultParams = await filterTrainParamsForUser(userId, storedDefaults || DEFAULT_TRAIN_PARAMS);
     const levelValue = user && user.level ? user.level : 'Debutant';
     res.render('profile', {
       user: { ...user, level: levelValue },
@@ -927,7 +1036,14 @@ app.get('/profile', requireAuth, async (req, res) => {
       levels: ['Debutant', 'Intermediaire', 'Avance', 'Expert'],
       message: req.query.msg || null,
       error: req.query.err || null,
-      pwdMessage: req.query.pwd || null
+      pwdMessage: req.query.pwd || null,
+      defaultParams,
+      trainThemes,
+      trainLevels,
+      trainSets,
+      trainSharedSets,
+      prefMessage: req.query.pref || null,
+      prefError: req.query.preferr || null
     });
   } catch (e) {
     console.error(e);
@@ -937,7 +1053,14 @@ app.get('/profile', requireAuth, async (req, res) => {
       levels: ['Debutant', 'Intermediaire', 'Avance', 'Expert'],
       message: null,
       error: 'Impossible de charger le profil.',
-      pwdMessage: null
+      pwdMessage: null,
+      defaultParams: DEFAULT_TRAIN_PARAMS,
+      trainThemes: [],
+      trainLevels: [],
+      trainSets: [],
+      trainSharedSets: [],
+      prefMessage: null,
+      prefError: 'Impossible de charger les preferences.'
     });
   }
 });
@@ -974,6 +1097,54 @@ app.post('/profile/info', requireAuth, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.redirect('/profile?err=Erreur de mise a jour');
+  }
+});
+
+app.post('/profile/revision-defaults', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const { rev_mode, level_id, remaining, total, show_phonetic } = req.body;
+  const rawModes = req.body.modes || req.body['modes[]'] || req.body.mode;
+  const modeList = normalizeModes(rawModes);
+  const themeRaw = Array.isArray(req.body.theme_ids) ? req.body.theme_ids.filter(Boolean) : req.body.theme_ids ? [req.body.theme_ids] : [];
+  const setRaw = Array.isArray(req.body.set_ids) ? req.body.set_ids.filter(Boolean) : req.body.set_ids ? [req.body.set_ids] : [];
+  const themeIds = themeRaw
+    .flatMap(t => String(t).split(','))
+    .map(id => Number(id))
+    .filter(id => !Number.isNaN(id));
+  const setIds = setRaw
+    .flatMap(s => String(s).split(','))
+    .map(id => Number(id))
+    .filter(id => !Number.isNaN(id));
+
+  const params = {
+    modes: modeList,
+    rev_mode: rev_mode || DEFAULT_TRAIN_PARAMS.rev_mode,
+    theme_ids: themeIds,
+    set_ids: setIds,
+    level_id: level_id || '',
+    remaining: remaining,
+    total: total,
+    show_phonetic
+  };
+
+  try {
+    const filtered = await filterTrainParamsForUser(userId, params);
+    await saveUserTrainDefaults(userId, filtered);
+    return res.redirect('/profile?pref=' + encodeURIComponent('Parametres enregistres'));
+  } catch (e) {
+    console.error(e);
+    return res.redirect('/profile?preferr=' + encodeURIComponent('Impossible de sauver les parametres'));
+  }
+});
+
+app.post('/profile/revision-defaults/reset', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  try {
+    await clearUserTrainDefaults(userId);
+    return res.redirect('/profile?pref=' + encodeURIComponent('Parametres remis par defaut'));
+  } catch (e) {
+    console.error(e);
+    return res.redirect('/profile?preferr=' + encodeURIComponent('Impossible de reinitialiser'));
   }
 });
 
@@ -1308,13 +1479,13 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
       const card = await get('SELECT * FROM cards WHERE id = ?', [cardId]);
       if (!card) return res.redirect('/train');
       const isCorrect = String(chosenId) === String(cardId);
-      if (isCorrect) correctCount += 1;
-      await upsertCardProgress(userId, cardId, isCorrect);
-      if (remainingCount > 0) {
-        req.session.trainState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount, modes: modeList };
-      } else {
-        delete req.session.trainState;
-      }
+    if (isCorrect) correctCount += 1;
+    await upsertCardProgress(userId, cardId, isCorrect);
+    if (remainingCount > 0) {
+        req.session.trainState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount, modes: modeList, replay: null };
+    } else {
+      delete req.session.trainState;
+    }
       const result = {
         isCorrect,
         hebrew: card.hebrew,
@@ -2414,18 +2585,13 @@ app.get('/themes/:id', requireAuth, async (req, res) => {
       [userId, userId]
     );
 	  const state = req.session.trainState || null;
-	  const useSessionParams = (req.query.current === '1' || req.query.current === 'true' || req.query.source === 'session');
+  const useSessionParams = (req.query.current === '1' || req.query.current === 'true' || req.query.source === 'session');
+
+  const storedDefaults = await getUserTrainDefaults(userId);
+  const defaultParams = await filterTrainParamsForUser(userId, storedDefaults || DEFAULT_TRAIN_PARAMS);
 
   const baseParams = {
-    modes: ['flashcards'],
-  rev_mode: 'order',
-  show_phonetic: 1,
-  theme_ids: [],
-  set_ids: [],
-  level_id: '',
-  scope: 'all',
-  remaining: 10,
-    total: 10
+    ...defaultParams
   };
 
   let params = { ...baseParams };
@@ -2468,7 +2634,7 @@ app.get('/themes/:id', requireAuth, async (req, res) => {
 	});
 
 app.post('/train/session', requireAuth, async (req, res) => {
-  const { modes, mode, theme_ids, set_ids, level_id, rev_mode, remaining, show_phonetic } = req.body;
+  const { modes, mode, theme_ids, set_ids, level_id, rev_mode, remaining, show_phonetic, total } = req.body;
   const rawModes = modes || req.body['modes[]'] || mode;
   const modeList = normalizeModes(rawModes);
   const themeRaw = Array.isArray(theme_ids) ? theme_ids.filter(Boolean) : theme_ids ? [theme_ids] : [];
@@ -2482,6 +2648,9 @@ app.post('/train/session', requireAuth, async (req, res) => {
   const setList = setListRaw.filter(id => allowedSetSet.has(id));
   let remain = remaining === 'all' ? null : Number(remaining || 10);
   const showPhonetic = String(show_phonetic) === '0' ? 0 : 1;
+  const conflictChoice = req.body.conflict_choice;
+  const requestedRemaining = remaining === 'all' ? 'all' : remain || DEFAULT_TRAIN_PARAMS.remaining;
+  const requestedTotal = total === 'all' ? 'all' : requestedRemaining;
 
   if (themeList.length === 0 && setList.length === 0) {
     const userId = req.session.user.id;
@@ -2517,11 +2686,58 @@ app.post('/train/session', requireAuth, async (req, res) => {
         theme_id: '',
         level_id: level_id || '',
         scope: 'all',
-        remaining: remain || 10,
-        total: remain || 10,
+        remaining: requestedRemaining,
+        total: requestedTotal,
         show_phonetic: showPhonetic
       }
     });
+  }
+
+  const existingState = req.session.trainState;
+  if (
+    existingState &&
+    Number(existingState.answered || 0) > 0 &&
+    Number(existingState.remaining || 0) > 0
+  ) {
+    const existingThemes = normalizeIds(existingState.theme_ids || []);
+    const existingSets = normalizeIds(existingState.set_ids || []);
+    const overlapThemes = themeList.filter(id => existingThemes.includes(Number(id)));
+    const overlapSets = setList.filter(id => existingSets.includes(Number(id)));
+    if (overlapThemes.length > 0 || overlapSets.length > 0) {
+      if (conflictChoice === 'resume') {
+        return res.redirect('/train/resume?choice=resume');
+      }
+      if (conflictChoice !== 'restart') {
+        const overlapThemeNames =
+          overlapThemes.length > 0
+            ? await all(
+                `SELECT id, name FROM themes WHERE id IN (${overlapThemes.map(() => '?').join(',')})`,
+                overlapThemes
+              )
+            : [];
+        const overlapSetNames =
+          overlapSets.length > 0
+            ? await all(
+                `SELECT id, name FROM sets WHERE id IN (${overlapSets.map(() => '?').join(',')})`,
+                overlapSets
+              )
+            : [];
+        return res.render('train_conflict', {
+          overlapThemes: overlapThemeNames,
+          overlapSets: overlapSetNames,
+          params: {
+            modes: modeList,
+            rev_mode: rev_mode || 'order',
+            show_phonetic: showPhonetic,
+            theme_ids: themeList,
+            set_ids: setList,
+            level_id: level_id || '',
+            remaining: requestedRemaining,
+            total: requestedTotal
+          }
+        });
+      }
+    }
   }
 
   let poolWords = null;
@@ -2598,8 +2814,8 @@ app.post('/train/session', requireAuth, async (req, res) => {
         theme_id: '',
         level_id: level_id || '',
         scope: 'all',
-        remaining: 10,
-        total: 10,
+        remaining: requestedRemaining,
+        total: requestedTotal,
         show_phonetic: showPhonetic
       }
     });
@@ -2639,8 +2855,9 @@ app.get('/train', requireAuth, async (req, res) => {
     : [];
   const allowedSets = await getAccessibleSetIds(userId);
   state.set_ids = Array.isArray(state.set_ids) ? state.set_ids.filter(id => allowedSets.includes(Number(id))) : [];
+  const replay = state.replay || null;
   const mode = modeList[0] || MODE_FLASHCARDS;
-  const questionMode = pickQuestionMode(modeList);
+  const questionMode = replay && replay.questionMode ? replay.questionMode : pickQuestionMode(modeList);
   state.currentMode = questionMode;
 
   const remainingCount = Number(state.remaining || 0);
@@ -2694,6 +2911,51 @@ app.get('/train', requireAuth, async (req, res) => {
 
   try {
     if (filters.source === 'cards') {
+      if (replay && replay.type === 'card') {
+        const cardId = Number(replay.id);
+      const allowedSetIds = await getAccessibleSetIds(userId);
+      const card = await get('SELECT * FROM cards WHERE id = ?', [cardId]);
+      const stillAllowed = card && allowedSetIds.includes(Number(card.set_id));
+      if (card && stillAllowed) {
+        const word = { id: `card_${cardId}`, hebrew: card.hebrew, transliteration: card.transliteration, french: card.french };
+          const isReverse = questionMode === MODE_FLASHCARDS_REVERSE;
+          const cardsPool = await getEffectiveCardsForUser(userId, state.set_ids || []);
+          const poolCopy = cardsPool.filter(c => c.id !== cardId);
+          const distractors = [];
+          while (poolCopy.length > 0 && distractors.length < 3) {
+            const idx = Math.floor(Math.random() * poolCopy.length);
+            distractors.push(poolCopy.splice(idx, 1)[0]);
+          }
+        const optionsRaw = [
+          ...distractors.map(c => ({ id: `card_${c.id}`, label: isReverse ? c.hebrew : c.french })),
+          { id: `card_${cardId}`, label: isReverse ? card.hebrew : card.french }
+        ];
+        for (let i = optionsRaw.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [optionsRaw[i], optionsRaw[j]] = [optionsRaw[j], optionsRaw[i]];
+        }
+        state.replay = null;
+        req.session.trainState = state;
+        return res.render('train', {
+          word,
+          message: null,
+          result: null,
+          mode,
+            modes: modeList,
+            questionMode,
+            filters,
+            options: optionsRaw,
+            themes,
+            remaining: remainingCount,
+            total: totalCount,
+            answered: answeredCount,
+            correct: correctCount,
+            nextUrl: `/train`
+          });
+        } else {
+          state.replay = null;
+        }
+      }
       const allowedSetIds = await getAccessibleSetIds(userId);
       const filteredIds = (filters.set_ids || []).filter(id => allowedSetIds.includes(Number(id)));
       if (filteredIds.length === 0) {
@@ -2753,15 +3015,16 @@ app.get('/train', requireAuth, async (req, res) => {
       if (!state.usedCardIds.includes(cardId)) {
         state.usedCardIds.push(cardId);
       }
+      state.pendingQuestion = { type: 'card', id: cardId, questionMode };
       req.session.trainState = state;
 
       if (questionMode === MODE_WRITTEN) {
-        return res.render('train', {
-          word,
-          message: null,
-          result: null,
-          mode,
-          modes: modeList,
+          return res.render('train', {
+            word,
+            message: null,
+            result: null,
+            mode,
+      modes: modeList,
           questionMode,
           filters,
           options: null,
@@ -2806,22 +3069,35 @@ app.get('/train', requireAuth, async (req, res) => {
       });
     }
 
-    const excludedIds = state.usedWordIds.map(id => Number(id)).filter(id => !Number.isNaN(id));
-    const word = await fetchNextWord(userId, { ...filters, excludedIds });
-    if (word) {
-      const wordId = Number(word.id);
-      if (!state.usedWordIds.includes(wordId)) {
-        state.usedWordIds.push(wordId);
+    let word = null;
+    if (replay && replay.type === 'word') {
+      const candidate = await get('SELECT * FROM words WHERE id = ?', [replay.id]);
+      if (candidate) {
+        word = candidate;
+      } else {
+        state.replay = null;
       }
     }
-    req.session.trainState = state;
+    if (!word) {
+      const excludedIds = state.usedWordIds.map(id => Number(id)).filter(id => !Number.isNaN(id));
+      word = await fetchNextWord(userId, { ...filters, excludedIds });
+      if (word) {
+        const wordId = Number(word.id);
+        if (!state.usedWordIds.includes(wordId)) {
+          state.usedWordIds.push(wordId);
+        }
+      }
+      req.session.trainState = state;
+    }
 
     const isReverse = questionMode === MODE_FLASHCARDS_REVERSE;
-    const options =
-      word && (questionMode === MODE_FLASHCARDS || questionMode === MODE_FLASHCARDS_REVERSE)
-        ? await getFlashcardOptions(userId, word, filters, isReverse)
-        : null;
+      const options =
+        word && (questionMode === MODE_FLASHCARDS || questionMode === MODE_FLASHCARDS_REVERSE)
+          ? await getFlashcardOptions(userId, word, filters, isReverse)
+          : null;
     const message = !word ? 'Aucun mot pour ces criteres.' : null;
+    state.replay = null;
+    req.session.trainState = state;
     res.render('train', {
       word,
       message,
@@ -2937,7 +3213,7 @@ app.post('/train/answer', requireAuth, async (req, res) => {
 
     const progressUpdate = await upsertProgress(userId, word_id, isCorrect);
     if (remainingCount > 0) {
-      req.session.trainState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount, modes: modeList };
+      req.session.trainState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount, modes: modeList, replay: null };
     } else {
       delete req.session.trainState;
     }
@@ -3003,6 +3279,19 @@ app.get('/train/resume', requireAuth, (req, res) => {
     state.remaining = total;
     state.usedWordIds = [];
     state.usedCardIds = [];
+    state.replay = null;
+  }
+  if (choice === 'resume') {
+    const isCardSession = Array.isArray(state.set_ids) && state.set_ids.length > 0;
+    if (isCardSession && Array.isArray(state.usedCardIds) && state.usedCardIds.length > 0) {
+      const lastId = state.usedCardIds[state.usedCardIds.length - 1];
+      state.replay = { type: 'card', id: lastId, questionMode: state.currentMode || (state.modes || [])[0] || MODE_FLASHCARDS };
+    } else if (!isCardSession && Array.isArray(state.usedWordIds) && state.usedWordIds.length > 0) {
+      const lastId = state.usedWordIds[state.usedWordIds.length - 1];
+      state.replay = { type: 'word', id: lastId, questionMode: state.currentMode || (state.modes || [])[0] || MODE_FLASHCARDS };
+    } else {
+      state.replay = null;
+    }
   }
   req.session.trainState = state;
   return res.redirect(`/train`);
