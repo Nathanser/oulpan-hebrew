@@ -15,36 +15,56 @@
   <div class="form-banner" id="form-banner" style="display:none;"></div>
 
   <form id="list-builder-form" method="post" action="<%= action %>" class="builder-form">
-    <label class="title-field">Titre de la liste
-      <input type="text" name="name" value="<%= set ? set.name : '' %>" placeholder="Ex : Vocabulaire de base" required />
-    </label>
+    <div class="title-field title-with-action">
+      <div class="title-label">Titre de la liste</div>
+      <div class="title-input-row">
+        <input type="text" name="name" value="<%= set ? set.name : '' %>" placeholder="Titre de la liste" required />
+        <button type="button" class="dots-btn list-mode-btn" id="list-mode-toggle" aria-haspopup="true" aria-expanded="false" aria-label="Options de la liste">&#8230;</button>
+        <div class="list-mode-menu" id="list-mode-menu">
+          <button type="button" class="menu-item" data-mode="reorder">
+            <span class="menu-label">Changer l'ordre</span>
+            <span class="menu-icon">&#8693;</span>
+          </button>
+          <button type="button" class="menu-item danger" data-mode="delete">
+            <span class="menu-label">Supprimer</span>
+            <span class="menu-icon">&#128465;</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <div id="cards-container" class="cards-stack">
       <% (cards || []).forEach((card, idx) => { %>
         <div class="builder-card" data-card-index="<%= idx %>" id="card-<%= card.id ? card.id : 'new-' + idx %>">
           <div class="builder-card-head">
             <div class="card-number"><%= idx + 1 %></div>
-            <button type="button" class="dots-btn" aria-label="Actions de la carte">...</button>
+            <div class="card-head-actions">
+              <button type="button" class="reorder-handle" data-drag-handle title="Réordonner cette carte">&#9776;</button>
+              <label class="select-toggle">
+                <input type="checkbox" data-select-checkbox aria-label="Sélectionner cette carte pour suppression" />
+                <span class="select-box"></span>
+              </label>
+            </div>
           </div>
           <div class="builder-fields">
             <input type="hidden" data-field="id" name="cards[<%= idx %>][id]" value="<%= card.id || '' %>" />
-            <label>Mot hebreu
+            <label class="field-hebrew"><span class="field-label">Mot hebreu</span>
               <input data-field="hebrew" name="cards[<%= idx %>][hebrew]" type="text" value="<%= card.hebrew || '' %>" placeholder="שָׁלוֹם" required />
             </label>
-            <label>Mot francais
+            <label class="field-french"><span class="field-label">Mot francais</span>
               <input data-field="french" name="cards[<%= idx %>][french]" type="text" value="<%= card.french || '' %>" placeholder="Bonjour" required />
             </label>
-            <label>Phonetique
+            <label class="field-translit"><span class="field-label">Phonetique</span>
               <input data-field="transliteration" name="cards[<%= idx %>][transliteration]" type="text" value="<%= card.transliteration || '' %>" placeholder="Shalom" />
             </label>
           </div>
-          <div class="card-actions" data-menu>
-            <button type="button" class="icon-only danger" data-action="delete" title="Supprimer cette carte">&#128465;</button>
-            <button type="button" class="icon-only" data-action="move-up" title="Monter la carte">&#8593;</button>
-            <button type="button" class="icon-only" data-action="move-down" title="Descendre la carte">&#8595;</button>
-          </div>
         </div>
       <% }) %>
+    </div>
+
+    <div class="bulk-action-bar" id="bulk-action-bar">
+      <button type="button" class="bulk-trash" id="bulk-delete-btn" disabled aria-label="Supprimer les cartes sélectionnées">&#128465;</button>
+      <div class="bulk-count" id="bulk-count">0 sélectionné</div>
     </div>
 
     <div class="list-bottom-actions fixed-actions">
@@ -57,24 +77,25 @@
     <div class="builder-card" data-card-index="__index__" id="card-new-__index__">
       <div class="builder-card-head">
         <div class="card-number"></div>
-        <button type="button" class="dots-btn" aria-label="Actions de la carte">...</button>
+        <div class="card-head-actions">
+          <button type="button" class="reorder-handle" data-drag-handle title="Réordonner cette carte">&#9776;</button>
+          <label class="select-toggle">
+            <input type="checkbox" data-select-checkbox aria-label="Sélectionner cette carte pour suppression" />
+            <span class="select-box"></span>
+          </label>
+        </div>
       </div>
       <div class="builder-fields">
         <input type="hidden" data-field="id" name="" value="" />
-        <label>Mot hebreu
+        <label class="field-hebrew"><span class="field-label">Mot hebreu</span>
           <input data-field="hebrew" name="" type="text" value="" placeholder="שָׁלוֹם" required />
         </label>
-        <label>Mot francais
+        <label class="field-french"><span class="field-label">Mot francais</span>
           <input data-field="french" name="" type="text" value="" placeholder="Bonjour" required />
         </label>
-        <label>Phonetique
+        <label class="field-translit"><span class="field-label">Phonetique</span>
           <input data-field="transliteration" name="" type="text" value="" placeholder="Shalom" />
         </label>
-      </div>
-      <div class="card-actions" data-menu>
-        <button type="button" class="icon-only danger" data-action="delete" title="Supprimer cette carte">&#128465;</button>
-        <button type="button" class="icon-only" data-action="move-up" title="Monter la carte">&#8593;</button>
-        <button type="button" class="icon-only" data-action="move-down" title="Descendre la carte">&#8595;</button>
       </div>
     </div>
   </template>
@@ -87,7 +108,11 @@
     templateId: 'card-template',
     addButtonId: 'add-card-bottom',
     formId: 'list-builder-form',
-    bannerId: 'form-banner'
+    bannerId: 'form-banner',
+    modeToggleId: 'list-mode-toggle',
+    modeMenuId: 'list-mode-menu',
+    bulkBarId: 'bulk-action-bar',
+    bulkDeleteBtnId: 'bulk-delete-btn',
+    bulkCountId: 'bulk-count'
   });
 </script>
-

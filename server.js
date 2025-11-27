@@ -593,6 +593,20 @@ async function nextDisplayNo(table, userIdCondition) {
   return (row && row.max_no ? Number(row.max_no) : 0) + 1;
 }
 
+async function nextWordPosition(themeId, userId) {
+  if (!themeId) return 1;
+  const params = [themeId];
+  let sql = 'SELECT COALESCE(MAX(position), 0) AS pos FROM words WHERE theme_id = ?';
+  if (userId === null) {
+    sql += ' AND user_id IS NULL';
+  } else {
+    sql += ' AND user_id = ?';
+    params.push(userId);
+  }
+  const row = await get(sql, params);
+  return (row && row.pos ? Number(row.pos) : 0) + 1;
+}
+
 async function renumberThemes(userId) {
   const rows = await all(
     userId === null
@@ -724,7 +738,7 @@ async function ensureBaseThemes() {
       await run('INSERT INTO theme_levels (theme_id, name, level_order, active) VALUES (?,?,?,1)', [created.lastID, 'Niveau 1', 1]);
       idx += 1;
     }
-    console.log('ThÃ¨mes de base crÃ©Ã©s (liste fournie).');
+    console.log('Thèmes de base crées (liste fournie).');
   }
 }
 (async () => {
@@ -1087,11 +1101,14 @@ app.post('/import', requireAuth, async (req, res) => {
         ? existing.id
         : (await run('INSERT INTO themes (name, active, user_id, created_at, display_no) VALUES (?,?,NULL, CURRENT_TIMESTAMP, ?)', [name, active, await nextDisplayNo('themes', null)])).lastID;
 
-      for (const w of words) {
+      let positionSeed = existing ? await nextWordPosition(themeId, null) : 1;
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i];
+        const position = positionSeed + i;
         await run(
-          `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id)
-           VALUES (?,?,?,?,?,?,?,NULL)`,
-          [w.hebrew, w.transliteration || null, w.french, themeId, null, 1, w.active]
+          `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id, position)
+           VALUES (?,?,?,?,?,?,?,NULL,?)`,
+          [w.hebrew, w.transliteration || null, w.french, themeId, null, 1, w.active, position]
         );
       }
       const msg = existing ? 'Mots ajoutes au theme existant' : 'Theme importe avec succes';
@@ -1159,7 +1176,7 @@ app.post('/export', requireAuth, async (req, res) => {
     if (isAdmin) {
       const themes = await all('SELECT * FROM themes');
       for (const t of themes) {
-        const words = await all('SELECT hebrew, french, transliteration, active, difficulty FROM words WHERE theme_id = ? ORDER BY id ASC', [t.id]);
+        const words = await all('SELECT hebrew, french, transliteration, active, difficulty FROM words WHERE theme_id = ? ORDER BY position ASC, id ASC', [t.id]);
         const payload = {
           name: t.name,
           active: t.active,
@@ -1424,9 +1441,10 @@ app.post('/my/words', requireAuth, async (req, res) => {
         }
       }
     }
+    const position = await nextWordPosition(themeId || null, userId);
     await run(
-      `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id)
-       VALUES (?,?,?,?,?,?,?,?)`,
+      `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id, position)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
       [
         hebrew,
         transliteration || null,
@@ -1435,7 +1453,8 @@ app.post('/my/words', requireAuth, async (req, res) => {
         levelId,
         difficulty || 1,
         active ? 1 : 0,
-        userId
+        userId,
+        position
       ]
     );
     res.redirect('/my/words');
@@ -3246,11 +3265,13 @@ app.post('/admin/themes', requireAdmin, async (req, res) => {
     );
     const newThemeId = createdTheme.lastID;
     if (newThemeId && cards.length > 0) {
-      for (const card of cards) {
+      for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
+        const position = i + 1;
         await run(
-          `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id)
-           VALUES (?,?,?,?,?,?,?,NULL)`,
-          [card.hebrew, card.transliteration || null, card.french, newThemeId, null, 1, 1]
+          `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id, position)
+           VALUES (?,?,?,?,?,?,?,NULL,?)`,
+          [card.hebrew, card.transliteration || null, card.french, newThemeId, null, 1, 1, position]
         );
       }
     }
@@ -3266,7 +3287,7 @@ app.get('/admin/themes/:id/edit', requireAdmin, async (req, res) => {
     const theme = await get('SELECT * FROM themes WHERE id = ? AND user_id IS NULL', [req.params.id]);
     if (!theme) return res.redirect('/admin/themes');
     const cards = await all(
-      'SELECT id, hebrew, french, transliteration FROM words WHERE theme_id = ? AND user_id IS NULL ORDER BY id ASC',
+      'SELECT id, hebrew, french, transliteration FROM words WHERE theme_id = ? AND user_id IS NULL ORDER BY position ASC, id ASC',
       [theme.id]
     );
     res.render('admin/theme_form', {
@@ -3341,7 +3362,7 @@ app.get('/admin/themes/:id', requireAdmin, async (req, res) => {
     );
     if (!theme) return res.redirect('/admin/themes');
     const words = await all(
-      'SELECT id, hebrew, french, transliteration, active FROM words WHERE theme_id = ? AND user_id IS NULL ORDER BY id ASC',
+      'SELECT id, hebrew, french, transliteration, active FROM words WHERE theme_id = ? AND user_id IS NULL ORDER BY position ASC, id ASC',
       [theme.id]
     );
     const targetThemes = await all(
@@ -3436,19 +3457,21 @@ app.put('/admin/themes/:id', requireAdmin, async (req, res) => {
     const existingById = new Map(existing.map(w => [Number(w.id), w]));
     const keptIds = new Set();
 
-    for (const card of cards) {
+    for (let i = 0; i < cards.length; i++) {
+      const card = cards[i];
+      const position = i + 1;
       if (card.id && existingById.has(Number(card.id))) {
         const current = existingById.get(Number(card.id));
         await run(
-          'UPDATE words SET hebrew = ?, french = ?, transliteration = ? WHERE id = ? AND theme_id = ? AND user_id IS NULL',
-          [card.hebrew, card.french, card.transliteration || null, current.id, theme.id]
+          'UPDATE words SET hebrew = ?, french = ?, transliteration = ?, position = ? WHERE id = ? AND theme_id = ? AND user_id IS NULL',
+          [card.hebrew, card.french, card.transliteration || null, position, current.id, theme.id]
         );
         keptIds.add(Number(card.id));
       } else {
         const created = await run(
-          `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id)
-           VALUES (?,?,?,?,?,?,?,NULL)`,
-          [card.hebrew, card.transliteration || null, card.french, theme.id, null, 1, 1]
+          `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id, position)
+           VALUES (?,?,?,?,?,?,?,NULL,?)`,
+          [card.hebrew, card.transliteration || null, card.french, theme.id, null, 1, 1, position]
         );
         keptIds.add(created.lastID);
       }
@@ -3595,10 +3618,11 @@ app.post('/admin/words', requireAdmin, async (req, res) => {
   const { hebrew, transliteration, french, theme_id, level_id, difficulty, active } = req.body;
   try {
     const { levelId, themeId } = await normalizeLevelSelection(theme_id, level_id);
+    const position = await nextWordPosition(themeId || null, null);
     await run(
-      `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active)
-       VALUES (?,?,?,?,?,?,?)`,
-      [hebrew, transliteration || null, french, themeId || null, levelId, difficulty || 1, active ? 1 : 0]
+      `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, position)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [hebrew, transliteration || null, french, themeId || null, levelId, difficulty || 1, active ? 1 : 0, position]
     );
     res.redirect('/admin/words');
   } catch (e) {

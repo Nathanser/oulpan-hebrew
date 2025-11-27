@@ -105,6 +105,7 @@ const safeAlter = (sql) => {
 
 safeAlter('ALTER TABLE words ADD COLUMN active INTEGER DEFAULT 1');
 safeAlter('ALTER TABLE words ADD COLUMN user_id INTEGER');
+safeAlter('ALTER TABLE words ADD COLUMN position INTEGER DEFAULT 1');
 safeAlter('ALTER TABLE themes ADD COLUMN user_id INTEGER');
 safeAlter('ALTER TABLE words ADD COLUMN level_id INTEGER');
 safeAlter('ALTER TABLE themes ADD COLUMN active INTEGER DEFAULT 1');

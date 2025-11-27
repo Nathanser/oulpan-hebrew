@@ -1,7 +1,12 @@
 (() => {
-  const HOLD_DELAY_MS = 900;
+  const HOLD_DELAY_MS = 300;
   const AUTO_SCROLL_EDGE = 110;
   const AUTO_SCROLL_STEP = 22;
+  const MODES = {
+    default: 'default',
+    reorder: 'reorder',
+    delete: 'delete'
+  };
 
   function initCardBuilder(options = {}) {
     const container = document.getElementById(options.containerId || 'cards-container');
@@ -11,7 +16,16 @@
 
     const form = options.formId ? document.getElementById(options.formId) : null;
     const banner = options.bannerId ? document.getElementById(options.bannerId) : null;
+    const modeToggle = options.modeToggleId ? document.getElementById(options.modeToggleId) : null;
+    const modeMenu = options.modeMenuId ? document.getElementById(options.modeMenuId) : null;
+    const bulkBar = options.bulkBarId ? document.getElementById(options.bulkBarId) : null;
+    const bulkDeleteBtn = options.bulkDeleteBtnId ? document.getElementById(options.bulkDeleteBtnId) : null;
+    const bulkCount = options.bulkCountId ? document.getElementById(options.bulkCountId) : null;
+    const bottomActions = document.querySelector('.list-bottom-actions');
+
     let dragState = null;
+    let mode = MODES.default;
+    const selectedCards = new Set();
 
     const showBanner = (msg) => {
       if (!banner || !msg) return;
@@ -20,20 +34,15 @@
       setTimeout(() => { banner.style.display = 'none'; }, 2500);
     };
 
-    function updateSelectLock() {
-      const active = !!dragState || container.querySelector('.builder-card.drag-ready');
+    const updateSelectLock = () => {
+      const active = !!dragState || mode === MODES.reorder;
       document.body.classList.toggle('no-text-select', !!active);
       if (active && document.activeElement && document.activeElement !== document.body) {
         document.activeElement.blur();
       }
-    }
+    };
 
-    function closeMenus() {
-      container.querySelectorAll('.builder-card.menu-open').forEach(card => card.classList.remove('menu-open'));
-      updateSelectLock();
-    }
-
-    function updateOrder() {
+    const updateOrder = () => {
       const cards = Array.from(container.querySelectorAll('.builder-card'));
       cards.forEach((card, index) => {
         card.dataset.cardIndex = index;
@@ -44,28 +53,136 @@
           input.name = `cards[${index}][${field}]`;
         });
       });
-    }
+    };
 
-    function setFrozen(card, frozen) {
-      card.classList.toggle('drag-ready', frozen);
-      card.classList.toggle('menu-open', frozen);
-      card.classList.remove('dragging');
+    const setCardInputsFrozen = (card, frozen) => {
       card.querySelectorAll('.builder-fields input').forEach(input => {
         input.readOnly = frozen;
         input.classList.toggle('input-frozen', frozen);
       });
-      updateSelectLock();
-    }
+    };
 
-    function handleAction(card, action) {
-      if (action === 'delete') {
-        if (container.children.length <= 1) {
-          card.querySelectorAll('input[type="text"]').forEach(inp => inp.value = '');
-          const hidden = card.querySelector('[data-field="id"]');
-          if (hidden) hidden.value = '';
-        } else {
-          card.remove();
+    const clearSelections = () => {
+      selectedCards.clear();
+      container.querySelectorAll('[data-select-checkbox]').forEach(cb => {
+        cb.checked = false;
+        cb.indeterminate = false;
+      });
+    };
+
+    const resetCardValues = (card) => {
+      card.querySelectorAll('input[type="text"]').forEach(inp => inp.value = '');
+      const hidden = card.querySelector('[data-field="id"]');
+      if (hidden) hidden.value = '';
+    };
+
+    const deleteCards = (cardsToDelete) => {
+      const toDelete = Array.from(cardsToDelete || []);
+      if (!toDelete.length) return;
+      const allCards = Array.from(container.querySelectorAll('.builder-card'));
+      if (toDelete.length === allCards.length) {
+        const keep = toDelete.shift();
+        if (keep) {
+          resetCardValues(keep);
+          selectedCards.delete(keep);
         }
+      }
+      toDelete.forEach(card => {
+        card.remove();
+        selectedCards.delete(card);
+      });
+      updateOrder();
+      updateBulkBar();
+    };
+
+    const updateBulkBar = () => {
+      if (!bulkBar) return;
+      bulkBar.classList.toggle('show', mode === MODES.delete);
+      if (mode !== MODES.delete) return;
+      const count = selectedCards.size;
+      if (bulkCount) bulkCount.textContent = `${count} selectionne${count > 1 ? 's' : ''}`;
+      if (bulkDeleteBtn) {
+        bulkDeleteBtn.disabled = count === 0;
+        bulkDeleteBtn.classList.toggle('active', count > 0);
+      }
+    };
+
+    const applyMode = () => {
+      container.dataset.mode = mode;
+      if (bottomActions) {
+        bottomActions.classList.toggle('hide', mode !== MODES.default);
+      }
+      const cards = Array.from(container.querySelectorAll('.builder-card'));
+      cards.forEach(card => {
+        const checkbox = card.querySelector('[data-select-checkbox]');
+        if (mode !== MODES.reorder) card.classList.remove('dragging');
+        setCardInputsFrozen(card, mode !== MODES.default);
+        if (checkbox) {
+          checkbox.disabled = mode !== MODES.delete;
+          if (mode !== MODES.delete) {
+            checkbox.checked = false;
+            selectedCards.delete(card);
+          }
+        }
+      });
+      if (mode !== MODES.delete) {
+        clearSelections();
+      }
+      updateBulkBar();
+      updateSelectLock();
+    };
+
+    const setMode = (next) => {
+      const desired = next === MODES.reorder || next === MODES.delete ? next : MODES.default;
+      mode = desired;
+      if (modeToggle) {
+        const isDefault = mode === MODES.default;
+        modeToggle.innerHTML = isDefault ? '&#8230;' : '&times;';
+        modeToggle.classList.toggle('is-active', !isDefault);
+        modeToggle.setAttribute('aria-expanded', 'false');
+      }
+      closeLegacyMenus();
+      if (modeMenu) modeMenu.classList.remove('show');
+      applyMode();
+    };
+
+    const toggleCardSelection = (card, explicitValue) => {
+      if (mode !== MODES.delete) return;
+      const checkbox = card.querySelector('[data-select-checkbox]');
+      if (!checkbox) return;
+      const next = explicitValue !== undefined ? explicitValue : !checkbox.checked;
+      checkbox.checked = next;
+      if (next) {
+        selectedCards.add(card);
+      } else {
+        selectedCards.delete(card);
+      }
+      updateBulkBar();
+    };
+
+    const removeSelectedCards = () => {
+      if (mode !== MODES.delete) return;
+      const count = selectedCards.size;
+      if (!count) return;
+      const confirmed = window.confirm(`Etes-vous sur de vouloir supprimer ${count} carte${count > 1 ? 's' : ''} ?`);
+      if (!confirmed) return;
+      deleteCards(Array.from(selectedCards));
+    };
+
+    const closeLegacyMenus = () => {
+      container.querySelectorAll('.builder-card.legacy-open').forEach(card => {
+        card.classList.remove('legacy-open');
+        card.classList.remove('drag-ready');
+        if (mode === MODES.default) {
+          setCardInputsFrozen(card, false);
+        }
+      });
+      updateSelectLock();
+    };
+
+    const handleAction = (card, action) => {
+      if (action === 'delete') {
+        deleteCards([card]);
       } else if (action === 'move-up') {
         const prev = card.previousElementSibling;
         if (prev) container.insertBefore(card, prev);
@@ -76,43 +193,20 @@
         const newCard = createCard();
         container.insertBefore(newCard, card.nextElementSibling);
       }
-      closeMenus();
+      closeLegacyMenus();
       updateOrder();
       updateSelectLock();
-    }
+    };
 
-    function attachActions(card) {
-      const dots = card.querySelector('.dots-btn');
-      if (dots) {
-        dots.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const enable = !card.classList.contains('drag-ready');
-          if (enable) {
-            closeMenus();
-          }
-          setFrozen(card, enable);
-        });
-      }
-      card.querySelectorAll('[data-action]').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const action = btn.getAttribute('data-action');
-          handleAction(card, action);
-        });
-      });
-    }
-
-    function autoScroll(clientY) {
+    const autoScroll = (clientY) => {
       if (clientY < AUTO_SCROLL_EDGE) {
         window.scrollBy({ top: -AUTO_SCROLL_STEP, behavior: 'auto' });
       } else if (clientY > window.innerHeight - AUTO_SCROLL_EDGE) {
         window.scrollBy({ top: AUTO_SCROLL_STEP, behavior: 'auto' });
       }
-    }
+    };
 
-    function placePlaceholder(pageY) {
+    const placePlaceholder = (pageY) => {
       if (!dragState) return;
       const { card, placeholder } = dragState;
       const siblings = Array.from(container.querySelectorAll('.builder-card')).filter(el => el !== card);
@@ -127,9 +221,9 @@
         }
       }
       if (!placed) container.appendChild(placeholder);
-    }
+    };
 
-    function finishDrag() {
+    const finishDrag = () => {
       if (!dragState) return;
       const { card, placeholder } = dragState;
       card.classList.remove('dragging');
@@ -141,10 +235,10 @@
       updateSelectLock();
       card.classList.add('drag-settled');
       setTimeout(() => card.classList.remove('drag-settled'), 300);
-    }
+    };
 
-    function startDrag(card, startEvt) {
-      if (dragState) return;
+    const startDrag = (card, startEvt) => {
+      if (dragState || mode !== MODES.reorder) return;
       const rect = card.getBoundingClientRect();
       const placeholder = document.createElement('div');
       placeholder.className = 'card-placeholder';
@@ -185,13 +279,16 @@
 
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onUp);
-    }
+    };
 
-    function attachDrag(card) {
+    const attachDrag = (card) => {
       card.addEventListener('pointerdown', (e) => {
-        if (!card.classList.contains('drag-ready')) return;
+        if (mode !== MODES.reorder) return;
+        if (!e.target.closest('[data-drag-handle]')) return;
         if (e.button !== 0 && e.pointerType !== 'touch') return;
-        if (e.target.closest('.card-actions') || e.target.closest('.dots-btn')) return;
+        if (e.pointerType === 'touch') {
+          e.preventDefault();
+        }
 
         const startEvt = e;
         let moved = false;
@@ -216,33 +313,114 @@
         document.addEventListener('pointermove', detectMove);
         document.addEventListener('pointerup', cancel);
       });
-    }
+    };
 
-    function createCard() {
+    const attachSelection = (card) => {
+      const checkbox = card.querySelector('[data-select-checkbox]');
+      if (checkbox) {
+        checkbox.addEventListener('change', () => toggleCardSelection(card, checkbox.checked));
+      }
+      card.addEventListener('click', (e) => {
+        if (mode !== MODES.delete) return;
+        if (e.target.closest('[data-drag-handle]') || e.target.closest('.select-toggle')) return;
+        e.preventDefault();
+        toggleCardSelection(card);
+      });
+    };
+
+    const attachLegacyActions = (card) => {
+      const dots = card.querySelector('.dots-btn');
+      if (dots) {
+        dots.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const open = !card.classList.contains('legacy-open');
+          closeLegacyMenus();
+          if (open) {
+            card.classList.add('legacy-open');
+            card.classList.add('drag-ready');
+            setCardInputsFrozen(card, true);
+          }
+          updateSelectLock();
+        });
+      }
+      card.querySelectorAll('[data-action]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const action = btn.getAttribute('data-action');
+          handleAction(card, action);
+        });
+      });
+    };
+
+    const createCard = () => {
       const clone = template.content.firstElementChild.cloneNode(true);
-      attachActions(clone);
       attachDrag(clone);
+      attachSelection(clone);
+      attachLegacyActions(clone);
       return clone;
-    }
+    };
 
     addBtn.addEventListener('click', () => {
       const newCard = createCard();
       container.appendChild(newCard);
       updateOrder();
+      applyMode();
       newCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
       const heb = newCard.querySelector('[data-field="hebrew"]');
       if (heb) setTimeout(() => heb.focus(), 180);
     });
 
     container.querySelectorAll('.builder-card').forEach(card => {
-      attachActions(card);
       attachDrag(card);
+      attachSelection(card);
+      attachLegacyActions(card);
     });
 
+    if (modeToggle) {
+      modeToggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (mode !== MODES.default) {
+          setMode(MODES.default);
+          return;
+        }
+        if (modeMenu) {
+          const open = modeMenu.classList.toggle('show');
+          modeToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+      });
+    }
+
+    if (modeMenu) {
+      modeMenu.querySelectorAll('[data-mode]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const chosen = btn.getAttribute('data-mode');
+          setMode(chosen);
+        });
+      });
+    }
+
+    if (bulkDeleteBtn) {
+      bulkDeleteBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        removeSelectedCards();
+      });
+    }
+
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('.builder-card')) closeMenus();
+      if (modeMenu && !e.target.closest('.title-input-row') && !e.target.closest('.list-mode-btn')) {
+        modeMenu.classList.remove('show');
+        if (modeToggle) modeToggle.setAttribute('aria-expanded', 'false');
+      }
+      if (!e.target.closest('.builder-card')) {
+        closeLegacyMenus();
+      }
     });
+
     updateOrder();
+    applyMode();
 
     if (form) {
       form.addEventListener('submit', (e) => {
