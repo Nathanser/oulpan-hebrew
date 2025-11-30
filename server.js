@@ -49,6 +49,21 @@ async function findFirstAvailableId(table) {
   return expected;
 }
 
+async function createIdAllocator(table) {
+  const rows = await all(`SELECT id FROM ${table} ORDER BY id ASC`);
+  const used = new Set(rows.map(r => Number(r.id)));
+  let next = 1;
+  while (used.has(next)) next++;
+  return () => {
+    const id = next;
+    used.add(id);
+    do {
+      next++;
+    } while (used.has(next));
+    return id;
+  };
+}
+
 const MODE_FLASHCARDS = 'flashcards';
 const MODE_FLASHCARDS_REVERSE = 'flashcards_reverse';
 const MODE_WRITTEN = 'written';
@@ -1341,14 +1356,16 @@ app.post('/import', requireAuth, async (req, res) => {
         ? existing.id
         : (await run('INSERT INTO themes (id, name, active, user_id, created_at, display_no, parent_id) VALUES (?,?,?,NULL, CURRENT_TIMESTAMP, ?, ?)', [newId, name, active, await nextDisplayNo('themes', null), parentId])).lastID;
 
+      const allocateWordId = await createIdAllocator('words');
       let positionSeed = existing ? await nextWordPosition(themeId, null) : 1;
       for (let i = 0; i < words.length; i++) {
         const w = words[i];
         const position = positionSeed + i;
+        const wordId = allocateWordId();
         await run(
-          `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id, position)
-           VALUES (?,?,?,?,?,?,?,NULL,?)`,
-          [w.hebrew, w.transliteration || null, w.french, themeId, null, 1, w.active, position]
+          `INSERT INTO words (id, hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id, position)
+           VALUES (?,?,?,?,?,?,?,?,?,?)`,
+          [wordId, w.hebrew, w.transliteration || null, w.french, themeId, null, 1, w.active, null, position]
         );
       }
       const msg = existing ? 'Mots ajoutes au theme existant' : 'Theme importe avec succes';
@@ -1702,11 +1719,13 @@ app.post('/my/words', requireAuth, async (req, res) => {
         }
       }
     }
+    const wordId = await findFirstAvailableId('words');
     const position = await nextWordPosition(themeId || null, userId);
     await run(
-      `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id, position)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO words (id, hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id, position)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
       [
+        wordId,
         hebrew,
         transliteration || null,
         french,
@@ -4001,14 +4020,16 @@ app.post('/admin/themes', requireAdmin, async (req, res) => {
     );
     const createdTheme = { lastID: newId };
     const newThemeId = createdTheme.lastID;
+    const allocateWordId = cards.length > 0 ? await createIdAllocator('words') : null;
     if (newThemeId && cards.length > 0) {
       for (let i = 0; i < cards.length; i++) {
         const card = cards[i];
         const position = i + 1;
+        const wordId = allocateWordId();
         await run(
-          `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id, position)
-           VALUES (?,?,?,?,?,?,?,NULL,?)`,
-          [card.hebrew, card.transliteration || null, card.french, newThemeId, null, 1, 1, position]
+          `INSERT INTO words (id, hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id, position)
+           VALUES (?,?,?,?,?,?,?,?,?,?)`,
+          [wordId, card.hebrew, card.transliteration || null, card.french, newThemeId, null, 1, 1, null, position]
         );
       }
     }
@@ -4206,33 +4227,37 @@ app.put('/admin/themes/:id', requireAdmin, async (req, res) => {
 
     const existing = await all('SELECT * FROM words WHERE theme_id = ? AND user_id IS NULL', [theme.id]);
     const existingById = new Map(existing.map(w => [Number(w.id), w]));
-    const keptIds = new Set();
+    const cardIds = new Set(cards.map(c => (c.id ? Number(c.id) : null)).filter(Boolean));
+
+    for (const w of existing) {
+      const wId = Number(w.id);
+      if (!cardIds.has(wId)) {
+        await run('DELETE FROM progress WHERE word_id = ?', [w.id]);
+        await run('DELETE FROM favorites WHERE word_id = ?', [w.id]);
+        await run('DELETE FROM words WHERE id = ?', [w.id]);
+        existingById.delete(wId);
+      }
+    }
+
+    const allocateWordId = await createIdAllocator('words');
 
     for (let i = 0; i < cards.length; i++) {
       const card = cards[i];
       const position = i + 1;
-      if (card.id && existingById.has(Number(card.id))) {
-        const current = existingById.get(Number(card.id));
+      const cardId = card.id ? Number(card.id) : null;
+      if (cardId && existingById.has(cardId)) {
+        const current = existingById.get(cardId);
         await run(
           'UPDATE words SET hebrew = ?, french = ?, transliteration = ?, position = ? WHERE id = ? AND theme_id = ? AND user_id IS NULL',
           [card.hebrew, card.french, card.transliteration || null, position, current.id, theme.id]
         );
-        keptIds.add(Number(card.id));
       } else {
-        const created = await run(
-          `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id, position)
-           VALUES (?,?,?,?,?,?,?,NULL,?)`,
-          [card.hebrew, card.transliteration || null, card.french, theme.id, null, 1, 1, position]
+        const wordId = allocateWordId();
+        await run(
+          `INSERT INTO words (id, hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id, position)
+           VALUES (?,?,?,?,?,?,?,?,?,?)`,
+          [wordId, card.hebrew, card.transliteration || null, card.french, theme.id, null, 1, 1, null, position]
         );
-        keptIds.add(created.lastID);
-      }
-    }
-
-    for (const w of existing) {
-      if (!keptIds.has(Number(w.id))) {
-        await run('DELETE FROM progress WHERE word_id = ?', [w.id]);
-        await run('DELETE FROM favorites WHERE word_id = ?', [w.id]);
-        await run('DELETE FROM words WHERE id = ?', [w.id]);
       }
     }
 
@@ -4381,11 +4406,12 @@ app.post('/admin/words', requireAdmin, async (req, res) => {
   const { hebrew, transliteration, french, theme_id, level_id, difficulty, active } = req.body;
   try {
     const { levelId, themeId } = await normalizeLevelSelection(theme_id, level_id);
+    const wordId = await findFirstAvailableId('words');
     const position = await nextWordPosition(themeId || null, null);
     await run(
-      `INSERT INTO words (hebrew, transliteration, french, theme_id, level_id, difficulty, active, position)
-       VALUES (?,?,?,?,?,?,?,?)`,
-      [hebrew, transliteration || null, french, themeId || null, levelId, difficulty || 1, active ? 1 : 0, position]
+      `INSERT INTO words (id, hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id, position)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [wordId, hebrew, transliteration || null, french, themeId || null, levelId, difficulty || 1, active ? 1 : 0, null, position]
     );
     res.redirect('/admin/words');
   } catch (e) {
@@ -4445,6 +4471,8 @@ app.put('/admin/words/:id', requireAdmin, async (req, res) => {
 
 app.delete('/admin/words/:id', requireAdmin, async (req, res) => {
   try {
+    await run('DELETE FROM progress WHERE word_id = ?', [req.params.id]);
+    await run('DELETE FROM favorites WHERE word_id = ?', [req.params.id]);
     await run('DELETE FROM words WHERE id = ?', [req.params.id]);
     res.redirect('/admin/words');
   } catch (e) {
