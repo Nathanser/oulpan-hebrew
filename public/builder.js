@@ -100,7 +100,7 @@
       bulkBar.classList.toggle('show', mode === MODES.delete);
       if (mode !== MODES.delete) return;
       const count = selectedCards.size;
-      if (bulkCount) bulkCount.textContent = `${count} selectionne${count > 1 ? 's' : ''}`;
+      if (bulkCount) bulkCount.textContent = `${count} sélectionné${count > 1 ? 's' : ''}`;
       if (bulkDeleteBtn) {
         bulkDeleteBtn.disabled = count === 0;
         bulkDeleteBtn.classList.toggle('active', count > 0);
@@ -164,7 +164,7 @@
       if (mode !== MODES.delete) return;
       const count = selectedCards.size;
       if (!count) return;
-      const confirmed = window.confirm(`Etes-vous sur de vouloir supprimer ${count} carte${count > 1 ? 's' : ''} ?`);
+      const confirmed = window.confirm(`Êtes-vous sûr de vouloir supprimer ${count} carte${count > 1 ? 's' : ''} ?`);
       if (!confirmed) return;
       deleteCards(Array.from(selectedCards));
     };
@@ -431,7 +431,7 @@
             invalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
             invalid.focus({ preventScroll: true });
           }
-          showBanner('Complete les champs obligatoires.');
+          showBanner('Complète les champs obligatoires.');
         }
       });
     }

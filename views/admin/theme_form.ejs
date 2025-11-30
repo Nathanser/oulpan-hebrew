@@ -2,7 +2,7 @@
   <div class="builder-header">
     <div>
       <p class="eyebrow">
-        <%= theme ? 'Modifier le theme par défaut' : 'Créer un thème par défaut' %>
+        <%= theme ? 'Modifier le thème par défaut' : 'Créer un thème par défaut' %>
       </p>
       <h1>
         <%= theme ? theme.name : 'Nouveau thème' %>
@@ -27,7 +27,7 @@
             <input type="text" name="name" value="<%= theme ? theme.name : '' %>" placeholder="Ex : Vocabulaire de base"
               required />
             <button type="button" class="dots-btn list-mode-btn" id="list-mode-toggle" aria-haspopup="true"
-              aria-expanded="false" aria-label="Options du theme">&#8230;</button>
+              aria-expanded="false" aria-label="Options du thème">&#8230;</button>
 
             <div class="list-mode-menu" id="list-mode-menu">
               <button type="button" class="menu-item" data-mode="reorder">
@@ -45,15 +45,15 @@
 
         <label class="checkbox-row" style="margin:0.5rem 0 1rem;">
           <input type="checkbox" name="active" value="1" <%=!theme || theme.active ? 'checked' : '' %> />
-          Theme actif (visible pour les utilisateurs)
+          Thème actif (visible pour les utilisateurs)
         </label>
         <br><br>
 
         <div class="form-group" style="margin-bottom: 1.5rem;">
-          <label style="display:block; margin-bottom:0.5rem; font-weight:500;">Theme parent (optionnel)</label>
+          <label style="display:block; margin-bottom:0.5rem; font-weight:500;">Thème parent (optionnel)</label>
           <select name="parent_id"
             style="width:100%; padding:0.5rem; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-card);">
-            <option value="">-- Aucun (Theme principal) --</option>
+            <option value="">-- Aucun (Thème principal) --</option>
             <% (typeof potentialParents !=='undefined' ? potentialParents : []).forEach(p=> { %>
               <option value="<%= p.id %>" <%=theme && theme.parent_id===p.id ? 'selected' : '' %>><%= p.name %>
               </option>

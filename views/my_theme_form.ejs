@@ -1,11 +1,15 @@
 <section class="card">
-  <h1><%= theme ? 'Modifier le theme' : 'Ajouter un theme' %></h1>
+  <h1>
+    <%= theme ? 'Modifier le thème' : 'Ajouter un thème' %>
+  </h1>
 
   <form method="post" action="<%= action %>" class="form">
     <label>Nom
       <input type="text" name="name" value="<%= theme ? theme.name : '' %>" required />
     </label>
 
-    <button type="submit"><%= theme ? 'Enregistrer' : 'Créer' %></button>
+    <button type="submit">
+      <%= theme ? 'Enregistrer' : 'Créer' %>
+    </button>
   </form>
 </section>

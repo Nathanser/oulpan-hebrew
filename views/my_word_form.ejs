@@ -1,5 +1,7 @@
 <section class="card">
-  <h1><%= word ? 'Modifier mon mot' : 'Ajouter un mot perso' %></h1>
+  <h1>
+    <%= word ? 'Modifier mon mot' : 'Ajouter un mot perso' %>
+  </h1>
 
   <form method="post" action="<%= action %>" class="form">
     <label>Français
@@ -10,43 +12,48 @@
       <input type="text" name="hebrew" value="<%= word ? word.hebrew : '' %>" required />
     </label>
 
-    <label>Translitteration
+    <label>Translittération
       <input type="text" name="transliteration" value="<%= word ? (word.transliteration || '') : '' %>" />
     </label>
 
-    <label>Theme
+    <label>Thème
       <select name="theme_id">
         <option value="">(aucun)</option>
-        <% (themes || []).forEach(t => { %>
-          <option value="<%= t.id %>" <%= word && word.theme_id === t.id ? 'selected' : '' %>><%= t.name %></option>
-        <% }) %>
+        <% (themes || []).forEach(t=> { %>
+          <option value="<%= t.id %>" <%=word && word.theme_id===t.id ? 'selected' : '' %>><%= t.name %>
+          </option>
+          <% }) %>
       </select>
     </label>
 
-    <% const levelOptions = levels || []; %>
+    <% const levelOptions=levels || []; %>
 
-    <label>Niveau (optionnel)
-      <select name="level_id">
-        <option value="">(aucun)</option>
-        <% levelOptions.forEach(l => { %>
-          <option value="<%= l.id %>" <%= word && word.level_id === l.id ? 'selected' : '' %>><%= l.theme_name %> - <%= l.name %></option>
-        <% }) %>
-      </select>
-    </label>
+      <label>Niveau (optionnel)
+        <select name="level_id">
+          <option value="">(aucun)</option>
+          <% levelOptions.forEach(l=> { %>
+            <option value="<%= l.id %>" <%=word && word.level_id===l.id ? 'selected' : '' %>><%= l.theme_name %> - <%=
+                  l.name %>
+            </option>
+            <% }) %>
+        </select>
+      </label>
 
-    <label>Difficulte
-      <select name="difficulty">
-        <option value="1" <%= word && word.difficulty === 1 ? 'selected' : '' %>>Facile</option>
-        <option value="2" <%= word && word.difficulty === 2 ? 'selected' : '' %>>Moyen</option>
-        <option value="3" <%= word && word.difficulty === 3 ? 'selected' : '' %>>Difficile</option>
-      </select>
-    </label>
+      <label>Difficulté
+        <select name="difficulty">
+          <option value="1" <%=word && word.difficulty===1 ? 'selected' : '' %>>Facile</option>
+          <option value="2" <%=word && word.difficulty===2 ? 'selected' : '' %>>Moyen</option>
+          <option value="3" <%=word && word.difficulty===3 ? 'selected' : '' %>>Difficile</option>
+        </select>
+      </label>
 
-    <label>
-      <input type="checkbox" name="active" value="1" <%= !word || word.active ? 'checked' : '' %> />
-      Actif (pris en compte dans mes révisions)
-    </label>
+      <label>
+        <input type="checkbox" name="active" value="1" <%=!word || word.active ? 'checked' : '' %> />
+        Actif (pris en compte dans mes révisions)
+      </label>
 
-    <button type="submit"><%= word ? 'Enregistrer' : 'Créer' %></button>
+      <button type="submit">
+        <%= word ? 'Enregistrer' : 'Créer' %>
+      </button>
   </form>
 </section>

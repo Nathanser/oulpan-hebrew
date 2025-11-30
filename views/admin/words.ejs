@@ -7,51 +7,56 @@
   <form class="form" method="get" action="/admin/words" style="margin-bottom:1rem;">
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;">
       <label>Recherche
-        <input type="text" name="search" value="<%= filters && filters.search ? filters.search : '' %>" placeholder="français / hébreu / transliteration" />
+        <input type="text" name="search" value="<%= filters && filters.search ? filters.search : '' %>"
+          placeholder="français / hébreu / translittération" />
       </label>
-      <label>Theme
+      <label>Thème
         <select name="theme_id">
           <option value="">Tous</option>
-          <% (themes || []).forEach(t => { %>
-            <option value="<%= t.id %>" <%= filters && filters.theme_id == t.id ? 'selected' : '' %>><%= t.name %></option>
-          <% }) %>
+          <% (themes || []).forEach(t=> { %>
+            <option value="<%= t.id %>" <%=filters && filters.theme_id==t.id ? 'selected' : '' %>><%= t.name %>
+            </option>
+            <% }) %>
         </select>
       </label>
       <label>Niveau
         <select name="level_id">
           <option value="">Tous</option>
-          <% (levels || []).forEach(l => { %>
-            <option value="<%= l.id %>" <%= filters && filters.level_id == l.id ? 'selected' : '' %>><%= l.theme_name %> - <%= l.name %></option>
-          <% }) %>
+          <% (levels || []).forEach(l=> { %>
+            <option value="<%= l.id %>" <%=filters && filters.level_id==l.id ? 'selected' : '' %>><%= l.theme_name %> -
+                <%= l.name %>
+            </option>
+            <% }) %>
         </select>
       </label>
       <label>Actif
         <select name="active">
           <option value="">Tous</option>
-          <option value="1" <%= filters && filters.active === '1' ? 'selected' : '' %>>Oui</option>
-          <option value="0" <%= filters && filters.active === '0' ? 'selected' : '' %>>Non</option>
+          <option value="1" <%=filters && filters.active==='1' ? 'selected' : '' %>>Oui</option>
+          <option value="0" <%=filters && filters.active==='0' ? 'selected' : '' %>>Non</option>
         </select>
       </label>
-      <label>Difficulte
+      <label>Difficulté
         <select name="difficulty">
           <option value="">Toutes</option>
-          <option value="1" <%= filters && filters.difficulty == '1' ? 'selected' : '' %>>Facile</option>
-          <option value="2" <%= filters && filters.difficulty == '2' ? 'selected' : '' %>>Moyen</option>
-          <option value="3" <%= filters && filters.difficulty == '3' ? 'selected' : '' %>>Difficile</option>
+          <option value="1" <%=filters && filters.difficulty=='1' ? 'selected' : '' %>>Facile</option>
+          <option value="2" <%=filters && filters.difficulty=='2' ? 'selected' : '' %>>Moyen</option>
+          <option value="3" <%=filters && filters.difficulty=='3' ? 'selected' : '' %>>Difficile</option>
         </select>
       </label>
       <label>Trier
         <select name="sort">
-          <option value="created_asc" <%= !filters || !filters.sort || filters.sort === 'created_asc' ? 'selected' : '' %>>Creation (plus anciens)</option>
-          <option value="recent" <%= filters && filters.sort === 'recent' ? 'selected' : '' %>>Plus recent</option>
-          <option value="french" <%= filters && filters.sort === 'french' ? 'selected' : '' %>>Français</option>
-          <option value="difficulty" <%= filters && filters.sort === 'difficulty' ? 'selected' : '' %>>Difficulte</option>
+          <option value="created_asc" <%=!filters || !filters.sort || filters.sort==='created_asc' ? 'selected' : '' %>
+            >Création (plus anciens)</option>
+          <option value="recent" <%=filters && filters.sort==='recent' ? 'selected' : '' %>>Plus récent</option>
+          <option value="french" <%=filters && filters.sort==='french' ? 'selected' : '' %>>Français</option>
+          <option value="difficulty" <%=filters && filters.sort==='difficulty' ? 'selected' : '' %>>Difficulté</option>
         </select>
       </label>
     </div>
     <div style="margin-top:0.5rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
       <button type="submit">Filtrer</button>
-      <a class="link" href="/admin/words">Reinitialiser</a>
+      <a class="link" href="/admin/words">Réinitialiser</a>
     </div>
   </form>
 
@@ -61,25 +66,41 @@
         <th>#</th>
         <th>Français</th>
         <th>Hébreu</th>
-        <th>Translitteration</th>
-        <th>Theme</th>
+        <th>Translittération</th>
+        <th>Thème</th>
         <th>Niveau</th>
-        <th>Difficulte</th>
+        <th>Difficulté</th>
         <th>Actif</th>
         <th>Actions</th>
       </tr>
     </thead>
     <tbody>
-      <% words.forEach((w, idx) => { %>
+      <% words.forEach((w, idx)=> { %>
         <tr>
-          <td><%= idx + 1 %></td>
-          <td><%= w.french %></td>
-          <td><%= w.hebrew %></td>
-          <td><%= w.transliteration || '' %></td>
-          <td><%= w.theme_name || '-' %></td>
-          <td><%= w.level_name || '-' %></td>
-          <td><%= w.difficulty %></td>
-          <td><%= w.active ? 'Oui' : 'Non' %></td>
+          <td>
+            <%= idx + 1 %>
+          </td>
+          <td>
+            <%= w.french %>
+          </td>
+          <td>
+            <%= w.hebrew %>
+          </td>
+          <td>
+            <%= w.transliteration || '' %>
+          </td>
+          <td>
+            <%= w.theme_name || '-' %>
+          </td>
+          <td>
+            <%= w.level_name || '-' %>
+          </td>
+          <td>
+            <%= w.difficulty %>
+          </td>
+          <td>
+            <%= w.active ? 'Oui' : 'Non' %>
+          </td>
           <td>
             <a class="link" href="/admin/words/<%= w.id %>/edit">Modifier</a>
             <form action="/admin/words/<%= w.id %>?_method=DELETE" method="post" style="display:inline;">
@@ -87,7 +108,7 @@
             </form>
           </td>
         </tr>
-      <% }) %>
+        <% }) %>
     </tbody>
   </table>
 </section>

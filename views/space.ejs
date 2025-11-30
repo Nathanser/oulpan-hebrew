@@ -3,30 +3,38 @@
     <div>
       <p class="eyebrow">Tableau de bord</p>
       <h1>Mon espace</h1>
-      <p class="muted">Vue rapide sur ta progression par listes perso et th&egrave;mes en ligne.</p>
+      <p class="muted">Vue rapide sur ta progression par listes perso et thèmes en ligne.</p>
     </div>
   </div>
 
   <div class="stat-cards">
     <div class="stat-card">
       <p class="eyebrow">Mots/cartes vus</p>
-      <h2><%= overall && overall.total_seen ? overall.total_seen : 0 %></h2>
+      <h2>
+        <%= overall && overall.total_seen ? overall.total_seen : 0 %>
+      </h2>
       <p class="muted">Total distinct de mots et cartes vus.</p>
     </div>
     <div class="stat-card">
-      <p class="eyebrow">R&eacute;ussites</p>
-      <h2><%= overall && overall.total_success ? overall.total_success : 0 %></h2>
-      <p class="muted">R&eacute;ponses correctes cumul&eacute;es.</p>
+      <p class="eyebrow">Réussites</p>
+      <h2>
+        <%= overall && overall.total_success ? overall.total_success : 0 %>
+      </h2>
+      <p class="muted">Réponses correctes cumulées.</p>
     </div>
     <div class="stat-card">
-      <p class="eyebrow">Echecs</p>
-      <h2><%= overall && overall.total_fail ? overall.total_fail : 0 %></h2>
-      <p class="muted">Tentatives &agrave; retravailler.</p>
+      <p class="eyebrow">Échecs</p>
+      <h2>
+        <%= overall && overall.total_fail ? overall.total_fail : 0 %>
+      </h2>
+      <p class="muted">Tentatives à retravailler.</p>
     </div>
     <div class="stat-card">
-      <p class="eyebrow">Ma&icirc;trise moyenne</p>
-      <h2><%= overall && overall.avg_strength ? Math.round(overall.avg_strength) : 0 %>%</h2>
-      <p class="muted">Forces calcul&eacute;es via l'entra&icirc;nement.</p>
+      <p class="eyebrow">Maîtrise moyenne</p>
+      <h2>
+        <%= overall && overall.avg_strength ? Math.round(overall.avg_strength) : 0 %>%
+      </h2>
+      <p class="muted">Forces calculées via l'entraînement.</p>
     </div>
   </div>
 
@@ -37,84 +45,102 @@
         <h2>Progression par liste</h2>
       </div>
     </div>
-    <% if (!setStats || setStats.length === 0) { %>
-      <p class="muted">Cr&eacute;e une liste pour suivre ta progression.</p>
-    <% } else { %>
-      <div class="progress-grid">
-        <% setStats.forEach(s => {
-          const total = Number(s.total_cards) || 0;
-          const mem = Number(s.memorized_cards) || 0;
-          const active = Number(s.active_cards) || 0;
-          const fav = Number(s.favorite_cards) || 0;
-          const donePct = total ? Math.round((mem / total) * 100) : 0;
-          const activePct = total ? Math.round((active / total) * 100) : 0;
-        %>
-          <div class="progress-card">
-            <div class="progress-top">
-              <h3><%= s.name %></h3>
-              <span class="pill"><%= total %> cartes</span>
-            </div>
-            <div class="progress-row">
-              <div class="progress-label">M&eacute;moris&eacute;</div>
-              <div class="meter" aria-label="Pourcentage m&eacute;moris&eacute;">
-                <div class="meter-fill success" style="width:<%= donePct %>%"></div>
+    <% if (!setStats || setStats.length===0) { %>
+      <p class="muted">Crée une liste pour suivre ta progression.</p>
+      <% } else { %>
+        <div class="progress-grid">
+          <% setStats.forEach(s=> {
+            const total = Number(s.total_cards) || 0;
+            const mem = Number(s.memorized_cards) || 0;
+            const active = Number(s.active_cards) || 0;
+            const fav = Number(s.favorite_cards) || 0;
+            const donePct = total ? Math.round((mem / total) * 100) : 0;
+            const activePct = total ? Math.round((active / total) * 100) : 0;
+            %>
+            <div class="progress-card">
+              <div class="progress-top">
+                <h3>
+                  <%= s.name %>
+                </h3>
+                <span class="pill">
+                  <%= total %> cartes
+                </span>
               </div>
-              <div class="progress-value"><%= donePct %>%</div>
-            </div>
-            <div class="progress-row">
-              <div class="progress-label">Actives</div>
-              <div class="meter">
-                <div class="meter-fill" style="width:<%= activePct %>%"></div>
+              <div class="progress-row">
+                <div class="progress-label">Mémorisé</div>
+                <div class="meter" aria-label="Pourcentage mémorisé">
+                  <div class="meter-fill success" style="width:<%= donePct %>%"></div>
+                </div>
+                <div class="progress-value">
+                  <%= donePct %>%
+                </div>
               </div>
-              <div class="progress-value"><%= activePct %>%</div>
+              <div class="progress-row">
+                <div class="progress-label">Actives</div>
+                <div class="meter">
+                  <div class="meter-fill" style="width:<%= activePct %>%"></div>
+                </div>
+                <div class="progress-value">
+                  <%= activePct %>%
+                </div>
+              </div>
+              <p class="muted mini">Favoris : <%= fav %> | Mémorisées : <%= mem %> | Actives : <%= active %>
+              </p>
             </div>
-            <p class="muted mini">Favoris : <%= fav %> | M&eacute;moris&eacute;es : <%= mem %> | Actives : <%= active %></p>
-          </div>
-        <% }) %>
-      </div>
-    <% } %>
+            <% }) %>
+        </div>
+        <% } %>
   </div>
 
   <div class="card space-section">
     <div class="section-head">
       <div>
-        <p class="eyebrow">Th&egrave;mes en ligne</p>
-        <h2>Suivi par th&egrave;me</h2>
+        <p class="eyebrow">Thèmes en ligne</p>
+        <h2>Suivi par thème</h2>
       </div>
     </div>
-    <% if (!themeStats || themeStats.length === 0) { %>
-      <p class="muted">Pas de th&egrave;mes en ligne actifs.</p>
-    <% } else { %>
-      <div class="progress-grid">
-        <% themeStats.forEach(t => {
-          const total = Number(t.total_words) || 0;
-          const seen = Number(t.seen_words) || 0;
-          const seenPct = total ? Math.round((seen / total) * 100) : 0;
-          const strength = t.avg_strength ? Math.round(t.avg_strength) : 0;
-        %>
-          <div class="progress-card">
-            <div class="progress-top">
-              <h3><%= t.name %></h3>
-              <span class="pill"><%= total %> mots</span>
-            </div>
-            <div class="progress-row">
-              <div class="progress-label">Vus</div>
-              <div class="meter">
-                <div class="meter-fill" style="width:<%= seenPct %>%"></div>
+    <% if (!themeStats || themeStats.length===0) { %>
+      <p class="muted">Pas de thèmes en ligne actifs.</p>
+      <% } else { %>
+        <div class="progress-grid">
+          <% themeStats.forEach(t=> {
+            const total = Number(t.total_words) || 0;
+            const seen = Number(t.seen_words) || 0;
+            const seenPct = total ? Math.round((seen / total) * 100) : 0;
+            const strength = t.avg_strength ? Math.round(t.avg_strength) : 0;
+            %>
+            <div class="progress-card">
+              <div class="progress-top">
+                <h3>
+                  <%= t.name %>
+                </h3>
+                <span class="pill">
+                  <%= total %> mots
+                </span>
               </div>
-              <div class="progress-value"><%= seenPct %>%</div>
-            </div>
-            <div class="progress-row">
-              <div class="progress-label">Force moy.</div>
-              <div class="meter">
-                <div class="meter-fill accent" style="width:<%= strength %>%"></div>
+              <div class="progress-row">
+                <div class="progress-label">Vus</div>
+                <div class="meter">
+                  <div class="meter-fill" style="width:<%= seenPct %>%"></div>
+                </div>
+                <div class="progress-value">
+                  <%= seenPct %>%
+                </div>
               </div>
-              <div class="progress-value"><%= strength %>%</div>
+              <div class="progress-row">
+                <div class="progress-label">Force moy.</div>
+                <div class="meter">
+                  <div class="meter-fill accent" style="width:<%= strength %>%"></div>
+                </div>
+                <div class="progress-value">
+                  <%= strength %>%
+                </div>
+              </div>
+              <p class="muted mini">Mots vus : <%= seen %> / <%= total %>
+              </p>
             </div>
-            <p class="muted mini">Mots vus : <%= seen %> / <%= total %></p>
-          </div>
-        <% }) %>
-      </div>
-    <% } %>
+            <% }) %>
+        </div>
+        <% } %>
   </div>
 </section>

@@ -695,7 +695,7 @@ async function reloadUser(req, res) {
     display_name: fresh.display_name,
     first_name: fresh.first_name,
     last_name: fresh.last_name,
-    level: fresh.level || 'Debutant',
+    level: fresh.level || 'Débutant',
     role: fresh.role,
     theme: fresh.theme || 'dark'
   };
@@ -1540,14 +1540,24 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
   const totalCount = Number(state.total || state.remaining || 1);
   const answeredCount = Number(state.answered || (totalCount - remainingCount - 1)) + 1;
   let correctCount = Number(state.correct || 0);
+  let currentItemId = '';
+  let currentFavorite = 0;
 
   try {
     if (filters.source === 'cards') {
       if (!String(word_id).startsWith('card_')) return res.redirect('/train');
       const cardId = Number(String(word_id).replace('card_', ''));
       const chosenId = String(choice_word_id).replace('card_', '');
-      const card = await get('SELECT * FROM cards WHERE id = ?', [cardId]);
+      const card = await get(
+        `SELECT c.*, COALESCE(co.favorite, c.favorite) AS effective_favorite
+         FROM cards c
+         LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+         WHERE c.id = ?`,
+        [userId, cardId]
+      );
       if (!card) return res.redirect('/train');
+      currentItemId = `card_${cardId}`;
+      currentFavorite = card.effective_favorite ? 1 : 0;
       const isCorrect = String(chosenId) === String(cardId);
       if (isCorrect) correctCount += 1;
       await upsertCardProgress(userId, cardId, isCorrect);
@@ -1562,7 +1572,10 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
         transliteration: card.transliteration,
         french: card.french
       };
+      const themes = await getActiveThemesForUser(userId);
       return res.render('train', {
+        currentItemId,
+        currentFavorite,
         word: null,
         message: remainingCount > 0 ? null : 'Session terminee.',
         result,
@@ -1571,7 +1584,7 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
         questionMode: activeMode,
         filters,
         options: null,
-        themes: await getActiveThemesForUser(userId),
+        themes,
         remaining: remainingCount,
         total: totalCount,
         answered: answeredCount,
@@ -1581,6 +1594,9 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
     } else {
       const word = await get('SELECT * FROM words WHERE id = ?', [word_id]);
       if (!word) return res.redirect('/train');
+      currentItemId = String(word_id);
+      const favRow = await get('SELECT id FROM favorites WHERE user_id = ? AND word_id = ?', [userId, word_id]);
+      currentFavorite = favRow ? 1 : 0;
       const isCorrect = String(choice_word_id) === String(word_id);
       if (isCorrect) correctCount += 1;
       await upsertProgress(userId, word_id, isCorrect);
@@ -1598,8 +1614,10 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
       };
 
       const nextUrl = remainingCount > 0 ? `/train` : null;
-
+      const themes = await getActiveThemesForUser(userId);
       res.render('train', {
+        currentItemId,
+        currentFavorite,
         word: null,
         message: remainingCount > 0 ? null : 'Session terminee.',
         result,
@@ -1608,7 +1626,7 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
         questionMode: activeMode,
         filters,
         options: null,
-        themes: await getActiveThemesForUser(userId),
+        themes,
         remaining: remainingCount,
         total: totalCount,
         answered: answeredCount,
@@ -1619,6 +1637,8 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.render('train', {
+      currentItemId,
+      currentFavorite,
       word: null,
       message: 'Erreur serveur.',
       result: null,
@@ -2767,16 +2787,23 @@ app.get('/themes/:id', requireAuth, async (req, res) => {
       return res.redirect('/themes');
     }
     const words = await all(
-      `SELECT w.id, w.hebrew, w.transliteration, w.french, w.active AS global_active, w.user_id,
+      `SELECT w.id,
+        w.hebrew,
+        w.transliteration,
+        w.french,
+        w.active AS global_active,
+        w.user_id,
         uwo.active AS override_active,
-        CASE WHEN w.active = 0 OR t.active = 0 OR COALESCE(uto.active, 1) = 0 THEN 0 ELSE COALESCE(uwo.active, w.active) END AS effective_active
+        CASE WHEN w.active = 0 OR t.active = 0 OR COALESCE(uto.active, 1) = 0 THEN 0 ELSE COALESCE(uwo.active, w.active) END AS effective_active,
+        CASE WHEN fav.id IS NULL THEN 0 ELSE 1 END AS favorite
        FROM words w
        LEFT JOIN themes t ON t.id = w.theme_id
        LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
        LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
+       LEFT JOIN favorites fav ON fav.word_id = w.id AND fav.user_id = ?
        WHERE w.theme_id = ? AND (w.user_id IS NULL OR w.user_id = ?)
        ORDER BY w.id ASC`,
-      [userId, userId, theme.id, userId]
+      [userId, userId, userId, theme.id, userId]
     );
     res.render('theme_show', { theme, words, isOwner: theme.user_id === userId, isGlobal: !theme.user_id });
   } catch (e) {
@@ -3089,6 +3116,14 @@ app.get('/train', requireAuth, async (req, res) => {
   const totalCount = Number(state.total || 0);
   const answeredCount = Number(state.answered || 0);
   const correctCount = Number(state.correct || 0);
+  let currentItemId = '';
+  let currentFavorite = 0;
+  const renderTrain = (payload) =>
+    res.render('train', {
+      currentItemId,
+      currentFavorite,
+      ...payload
+    });
   const allowedThemeIds = new Set(await getActiveThemeIdsForUser(userId));
   const themeListRaw = state.theme_ids || [];
   const themeList = themeListRaw.filter(id => allowedThemeIds.has(Number(id)));
@@ -3116,7 +3151,7 @@ app.get('/train', requireAuth, async (req, res) => {
   }
 
   if (remainingCount <= 0) {
-    return res.render('train', {
+    return renderTrain({
       word: null,
       message: 'Session terminee.',
       result: null,
@@ -3139,10 +3174,18 @@ app.get('/train', requireAuth, async (req, res) => {
       if (replay && replay.type === 'card') {
         const cardId = Number(replay.id);
         const allowedSetIds = await getAccessibleSetIds(userId);
-        const card = await get('SELECT * FROM cards WHERE id = ?', [cardId]);
+        const card = await get(
+          `SELECT c.*, COALESCE(co.favorite, c.favorite) AS effective_favorite
+           FROM cards c
+           LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+           WHERE c.id = ?`,
+          [userId, cardId]
+        );
         const stillAllowed = card && allowedSetIds.includes(Number(card.set_id));
         if (card && stillAllowed) {
-          const word = { id: `card_${cardId}`, hebrew: card.hebrew, transliteration: card.transliteration, french: card.french };
+          const word = { id: `card_${cardId}`, hebrew: card.hebrew, transliteration: card.transliteration, french: card.french, favorite: card.effective_favorite };
+          currentItemId = word.id;
+          currentFavorite = word.favorite ? 1 : 0;
           const isReverse = questionMode === MODE_FLASHCARDS_REVERSE;
           const cardsPool = await getEffectiveCardsForUser(userId, state.set_ids || []);
           const poolCopy = cardsPool.filter(c => c.id !== cardId);
@@ -3161,7 +3204,7 @@ app.get('/train', requireAuth, async (req, res) => {
           }
           state.replay = null;
           req.session.trainState = state;
-          return res.render('train', {
+          return renderTrain({
             word,
             message: null,
             result: null,
@@ -3185,7 +3228,7 @@ app.get('/train', requireAuth, async (req, res) => {
       const filteredIds = (filters.set_ids || []).filter(id => allowedSetIds.includes(Number(id)));
       if (filteredIds.length === 0) {
         delete req.session.trainState;
-        return res.render('train', {
+        return renderTrain({
           word: null,
           message: 'Aucune carte disponible.',
           result: null,
@@ -3205,7 +3248,7 @@ app.get('/train', requireAuth, async (req, res) => {
       const cardsPool = await getEffectiveCardsForUser(userId, filteredIds);
       if (!cardsPool || cardsPool.length === 0) {
         req.session.trainState = state;
-        return res.render('train', {
+        return renderTrain({
           word: null,
           message: 'Aucune carte dans ces listes.',
           result: null,
@@ -3236,7 +3279,9 @@ app.get('/train', requireAuth, async (req, res) => {
       const pick = availableCards[Math.floor(Math.random() * availableCards.length)];
       const cardId = Number(pick.id);
       const cardKey = `card_${cardId}`;
-      const word = { id: cardKey, hebrew: pick.hebrew, transliteration: pick.transliteration, french: pick.french };
+      const word = { id: cardKey, hebrew: pick.hebrew, transliteration: pick.transliteration, french: pick.french, favorite: pick.favorite };
+      currentItemId = word.id;
+      currentFavorite = word.favorite ? 1 : 0;
       if (!state.usedCardIds.includes(cardId)) {
         state.usedCardIds.push(cardId);
       }
@@ -3244,7 +3289,7 @@ app.get('/train', requireAuth, async (req, res) => {
       req.session.trainState = state;
 
       if (questionMode === MODE_WRITTEN) {
-        return res.render('train', {
+        return renderTrain({
           word,
           message: null,
           result: null,
@@ -3276,7 +3321,7 @@ app.get('/train', requireAuth, async (req, res) => {
         const j = Math.floor(Math.random() * (i + 1));
         [optionsRaw[i], optionsRaw[j]] = [optionsRaw[j], optionsRaw[i]];
       }
-      return res.render('train', {
+      return renderTrain({
         word,
         message: null,
         result: null,
@@ -3322,6 +3367,15 @@ app.get('/train', requireAuth, async (req, res) => {
       }
       req.session.trainState = state;
     }
+    if (word) {
+      let fav = word.fav_id ? 1 : 0;
+      if (!fav) {
+        const favRow = await get('SELECT id FROM favorites WHERE user_id = ? AND word_id = ?', [userId, word.id]);
+        fav = favRow ? 1 : 0;
+      }
+      currentItemId = word.id;
+      currentFavorite = fav;
+    }
 
     const isReverse = questionMode === MODE_FLASHCARDS_REVERSE;
     const options =
@@ -3331,7 +3385,7 @@ app.get('/train', requireAuth, async (req, res) => {
     const message = !word ? 'Aucun mot pour ces criteres.' : null;
     state.replay = null;
     req.session.trainState = state;
-    res.render('train', {
+    renderTrain({
       word,
       message,
       result: null,
@@ -3349,7 +3403,7 @@ app.get('/train', requireAuth, async (req, res) => {
     });
   } catch (e) {
     console.error(e);
-    res.render('train', {
+    renderTrain({
       word: null,
       message: 'Erreur serveur.',
       result: null,
@@ -3394,14 +3448,32 @@ app.post('/train/answer', requireAuth, async (req, res) => {
   const answeredCount = Number(state.answered || (totalCount - remainingCount - 1)) + 1;
   let correctCount = Number(state.correct || 0);
   const normalizedAnswer = (user_answer || '').trim().toLowerCase();
+  let currentItemId = '';
+  let currentFavorite = 0;
+  const renderTrainAnswer = (payload) =>
+    res.render('train', {
+      currentItemId,
+      currentFavorite,
+      ...payload
+    });
 
   try {
     const themes = await getActiveThemesForUser(userId);
 
     if (filters.source === 'cards' && String(word_id).startsWith('card_')) {
       const cardId = Number(String(word_id).replace('card_', ''));
-      const card = await get('SELECT * FROM cards WHERE id = ?', [cardId]);
+      const card = await get(
+        `SELECT c.*, COALESCE(co.favorite, c.favorite) AS effective_favorite,
+                co.active AS override_active,
+                co.memorized AS override_memorized
+         FROM cards c
+         LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+         WHERE c.id = ?`,
+        [userId, cardId]
+      );
       if (!card) return res.redirect('/train');
+      currentItemId = `card_${cardId}`;
+      currentFavorite = card.effective_favorite ? 1 : 0;
       const isCorrect = normalizedAnswer && normalizedAnswer === (card.french || '').trim().toLowerCase();
       if (isCorrect) correctCount += 1;
       await upsertCardProgress(userId, cardId, isCorrect);
@@ -3420,7 +3492,7 @@ app.post('/train/answer', requireAuth, async (req, res) => {
 
       const nextUrl = remainingCount > 0 ? `/train` : null;
 
-      return res.render('train', {
+      return renderTrainAnswer({
         word: null,
         message: remainingCount > 0 ? null : 'Session terminee.',
         result,
@@ -3440,6 +3512,9 @@ app.post('/train/answer', requireAuth, async (req, res) => {
 
     const word = await get('SELECT * FROM words WHERE id = ?', [word_id]);
     if (!word) return res.redirect('/train');
+    currentItemId = String(word_id);
+    const favRow = await get('SELECT id FROM favorites WHERE user_id = ? AND word_id = ?', [userId, word_id]);
+    currentFavorite = favRow ? 1 : 0;
 
     const isCorrect = normalizedAnswer && normalizedAnswer === (word.french || '').trim().toLowerCase();
     if (isCorrect) correctCount += 1;
@@ -3461,7 +3536,7 @@ app.post('/train/answer', requireAuth, async (req, res) => {
 
     const nextUrl = remainingCount > 0 ? `/train` : null;
 
-    return res.render('train', {
+    return renderTrainAnswer({
       word: null,
       message: remainingCount > 0 ? null : 'Session terminee.',
       result,
@@ -3480,6 +3555,72 @@ app.post('/train/answer', requireAuth, async (req, res) => {
   } catch (e) {
     console.error(e);
     return res.redirect('/train');
+  }
+});
+
+app.post('/train/favorite', requireAuth, express.json(), async (req, res) => {
+  const userId = req.session.user.id;
+  const rawId = req.body.item_id;
+  if (!rawId) return res.status(400).json({ success: false, error: 'Missing item_id' });
+
+  try {
+    const strId = String(rawId);
+    if (strId.startsWith('card_')) {
+      const cardId = Number(strId.replace('card_', ''));
+      if (!cardId) return res.status(400).json({ success: false, error: 'Invalid card id' });
+      const card = await get(
+        `SELECT c.id, c.set_id, c.favorite,
+                co.favorite AS override_favorite,
+                co.active AS override_active,
+                co.memorized AS override_memorized
+         FROM cards c
+         LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+         WHERE c.id = ?`,
+        [userId, cardId]
+      );
+      if (!card) return res.status(404).json({ success: false, error: 'Not found' });
+      const accessibleSets = await getAccessibleSetIds(userId);
+      if (!accessibleSets.includes(Number(card.set_id))) {
+        return res.status(403).json({ success: false, error: 'Forbidden' });
+      }
+      const currentFav =
+        card.override_favorite === null || typeof card.override_favorite === 'undefined'
+          ? card.favorite
+          : card.override_favorite;
+      const nextFav = currentFav ? 0 : 1;
+      const existingOverride = await get(
+        'SELECT active, memorized FROM card_overrides WHERE card_id = ? AND user_id = ?',
+        [cardId, userId]
+      );
+      const activeVal =
+        existingOverride && typeof existingOverride.active !== 'undefined'
+          ? existingOverride.active
+          : card.override_active;
+      const memoVal =
+        existingOverride && typeof existingOverride.memorized !== 'undefined'
+          ? existingOverride.memorized
+          : card.override_memorized;
+      await run(
+        'INSERT OR REPLACE INTO card_overrides (card_id, user_id, active, favorite, memorized) VALUES (?,?,?,?,?)',
+        [cardId, userId, activeVal, nextFav, memoVal]
+      );
+      return res.json({ success: true, favorite: nextFav });
+    }
+
+    const wordId = Number(strId);
+    if (!wordId) return res.status(400).json({ success: false, error: 'Invalid word id' });
+    const word = await get('SELECT id FROM words WHERE id = ?', [wordId]);
+    if (!word) return res.status(404).json({ success: false, error: 'Not found' });
+    const existing = await get('SELECT id FROM favorites WHERE user_id = ? AND word_id = ?', [userId, wordId]);
+    if (existing) {
+      await run('DELETE FROM favorites WHERE id = ?', [existing.id]);
+      return res.json({ success: true, favorite: 0 });
+    }
+    await run('INSERT INTO favorites (user_id, word_id) VALUES (?,?)', [userId, wordId]);
+    return res.json({ success: true, favorite: 1 });
+  } catch (e) {
+    console.error('Favorite toggle error:', e);
+    return res.status(500).json({ success: false, error: 'Server error' });
   }
 });
 app.post('/favorites/:id', requireAuth, async (req, res) => {

@@ -1,6 +1,6 @@
 <section>
   <div class="list-header">
-    <h1>Themes</h1>
+    <h1>Thèmes</h1>
     <div class="mode-switch">
       <button type="button" class="tab-btn active" data-target="tab-actif">Actifs</button>
       <button type="button" class="tab-btn" data-target="tab-inactif">Inactifs</button>
@@ -9,21 +9,21 @@
 
   <div id="tab-actif" class="tab-panel">
     <div class="card">
-      <h3 style="margin-top:0;">Themes actifs</h3>
+      <h3 style="margin-top:0;">Thèmes actifs</h3>
       <% if (!activeThemes || activeThemes.length===0) { %>
-        <p>Pas encore de themes publics.</p>
+        <p>Pas encore de thèmes publics.</p>
         <% } else { %>
           <ul class="list">
             <% activeThemes.forEach(t=> { %>
               <% if (t.children && t.children.length> 0) { %>
                 <!-- Parent Theme with Children -->
-                 <br>
+                <br>
                 <li class="theme-group" style="display:block; padding:0;">
                   <div class="theme-row parent-row"
                     style="display:flex; align-items:center; justify-content:space-between; padding:0.4rem 0;">
                     <div style="display:flex; align-items:center; gap:0.5rem; flex:1; min-width:0;">
                       <button type="button" class="icon-btn ghost toggle-children-btn"
-                        data-toggle-target="children-<%= t.id %>" aria-label="Voir les sous-themes"
+                        data-toggle-target="children-<%= t.id %>" aria-label="Voir les sous-thèmes"
                         style="flex-shrink:0;">
                         <span class="chevron-icon">&#9654;</span>
                       </button>
@@ -31,7 +31,7 @@
                         <%= t.name %>
                       </strong>
                       <span class="pill muted mini" style="white-space:nowrap; flex-shrink:0;">
-                        <%= t.children.length %> sous-themes
+                        <%= t.children.length %> sous-thèmes
                       </span>
                     </div>
                     <div class="inline-actions" style="flex-shrink:0;padding-right: 0.3rem;">
@@ -65,18 +65,18 @@
                             <%= child.name %>
                           </strong>
                           <br>
-                          <% if (Number(child.active) === 0) { %>
+                          <% if (Number(child.active)===0) { %>
                             <span class="pill muted" style="margin-left:0.35rem;">Inactif (admin)</span>
-                          <% } else if (Number(child.effective_active) === 0) { %>
-                            <span class="pill muted" style="margin-left:0.35rem;">Inactif</span>
-                          <% } %>
+                            <% } else if (Number(child.effective_active)===0) { %>
+                              <span class="pill muted" style="margin-left:0.35rem;">Inactif</span>
+                              <% } %>
                         </div>
                         <div class="inline-actions">
                           <a class="btn ghost" href="/themes/<%= child.id %>">Voir</a>
                           <button type="button" class="icon-btn ghost dots-btn" data-menu-btn
                             aria-label="Actions">&#8942;</button>
                           <div class="card-menu" data-menu>
-                            <% if (Number(child.active) === 0) { %>
+                            <% if (Number(child.active)===0) { %>
                               <% if (isAdmin) { %>
                                 <form action="/themes/<%= child.id %>/toggle" method="post">
                                   <button type="submit" class="menu-item">
@@ -84,27 +84,31 @@
                                     <span class="menu-icon">&#9940;</span>
                                   </button>
                                 </form>
-                              <% } else { %>
-                                <div class="menu-item muted">
-                                  <span>Inactif (admin)</span>
-                                </div>
-                              <% } %>
-                            <% } else { %>
-                              <form action="/themes/<%= child.id %>/toggle-visibility" method="post">
-                                <button type="submit" class="menu-item">
-                                  <span><%= Number(child.effective_active) === 0 ? 'Afficher' : 'Masquer' %></span>
-                                  <span class="menu-icon">&#128065;</span>
-                                </button>
-                              </form>
-                              <% if (isAdmin) { %>
-                                <form action="/themes/<%= child.id %>/toggle" method="post">
-                                  <button type="submit" class="menu-item">
-                                    <span><%= child.active ? 'Désactiver (admin)' : 'Activer (admin)' %></span>
-                                    <span class="menu-icon">&#9940;</span>
-                                  </button>
-                                </form>
-                              <% } %>
-                            <% } %>
+                                <% } else { %>
+                                  <div class="menu-item muted">
+                                    <span>Inactif (admin)</span>
+                                  </div>
+                                  <% } %>
+                                    <% } else { %>
+                                      <form action="/themes/<%= child.id %>/toggle-visibility" method="post">
+                                        <button type="submit" class="menu-item">
+                                          <span>
+                                            <%= Number(child.effective_active)===0 ? 'Afficher' : 'Masquer' %>
+                                          </span>
+                                          <span class="menu-icon">&#128065;</span>
+                                        </button>
+                                      </form>
+                                      <% if (isAdmin) { %>
+                                        <form action="/themes/<%= child.id %>/toggle" method="post">
+                                          <button type="submit" class="menu-item">
+                                            <span>
+                                              <%= child.active ? 'Désactiver (admin)' : 'Activer (admin)' %>
+                                            </span>
+                                            <span class="menu-icon">&#9940;</span>
+                                          </button>
+                                        </form>
+                                        <% } %>
+                                          <% } %>
                           </div>
                         </div>
                       </li>
@@ -150,11 +154,11 @@
 
   <div id="tab-inactif" class="tab-panel" style="display:none;">
     <div class="card">
-      <h3 style="margin-top:0;">Themes inactifs</h3>
+      <h3 style="margin-top:0;">Thèmes inactifs</h3>
       <% const hasInactive=(inactivePersonal && inactivePersonal.length> 0) || (inactiveProposed &&
         inactiveProposed.length > 0); %>
         <% if (!hasInactive) { %>
-          <p>Aucun theme inactif.</p>
+          <p>Aucun thème inactif.</p>
           <% } %>
 
             <% if (inactivePersonal && inactivePersonal.length> 0) { %>
@@ -257,5 +261,3 @@
     });
   })();
 </script>
-
-

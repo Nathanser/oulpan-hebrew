@@ -1,14 +1,15 @@
 <section class="card">
-  <h1>Revision déjà en cours</h1>
-  <p>Tu as déjà demarré une révision avec ce ou ces thèmes et/ou listes :</p>  <ul class="muted">
+  <h1>Révision déjà en cours</h1>
+  <p>Tu as déjà démarré une révision avec ce ou ces thèmes et/ou listes :</p>
+  <ul class="muted">
     <% if (overlapThemes && overlapThemes.length) { %>
-      <li>Themes : <%= overlapThemes.map(t => t.name).join(', ') %></li>
-    <% } %>
-    <% if (overlapSets && overlapSets.length) { %>
-      <li>Listes : <%= overlapSets.map(s => s.name).join(', ') %></li>
-    <% } %>
+      <li>Thèmes : <%= overlapThemes.map(t=> t.name).join(', ') %></li>
+      <% } %>
+        <% if (overlapSets && overlapSets.length) { %>
+          <li>Listes : <%= overlapSets.map(s=> s.name).join(', ') %></li>
+          <% } %>
   </ul>
-  <p class="muted mini">Veux-tu recommencer depuis le debut ou reprendre ?</p>
+  <p class="muted mini">Veux-tu recommencer depuis le début ou reprendre ?</p>
 
   <div class="mode-switch" style="margin-top:1rem; gap:0.5rem; flex-wrap:wrap;">
     <form method="get" action="/train/resume" style="display:inline;">
@@ -17,22 +18,27 @@
     </form>
     <form method="post" action="/train/session" style="display:inline;">
       <input type="hidden" name="conflict_choice" value="restart">
-      <% (params && params.modes ? (Array.isArray(params.modes) ? params.modes : [params.modes]) : ['flashcards']).forEach(m => { %>
+      <% (params && params.modes ? (Array.isArray(params.modes) ? params.modes : [params.modes]) :
+        ['flashcards']).forEach(m=> { %>
         <input type="hidden" name="modes[]" value="<%= m %>">
-      <% }) %>
-      <% (params && params.theme_ids ? params.theme_ids : []).forEach(id => { %>
-        <input type="hidden" name="theme_ids[]" value="<%= id %>">
-      <% }) %>
-      <% (params && params.set_ids ? params.set_ids : []).forEach(id => { %>
-        <input type="hidden" name="set_ids[]" value="<%= id %>">
-      <% }) %>
-      <input type="hidden" name="level_id" value="<%= params && params.level_id ? params.level_id : '' %>">
-      <input type="hidden" name="rev_mode" value="<%= params && params.rev_mode ? params.rev_mode : 'order' %>">
-      <input type="hidden" name="show_phonetic" value="<%= params && typeof params.show_phonetic !== 'undefined' ? params.show_phonetic : 1 %>">
-      <input type="hidden" name="remaining" value="<%= params && typeof params.remaining !== 'undefined' ? params.remaining : 10 %>">
-      <input type="hidden" name="total" value="<%= params && typeof params.total !== 'undefined' ? params.total : (params && params.remaining ? params.remaining : 10) %>">
-      <button type="submit" class="btn ghost">Recommencer depuis le debut</button>
+        <% }) %>
+          <% (params && params.theme_ids ? params.theme_ids : []).forEach(id=> { %>
+            <input type="hidden" name="theme_ids[]" value="<%= id %>">
+            <% }) %>
+              <% (params && params.set_ids ? params.set_ids : []).forEach(id=> { %>
+                <input type="hidden" name="set_ids[]" value="<%= id %>">
+                <% }) %>
+                  <input type="hidden" name="level_id" value="<%= params && params.level_id ? params.level_id : '' %>">
+                  <input type="hidden" name="rev_mode"
+                    value="<%= params && params.rev_mode ? params.rev_mode : 'order' %>">
+                  <input type="hidden" name="show_phonetic"
+                    value="<%= params && typeof params.show_phonetic !== 'undefined' ? params.show_phonetic : 1 %>">
+                  <input type="hidden" name="remaining"
+                    value="<%= params && typeof params.remaining !== 'undefined' ? params.remaining : 10 %>">
+                  <input type="hidden" name="total"
+                    value="<%= params && typeof params.total !== 'undefined' ? params.total : (params && params.remaining ? params.remaining : 10) %>">
+                  <button type="submit" class="btn ghost">Recommencer depuis le début</button>
     </form>
-    <a class="btn secondary" href="/train/setup">Modifier ma selection</a>
+    <a class="btn secondary" href="/train/setup">Modifier ma sélection</a>
   </div>
 </section>

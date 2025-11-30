@@ -1,242 +1,291 @@
-<% const activeCount = (words || []).filter(w => Number(w.effective_active)).length; %>
-<% const inactiveCount = (words || []).length - activeCount; %>
+<% const activeCount=(words || []).filter(w=> Number(w.effective_active)).length; %>
+  <% const inactiveCount=(words || []).length - activeCount; %>
 
-<section class="card list-screen">
-  <div class="list-screen-head">
-    <div>
-      <a class="link back-link" id="back-link" href="/themes">&#8592; Retour</a>
-      <br><br>
-      <h1><%= theme.name %></h1>
-      <% const activeLabel = theme.active ? (Number(theme.effective_active) === 1 ? 'Actif' : 'Inactif pour moi') : 'Inactif'; %>
-      <p class="muted mini"><%= activeLabel %> - <%= isGlobal ? 'Theme propose' : 'Theme personnel' %></p>
-    </div>
-    <div class="list-screen-actions inline-actions">
-      <% if (isOwner || (!theme.user_id && currentUser && currentUser.role === 'admin')) { %>
-        <form action="/themes/<%= theme.id %>/toggle" method="post" style="display:inline;">
-          <button class="btn ghost" type="submit" title="<%= theme.active ? 'Désactiver' : 'Activer' %>"><%= theme.active ? 'Désactiver' : 'Activer' %></button>
-        </form>
-        <% if (isOwner) { %>
-          <a class="btn ghost" href="/my/themes/<%= theme.id %>/edit">Modifier</a>
-        <% } %>
-      <% } %>
-      <% if (theme.active) { %>
-        <form action="/themes/<%= theme.id %>/toggle-visibility" method="post" style="display:inline;">
-          <button class="btn ghost" type="submit"><%= Number(theme.effective_active) === 0 ? 'Afficher pour moi' : 'Masquer pour moi' %></button>
-        </form>
-      <% } %>
-    </div>
-  </div>
-
-  <div class="tab-row" id="word-tabs">
-    <button class="tab-chip active" data-tab="all">Tous les mots (<%= words.length %>)</button>
-    <button class="tab-chip" data-tab="active">Actifs (<%= activeCount %>)</button>
-    <button class="tab-chip" data-tab="inactive">Inactifs (<%= inactiveCount %>)</button>
-  </div>
-
-  <div class="search-bar-row">
-    <div class="search-row">
-      <span class="search-icon">&#128269;</span>
-      <input type="search" id="word-search" placeholder="Recherche (hébreu, français, phonétique)" />
-    </div>
-    <div class="search-actions">
-        <button type="button" class="icon-btn ghost" id="select-toggle" title="Selectionner des mots">&#x270E;</button>
-        <button type="button" class="icon-btn danger" id="select-cancel" style="display:none;" title="Annuler">&#10060;</button>
-    </div>
-  </div>
-  
-  <div class="alert alert-error" id="select-banner" style="display:none;"></div>
-
-  <div class="cards-wall" id="words-wall">
-    <% if (!words || words.length === 0) { %>
-      <div class="wall-empty">
-        <p>Aucun mot.</p>
-      </div>
-    <% } else { %>
-      <% words.forEach((word, idx) => { 
-        const isEffectiveActive = Number(word.effective_active);
-        const isGlobalInactive = !Number(word.global_active);
-        const isSelfOverride = !isGlobalInactive && Number(word.override_active) === 0;
-      %>
-        <div class="word-card <%= isEffectiveActive ? '' : 'is-inactive' %>" data-active="<%= isEffectiveActive ? 1 : 0 %>" data-search="<%= (word.hebrew + ' ' + word.french + ' ' + (word.transliteration || '')).toLowerCase() %>">
-          <div class="word-card-top">
-            <label class="card-select">
-              <input type="checkbox" class="card-check" value="<%= word.id %>" />
-            </label>
-          </div>
-          <div class="word-card-body">
-            <div class="word-index"><%= idx + 1 %></div>
-            <p class="hebrew-word"><%= word.hebrew %></p>
-            <p class="french-word"><%= word.french %></p>
-            <% if (word.transliteration) { %>
-              <p class="translit"><em><%= word.transliteration %></em></p>
-            <% } %>
-          </div>
-          <div class="word-card-flags">
-            <% if (isGlobalInactive) { %>
-              <span class="pill muted">Inactif global</span>
-            <% } %>
-          </div>
-          <% if (currentUser) { %>
-            <div class="word-card-inline-actions">
-              <% if (currentUser.role === 'admin' || (word.user_id && Number(word.user_id) === Number(currentUser.id))) { %>
-                <form method="post" action="/words/<%= word.id %>/toggle" style="display:inline;">
-                  <input type="hidden" name="redirectTo" value="/themes/<%= theme.id %>">
-                  <button class="btn ghost mini" type="submit"><%= Number(word.global_active) ? 'Désactiver (global)' : 'Activer (global)' %></button>
-                </form>
-              <% } %>
-              <% if (Number(word.global_active) && currentUser.role !== 'admin') { %>
-                <form method="post" action="/words/<%= word.id %>/toggle-self" style="display:inline;">
-                  <input type="hidden" name="redirectTo" value="/themes/<%= theme.id %>">
-                  <button class="btn ghost mini" type="submit"><%= isEffectiveActive ? 'Masquer pour moi' : 'Réactiver pour moi' %></button>
-                </form>
-              <% } %>
-            </div>
-          <% } %>
+    <section class="card list-screen">
+      <div class="list-screen-head">
+        <div>
+          <a class="link back-link" id="back-link" href="/themes">&#8592; Retour</a>
+          <br><br>
+          <h1>
+            <%= theme.name %>
+          </h1>
+          <% const activeLabel=theme.active ? (Number(theme.effective_active)===1 ? 'Actif' : 'Inactif pour moi' )
+            : 'Inactif' ; %>
+            <p class="muted mini">
+              <%= activeLabel %> - <%= isGlobal ? 'Thème proposé' : 'Thème personnel' %>
+            </p>
         </div>
-      <% }) %>
-    <% } %>
-  </div>
-    <div class="list-bottom-actions fixed-actions">
-      <button type="button" class="cta secondary" id="toggle-active-action" style="display:none;">Masquer/Afficher</button>
-    </div>
-</section>
+        <div class="list-screen-actions inline-actions">
+          <% if (isOwner || (!theme.user_id && currentUser && currentUser.role==='admin' )) { %>
+            <form action="/themes/<%= theme.id %>/toggle" method="post" style="display:inline;">
+              <button class="btn ghost" type="submit" title="<%= theme.active ? 'Désactiver' : 'Activer' %>">
+                <%= theme.active ? 'Désactiver' : 'Activer' %>
+              </button>
+            </form>
+            <% if (isOwner) { %>
+              <a class="btn ghost" href="/my/themes/<%= theme.id %>/edit">Modifier</a>
+              <% } %>
+                <% } %>
+                  <% if (theme.active) { %>
+                    <form action="/themes/<%= theme.id %>/toggle-visibility" method="post" style="display:inline;">
+                      <button class="btn ghost" type="submit">
+                        <%= Number(theme.effective_active)===0 ? 'Afficher pour moi' : 'Masquer pour moi' %>
+                      </button>
+                    </form>
+                    <% } %>
+        </div>
+      </div>
 
-<script>
-  (() => {
-    const tabs = Array.from(document.querySelectorAll('[data-tab]'));
-    const cards = Array.from(document.querySelectorAll('.word-card'));
-    const search = document.getElementById('word-search');
-    let currentTab = 'all';
-    const applyFilters = () => {
-      const term = search ? search.value.trim().toLowerCase() : '';
-      cards.forEach(card => {
-        const isActive = card.dataset.active === '1';
-        const matchesTab = currentTab === 'all' ? true : currentTab === 'active' ? isActive : !isActive;
-        const matchesSearch = !term || (card.dataset.search || '').includes(term);
-        card.style.display = matchesTab && matchesSearch ? '' : 'none';
-      });
-    };
+      <div class="tab-row" id="word-tabs">
+        <button class="tab-chip active" data-tab="all">Tous les mots (<%= words.length %>)</button>
+        <button class="tab-chip" data-tab="active">Actifs (<%= activeCount %>)</button>
+        <button class="tab-chip" data-tab="inactive">Inactifs (<%= inactiveCount %>)</button>
+      </div>
 
-    tabs.forEach(tab => {
-      tab.addEventListener('click', () => {
-        tabs.forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        currentTab = tab.dataset.tab;
-        applyFilters();
-      });
-    });
+      <div class="search-bar-row">
+        <div class="search-row">
+          <span class="search-icon">&#128269;</span>
+          <input type="search" id="word-search" placeholder="Recherche (hébreu, français, phonétique)" />
+        </div>
+        <div class="search-actions">
+          <button type="button" class="icon-btn ghost" id="select-toggle"
+            title="Sélectionner des mots">&#x270E;</button>
+          <button type="button" class="icon-btn danger" id="select-cancel" style="display:none;"
+            title="Annuler">&#10060;</button>
+        </div>
+      </div>
 
-    if (search) {
-      search.addEventListener('input', applyFilters);
-    }
-    
-    cards.forEach(card => {
-        card.addEventListener('click', (e) => {
-            if (selecting && e.target.tagName.toLowerCase() !== 'input') {
-                const checkbox = card.querySelector('.card-check');
-                if (checkbox) {
-                    checkbox.checked = !checkbox.checked;
-                    checkbox.dispatchEvent(new Event('change'));
-                }
-            }
-        });
-    });
+      <div class="alert alert-error" id="select-banner" style="display:none;"></div>
 
-    // --- Selection Logic ---
-    const selectBtn = document.getElementById('select-toggle');
-    const cancelSelectBtn = document.getElementById('select-cancel');
-    const toggleActiveAction = document.getElementById('toggle-active-action');
-    const backLink = document.getElementById('back-link');
-    const banner = document.getElementById('select-banner');
-    const cardChecks = Array.from(document.querySelectorAll('.card-check'));
-    const actionButtons = [toggleActiveAction];
-    let selecting = false;
+      <div class="cards-wall" id="words-wall">
+        <% if (!words || words.length===0) { %>
+          <div class="wall-empty">
+            <p>Aucun mot.</p>
+          </div>
+          <% } else { %>
+            <% words.forEach((word, idx)=> {
+              const isEffectiveActive = Number(word.effective_active);
+              const isGlobalInactive = !Number(word.global_active);
+              const isSelfOverride = !isGlobalInactive && Number(word.override_active) === 0;
+              const isFavorite = Number(word.favorite);
+              %>
+              <div class="word-card <%= isEffectiveActive ? '' : 'is-inactive' %>"
+                data-active="<%= isEffectiveActive ? 1 : 0 %>"
+                data-search="<%= (word.hebrew + ' ' + word.french + ' ' + (word.transliteration || '')).toLowerCase() %>">
+                <div class="word-card-top">
+                  <div class="word-card-top-left">
+                    <div class="word-index">
+                      <%= idx + 1 %>
+                    </div>
+                  </div>
+                  <label class="card-select">
+                    <input type="checkbox" class="card-check" value="<%= word.id %>" />
+                  </label>
+                  <% if (currentUser) { %>
+                    <div class="word-card-actions" style="margin-left:auto;">
+                      <form method="post" action="/favorites/<%= word.id %>" class="fav-form">
+                        <input type="hidden" name="redirectTo" value="/themes/<%= theme.id %>">
+                        <button type="submit" class="icon-btn heart <%= isFavorite ? 'active' : '' %>"
+                          title="<%= isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris' %>">&#10084;</button>
+                      </form>
+                    </div>
+                    <% } %>
+                </div>
+                <div class="word-card-body">
+                  <p class="hebrew-word">
+                    <%= word.hebrew %>
+                  </p>
+                  <p class="french-word">
+                    <%= word.french %>
+                  </p>
+                  <% if (word.transliteration) { %>
+                    <p class="translit"><em>
+                        <%= word.transliteration %>
+                      </em></p>
+                    <% } %>
+                </div>
+                <% if (currentUser) { %>
+                  <div class="word-card-inline-actions">
+                    <% if (currentUser.role==='admin' || (word.user_id &&
+                      Number(word.user_id)===Number(currentUser.id))) { %>
+                      <form method="post" action="/words/<%= word.id %>/toggle" style="display:inline;">
+                        <input type="hidden" name="redirectTo" value="/themes/<%= theme.id %>">
+                        <button class="btn ghost mini" type="submit">
+                          <%= Number(word.global_active) ? 'Désactiver (global)' : 'Activer (global)' %>
+                        </button>
+                      </form>
+                      <% } %>
+                        <% if (Number(word.global_active) && currentUser.role !=='admin' ) { %>
+                          <form method="post" action="/words/<%= word.id %>/toggle-self" style="display:inline;">
+                            <input type="hidden" name="redirectTo" value="/themes/<%= theme.id %>">
+                            <button class="btn ghost mini" type="submit">
+                              <%= isEffectiveActive ? 'Masquer pour moi' : 'Réactiver pour moi' %>
+                            </button>
+                          </form>
+                          <% } %>
+                  </div>
+                  <% } %>
+                    <div class="word-card-flags">
+                      <% if (isGlobalInactive) { %>
+                        <span class="pill muted">Inactif global</span>
+                        <% } %>
+                          <% if (isFavorite) { %>
+                            <span class="pill accent">Favori</span>
+                            <% } %>
+                    </div>
+              </div>
+              <% }) %>
+                <% } %>
+      </div>
+      <div class="list-bottom-actions fixed-actions">
+        <button type="button" class="cta secondary" id="toggle-active-action"
+          style="display:none;">Masquer/Afficher</button>
+      </div>
+    </section>
 
-    const getSelectedIds = () => cardChecks.filter(cb => cb.checked).map(cb => cb.value);
-    
-    const showBanner = (msg, level = 'error') => {
-      if (!banner) return;
-      banner.textContent = msg;
-      banner.className = `alert alert-${level}`;
-      banner.style.display = 'block';
-      setTimeout(() => { banner.style.display = 'none'; }, 2200);
-    };
-
-    const updateSelectionUI = () => {
-      document.querySelectorAll('.word-card-inline-actions').forEach(el => {
-        el.style.display = selecting ? 'none' : '';
-      });
-      document.querySelectorAll('.card-select').forEach(el => {
-        el.style.display = selecting ? 'flex' : 'none';
-      });
-      if (backLink) backLink.style.display = selecting ? 'none' : '';
-      if (selectBtn) selectBtn.style.display = selecting ? 'none' : '';
-      if (cancelSelectBtn) cancelSelectBtn.style.display = selecting ? '' : 'none';
-      
-      actionButtons.forEach(btn => {
-        if(btn) btn.style.display = selecting ? '' : 'none';
-      });
-
-      const disabled = selecting && getSelectedIds().length === 0;
-      actionButtons.forEach(btn => {
-        if (!btn) return;
-        btn.classList.toggle('is-disabled', disabled);
-        btn.dataset.disabled = disabled ? '1' : '0';
-      });
-    };
-
-    const exitSelection = () => {
-      selecting = false;
-      cardChecks.forEach(cb => { cb.checked = false; });
-      updateSelectionUI();
-    };
-
-    if (selectBtn) {
-      selectBtn.addEventListener('click', () => {
-        selecting = true;
-        updateSelectionUI();
-      });
-    }
-    if (cancelSelectBtn) {
-      cancelSelectBtn.addEventListener('click', exitSelection);
-    }
-
-    cardChecks.forEach(cb => {
-      cb.addEventListener('change', () => {
-        const disabled = getSelectedIds().length === 0;
-        actionButtons.forEach(btn => {
-          if (!btn) return;
-          btn.classList.toggle('is-disabled', disabled);
-          btn.dataset.disabled = disabled ? '1' : '0';
-        });
-      });
-    });
-
-    if (toggleActiveAction) {
-      toggleActiveAction.addEventListener('click', async (e) => {
-        e.preventDefault();
-        if (toggleActiveAction.dataset.disabled === '1') {
-          showBanner('Selectionne au moins un mot.');
-          return;
-        }
-        const selectedIds = getSelectedIds();
-        try {
-          const res = await fetch('/my/words/batch-toggle-active', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ word_ids: selectedIds })
+    <script>
+      (() => {
+        const tabs = Array.from(document.querySelectorAll('[data-tab]'));
+        const cards = Array.from(document.querySelectorAll('.word-card'));
+        const search = document.getElementById('word-search');
+        let currentTab = 'all';
+        const applyFilters = () => {
+          const term = search ? search.value.trim().toLowerCase() : '';
+          cards.forEach(card => {
+            const isActive = card.dataset.active === '1';
+            const matchesTab = currentTab === 'all' ? true : currentTab === 'active' ? isActive : !isActive;
+            const matchesSearch = !term || (card.dataset.search || '').includes(term);
+            card.style.display = matchesTab && matchesSearch ? '' : 'none';
           });
-          if (!res.ok) {
-            throw new Error('La requête a échoué.');
-          }
-          window.location.reload();
-        } catch (err) {
-          showBanner('Erreur lors de la mise à jour.');
-          console.error(err);
-        }
-      });
-    }
+        };
 
-    applyFilters();
-  })();
-</script>
+        tabs.forEach(tab => {
+          tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            currentTab = tab.dataset.tab;
+            applyFilters();
+          });
+        });
+
+        if (search) {
+          search.addEventListener('input', applyFilters);
+        }
+
+        cards.forEach(card => {
+          card.addEventListener('click', (e) => {
+            if (selecting && !e.target.closest('.fav-form') && e.target.tagName.toLowerCase() !== 'input') {
+              const checkbox = card.querySelector('.card-check');
+              if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+                checkbox.dispatchEvent(new Event('change'));
+              }
+            }
+          });
+        });
+
+        // --- Selection Logic ---
+        const selectBtn = document.getElementById('select-toggle');
+        const cancelSelectBtn = document.getElementById('select-cancel');
+        const toggleActiveAction = document.getElementById('toggle-active-action');
+        const backLink = document.getElementById('back-link');
+        const banner = document.getElementById('select-banner');
+        const cardChecks = Array.from(document.querySelectorAll('.card-check'));
+        const actionButtons = [toggleActiveAction];
+        let selecting = false;
+
+        const getSelectedIds = () => cardChecks.filter(cb => cb.checked).map(cb => cb.value);
+
+        const showBanner = (msg, level = 'error') => {
+          if (!banner) return;
+          banner.textContent = msg;
+          banner.className = `alert alert-${level}`;
+          banner.style.display = 'block';
+          setTimeout(() => { banner.style.display = 'none'; }, 2200);
+        };
+
+        const updateSelectionUI = () => {
+          document.querySelectorAll('.word-card-inline-actions').forEach(el => {
+            el.style.display = selecting ? 'none' : '';
+          });
+          document.querySelectorAll('.word-card-actions').forEach(el => {
+            el.style.display = selecting ? 'none' : '';
+          });
+          document.querySelectorAll('.card-select').forEach(el => {
+            el.style.display = selecting ? 'flex' : 'none';
+          });
+          if (backLink) backLink.style.display = selecting ? 'none' : '';
+          if (selectBtn) selectBtn.style.display = selecting ? 'none' : '';
+          if (cancelSelectBtn) cancelSelectBtn.style.display = selecting ? '' : 'none';
+
+          actionButtons.forEach(btn => {
+            if (btn) btn.style.display = selecting ? '' : 'none';
+          });
+
+          const disabled = selecting && getSelectedIds().length === 0;
+          actionButtons.forEach(btn => {
+            if (!btn) return;
+            btn.classList.toggle('is-disabled', disabled);
+            btn.dataset.disabled = disabled ? '1' : '0';
+          });
+        };
+
+        const exitSelection = () => {
+          selecting = false;
+          cardChecks.forEach(cb => { cb.checked = false; });
+          updateSelectionUI();
+        };
+
+        if (selectBtn) {
+          selectBtn.addEventListener('click', () => {
+            selecting = true;
+            updateSelectionUI();
+          });
+        }
+        if (cancelSelectBtn) {
+          cancelSelectBtn.addEventListener('click', exitSelection);
+        }
+
+        cardChecks.forEach(cb => {
+          cb.addEventListener('change', () => {
+            const disabled = getSelectedIds().length === 0;
+            actionButtons.forEach(btn => {
+              if (!btn) return;
+              btn.classList.toggle('is-disabled', disabled);
+              btn.dataset.disabled = disabled ? '1' : '0';
+            });
+          });
+        });
+
+        if (toggleActiveAction) {
+          toggleActiveAction.addEventListener('click', async (e) => {
+            e.preventDefault();
+            if (toggleActiveAction.dataset.disabled === '1') {
+              showBanner('Sélectionne au moins un mot.');
+              return;
+            }
+            const selectedIds = getSelectedIds();
+            try {
+              const res = await fetch('/my/words/batch-toggle-active', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ word_ids: selectedIds })
+              });
+              if (!res.ok) {
+                throw new Error('La requête a échoué.');
+              }
+              window.location.reload();
+            } catch (err) {
+              showBanner('Erreur lors de la mise à jour.');
+              console.error(err);
+            }
+          });
+        }
+
+        document.querySelectorAll('.fav-form').forEach(form => {
+          form.addEventListener('click', (e) => e.stopPropagation());
+        });
+
+        applyFilters();
+      })();
+    </script>

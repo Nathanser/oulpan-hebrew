@@ -79,8 +79,8 @@
                   <p class="muted mini">Aucun thème en ligne disponible.</p>
                   <% } else { %>
                     <ul class="custom-select-container">
-                          <% themes.forEach(t=> { %>
-                            <% if (t.children && t.children.length> 0) { %>
+                      <% themes.forEach(t=> { %>
+                        <% if (t.children && t.children.length> 0) { %>
                           <li>
                             <div class="theme-row parent-row">
                               <button type="button" class="icon-btn ghost toggle-subthemes-btn"
@@ -133,7 +133,9 @@
                           <div class="theme-row">
                             <input type="checkbox" name="set_ids[]" value="<%= s.id %>" id="set-<%= s.id %>"
                               <%=selectedSets.has(String(s.id)) ? 'checked' : '' %>>
-                            <label for="set-<%= s.id %>"><%= s.name %></label>
+                            <label for="set-<%= s.id %>">
+                              <%= s.name %>
+                            </label>
                           </div>
                         </li>
                         <% }) %>
@@ -202,7 +204,7 @@
           </div>
 
           <details class="advanced">
-            <summary style="padding-bottom: 0.3rem">Options avancees</summary>
+            <summary style="padding-bottom: 0.3rem">Options avancées</summary>
             <div class="advanced-grid">
               <label>Mode de révision
                 <select name="rev_mode">
@@ -210,7 +212,7 @@
                   <option value="random" <%=selectedRevMode==='random' ? 'selected' : '' %>>Aléatoire</option>
                   <option value="favorites" <%=selectedRevMode==='favorites' ? 'selected' : '' %>>Favoris</option>
                   <option value="new" <%=selectedRevMode==='new' ? 'selected' : '' %>>Nouveaux mots</option>
-                  <option value="weak" <%=selectedRevMode==='weak' ? 'selected' : '' %>>Mots faibles / Non maitrisés
+                  <option value="weak" <%=selectedRevMode==='weak' ? 'selected' : '' %>>Mots faibles / Non maîtrisés
                   </option>
                 </select>
               </label>

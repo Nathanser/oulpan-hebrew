@@ -8,27 +8,43 @@
     <thead>
       <tr>
         <th>#</th>
-        <th>Prenom</th>
+        <th>Prénom</th>
         <th>Nom</th>
-        <th>Nom affiche</th>
+        <th>Nom affiché</th>
         <th>Email</th>
         <th>Niveau</th>
-        <th>Role</th>
+        <th>Rôle</th>
         <th>Créé le</th>
         <th>Actions</th>
       </tr>
     </thead>
     <tbody>
-      <% users.forEach((u, idx) => { %>
+      <% users.forEach((u, idx)=> { %>
         <tr>
-          <td><%= idx + 1 %></td>
-          <td><%= u.first_name || '' %></td>
-          <td><%= u.last_name || '' %></td>
-          <td><%= u.display_name %></td>
-          <td><%= u.email %></td>
-          <td><%= u.level || '-' %></td>
-          <td><%= u.role %></td>
-          <td><%= u.created_at %></td>
+          <td>
+            <%= idx + 1 %>
+          </td>
+          <td>
+            <%= u.first_name || '' %>
+          </td>
+          <td>
+            <%= u.last_name || '' %>
+          </td>
+          <td>
+            <%= u.display_name %>
+          </td>
+          <td>
+            <%= u.email %>
+          </td>
+          <td>
+            <%= u.level || '-' %>
+          </td>
+          <td>
+            <%= u.role %>
+          </td>
+          <td>
+            <%= u.created_at %>
+          </td>
           <td>
             <div class="table-menu">
               <button class="btn ghost icon-btn dots-btn" type="button" aria-label="Actions">&#8942;</button>
@@ -37,14 +53,15 @@
                 <form action="/admin/users/<%= u.id %>/reset" method="post">
                   <button type="submit" class="menu-item">&#128472; Reset stats</button>
                 </form>
-                <form action="/admin/users/<%= u.id %>?_method=DELETE" method="post" data-confirm="Supprimer cet utilisateur ?">
+                <form action="/admin/users/<%= u.id %>?_method=DELETE" method="post"
+                  data-confirm="Supprimer cet utilisateur ?">
                   <button type="submit" class="menu-item danger">&#128465; Supprimer</button>
                 </form>
               </div>
             </div>
           </td>
         </tr>
-      <% }) %>
+        <% }) %>
     </tbody>
   </table>
 </section>

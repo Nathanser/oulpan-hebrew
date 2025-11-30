@@ -1,4 +1,4 @@
-<section class="card">
+﻿<section class="card">
   <h1>Mes informations</h1>
 
   <% if (message) { %>
@@ -18,7 +18,7 @@
             <% } %>
 
               <form method="post" action="/profile/info" class="form">
-                <label>Prenom
+                <label>Prénom
                   <input type="text" name="first_name" value="<%= user ? user.first_name : '' %>" placeholder="David"
                     required />
                 </label>
@@ -27,7 +27,7 @@
                   <input type="text" name="last_name" value="<%= user ? user.last_name : '' %>" placeholder="COHEN" />
                 </label>
 
-                <label>Nom affiche
+                <label>Nom affiché
                   <input type="text" name="display_name" value="<%= user ? user.display_name : '' %>"
                     placeholder="David COHEN" required />
                 </label>
@@ -46,7 +46,7 @@
                   </select>
                 </label>
 
-                <button type="submit" class="btn ghost">Mettre a jour</button>
+                <button type="submit" class="btn ghost">Mettre à jour</button>
               </form>
 </section>
 
@@ -56,14 +56,14 @@
     <div class="mode-grid">
       <label class="check-row">
         <input type="radio" name="theme" value="dark" <%=(!user.theme || user.theme==='dark' ) ? 'checked' : '' %>>
-        <span style="white-space: nowrap;">Dark Theme</span>
+        <span style="white-space: nowrap;">Thème sombre</span>
       </label>
       <label class="check-row">
         <input type="radio" name="theme" value="light" <%=(user.theme==='light' ) ? 'checked' : '' %>>
-        <span style="white-space: nowrap;">Light Theme</span>
+        <span style="white-space: nowrap;">Thème clair</span>
       </label>
     </div>
-    <button type="submit" class="btn ghost" style="margin-top:0.5rem;">Enregistrer le theme</button>
+    <button type="submit" class="btn ghost" style="margin-top:0.5rem;">Enregistrer le thème</button>
   </form>
 </section>
 
@@ -116,54 +116,105 @@
               </div>
 
               <div class="field-block">
-                <div class="field-title">Preselection des themes et listes</div>
+                <div class="field-title">Thèmes et listes</div>
                 <div class="theme-toggles inline">
                   <label class="check-row"><input type="checkbox" id="pref-toggle-public" <%=defThemes.size> 0 ?
-                    'checked' : '' %>> <span>Themes en ligne</span></label>
+                    'checked' : '' %>> <span>Thèmes en ligne</span></label>
                   <label class="check-row"><input type="checkbox" id="pref-toggle-lists" <%=(trainSets || []).some(s=>
                     defSets.has(String(s.id))) ? 'checked' : '' %>> <span>Mes listes</span></label>
                   <label class="check-row"><input type="checkbox" id="pref-toggle-shared" <%=(trainSharedSets ||
-                      []).some(s=> defSets.has(String(s.id))) ? 'checked' : '' %>> <span>Listes partagees</span></label>
+                      []).some(s=> defSets.has(String(s.id))) ? 'checked' : '' %>> <span>Listes partagées</span></label>
                 </div>
+
                 <div class="theme-groups">
-                  <div class="theme-group" id="pref-public-group">
-                    <p class="muted mini" style="margin:0 0 0.2rem;">Themes en ligne</p>
-                    <% if (!trainThemes || trainThemes.filter(t=> !t.user_id).length === 0) { %>
-                      <p class="muted mini">Aucun theme en ligne disponible.</p>
+                  <div class="theme-group" id="pref-public-group" style="display:none;">
+                    <p class="muted mini" style="margin:0 0 0.2rem;">Thèmes en ligne</p>
+                    <% if (!trainThemes || trainThemes.length===0) { %>
+                      <p class="muted mini">Aucun thème en ligne disponible.</p>
                       <% } else { %>
-                        <select id="pref-theme-select" name="theme_ids[]" multiple size="5">
-                          <% trainThemes.forEach(t=> { if (!t.user_id) { %>
-                            <option value="<%= t.id %>" <%=defThemes.has(String(t.id)) ? 'selected' : '' %>><%= t.name
-                                %>
-                            </option>
-                            <% } }) %>
-                        </select>
+                        <ul class="custom-select-container">
+                          <% trainThemes.forEach(t=> { %>
+                            <% if (t.children && t.children.length> 0) { %>
+                              <li>
+                                <div class="theme-row parent-row">
+                                  <button type="button" class="icon-btn ghost toggle-subthemes-btn"
+                                    data-target="pref-subthemes-<%= t.id %>" aria-expanded="false">
+                                    <span class="chevron-icon">&#9654;</span>
+                                  </button>
+                                  <span class="theme-label">
+                                    <%= t.name %>
+                                  </span>
+                                </div>
+                                <ul id="pref-subthemes-<%= t.id %>" style="display:none;">
+                                  <% t.children.forEach(child=> { %>
+                                    <li>
+                                      <div class="theme-row">
+                                        <input type="checkbox" name="theme_ids[]" value="<%= child.id %>"
+                                          id="pref-theme-<%= child.id %>" <%=defThemes.has(String(child.id)) ? 'checked'
+                                          : '' %>>
+                                        <label for="pref-theme-<%= child.id %>">
+                                          <%= child.name %>
+                                        </label>
+                                      </div>
+                                    </li>
+                                    <% }) %>
+                                </ul>
+                              </li>
+                              <% } else { %>
+                                <li>
+                                  <div class="theme-row">
+                                    <input type="checkbox" name="theme_ids[]" value="<%= t.id %>"
+                                      id="pref-theme-<%= t.id %>" <%=defThemes.has(String(t.id)) ? 'checked' : '' %>>
+                                    <label for="pref-theme-<%= t.id %>">
+                                      <%= t.name %>
+                                    </label>
+                                  </div>
+                                </li>
+                                <% } %>
+                                  <% }) %>
+                        </ul>
                         <% } %>
                   </div>
-                  <div class="theme-group" id="pref-list-group">
+
+                  <div class="theme-group" id="pref-list-group" style="display:none;">
                     <p class="muted mini" style="margin:0 0 0.2rem;">Mes Listes</p>
                     <% if (!trainSets || trainSets.length===0) { %>
                       <p class="muted mini">Aucune liste pour le moment.</p>
                       <% } else { %>
-                        <select id="pref-list-select" name="set_ids[]" multiple size="5">
+                        <ul class="custom-select-container">
                           <% trainSets.forEach(s=> { %>
-                            <option value="<%= s.id %>" <%=defSets.has(String(s.id)) ? 'selected' : '' %>><%= s.name %>
-                            </option>
+                            <li>
+                              <div class="theme-row">
+                                <input type="checkbox" name="set_ids[]" value="<%= s.id %>" id="pref-set-<%= s.id %>"
+                                  <%=defSets.has(String(s.id)) ? 'checked' : '' %>>
+                                <label for="pref-set-<%= s.id %>">
+                                  <%= s.name %>
+                                </label>
+                              </div>
+                            </li>
                             <% }) %>
-                        </select>
+                        </ul>
                         <% } %>
                   </div>
-                  <div class="theme-group" id="pref-shared-group">
-                    <p class="muted mini" style="margin:0 0 0.2rem;">Listes partagees</p>
+
+                  <div class="theme-group" id="pref-shared-list-group" style="display:none;">
+                    <p class="muted mini" style="margin:0 0 0.2rem;">Listes partagées</p>
                     <% if (!trainSharedSets || trainSharedSets.length===0) { %>
-                      <p class="muted mini">Aucune liste partagee.</p>
+                      <p class="muted mini">Aucune liste partagée.</p>
                       <% } else { %>
-                        <select id="pref-shared-select" name="set_ids[]" multiple size="5">
+                        <ul class="custom-select-container">
                           <% trainSharedSets.forEach(s=> { %>
-                            <option value="<%= s.id %>" <%=defSets.has(String(s.id)) ? 'selected' : '' %>><%= s.name %>
-                                (<%= s.owner_name %>)</option>
+                            <li>
+                              <div class="theme-row">
+                                <input type="checkbox" name="set_ids[]" value="<%= s.id %>"
+                                  id="pref-shared-set-<%= s.id %>" <%=defSets.has(String(s.id)) ? 'checked' : '' %>>
+                                <label for="pref-shared-set-<%= s.id %>">
+                                  <%= s.name %> (<%= s.owner_name %>)
+                                </label>
+                              </div>
+                            </li>
                             <% }) %>
-                        </select>
+                        </ul>
                         <% } %>
                   </div>
                 </div>
@@ -208,10 +259,10 @@
                 <label>Mode de révision
                   <select name="rev_mode">
                     <option value="order" <%=defRevMode==='order' ? 'selected' : '' %>>Dans l'ordre</option>
-                    <option value="random" <%=defRevMode==='random' ? 'selected' : '' %>>Aleatoire</option>
+                    <option value="random" <%=defRevMode==='random' ? 'selected' : '' %>>Aléatoire</option>
                     <option value="favorites" <%=defRevMode==='favorites' ? 'selected' : '' %>>Favoris</option>
                     <option value="new" <%=defRevMode==='new' ? 'selected' : '' %>>Nouveaux mots</option>
-                    <option value="weak" <%=defRevMode==='weak' ? 'selected' : '' %>>Mots faibles / Non maitrises
+                    <option value="weak" <%=defRevMode==='weak' ? 'selected' : '' %>>Mots faibles / Non maîtrisés
                     </option>
                   </select>
                 </label>
@@ -237,7 +288,7 @@
 </section>
 
 <section class="card">
-  <h2>Securite</h2>
+  <h2>Sécurité</h2>
   <form method="post" action="/profile/password" class="form">
     <label>Mot de passe actuel
       <input type="password" name="current_password" required />
@@ -252,13 +303,13 @@
 <section class="card">
   <h2>Actions</h2>
   <div class="actions-grid" style="display:grid; gap:0.75rem;">
-    <form method="post" action="/profile/reset-stats" data-confirm="Reinitialiser toutes mes stats ?">
-      <button type="submit" class="btn secondary danger">Reinitialiser les stats du profil</button>
+    <form method="post" action="/profile/reset-stats" data-confirm="Réinitialiser toutes mes stats ?">
+      <button type="submit" class="btn secondary danger">Réinitialiser les stats du profil</button>
     </form>
     <br>
 
     <form method="post" action="/profile/delete"
-      onsubmit="return confirm('Voulez-vous vraiment supprimer votre compte ? Cette action est irreversible.');">
+      onsubmit="return confirm('Voulez-vous vraiment supprimer votre compte ? Cette action est irréversible.');">
       <label>Mot de passe (confirmation)
         <input type="password" name="password" required />
       </label>
@@ -275,44 +326,41 @@
 
     const levelsData = JSON.parse(defaultsForm.dataset.levels || '[]');
     const defaultParamsData = JSON.parse(defaultsForm.dataset.defaultParams || '{}');
-    const preselectedThemes = (defaultParamsData.theme_ids || []).map(v => String(v));
-    const preselectedSets = (defaultParamsData.set_ids || []).map(v => String(v));
     const preselectedLevel = defaultParamsData.level_id ? String(defaultParamsData.level_id) : '';
-    const selectedRemaining = defaultParamsData.remaining === 'all' ? 'all' : String(defaultParamsData.remaining || '10');
+    const selectedRemainingValue = defaultParamsData.remaining === 'all'
+      ? 'all'
+      : String(defaultParamsData.remaining || '10');
 
     const levelSelect = document.getElementById('pref-level-select');
     const levelField = document.getElementById('pref-level-field');
     const publicGroup = document.getElementById('pref-public-group');
     const listGroup = document.getElementById('pref-list-group');
-    const sharedGroup = document.getElementById('pref-shared-group');
+    const sharedListGroup = document.getElementById('pref-shared-list-group');
     const togglePublic = document.getElementById('pref-toggle-public');
     const toggleLists = document.getElementById('pref-toggle-lists');
     const toggleShared = document.getElementById('pref-toggle-shared');
-    const themeSelect = document.getElementById('pref-theme-select');
-    const listSelect = document.getElementById('pref-list-select');
-    const sharedSelect = document.getElementById('pref-shared-select');
 
-    const remainingInput = document.getElementById('pref-remaining-input');
     const rmAll = document.getElementById('pref-rm-all');
     const rmCustom = document.getElementById('pref-rm-custom');
     const sliderContainer = document.getElementById('pref-slider-container');
     const slider = document.getElementById('pref-remaining-slider');
     const sliderVal = document.getElementById('pref-slider-val');
+    const remainingInput = document.getElementById('pref-remaining-input');
 
     const renderLevels = () => {
-      const checkedThemes = themeSelect
-        ? Array.from(themeSelect.selectedOptions || []).map(o => o.value).filter(Boolean)
-        : [];
-      if (levelSelect) {
-        levelSelect.innerHTML = '<option value="">(Tous les niveaux)</option>';
-      }
-      if (!levelSelect || checkedThemes.length !== 1) {
-        if (levelField) levelField.style.display = 'none';
+      const checkedInputs = defaultsForm.querySelectorAll('input[name="theme_ids[]"]:checked');
+      const checkedThemes = Array.from(checkedInputs).map(cb => cb.value);
+
+      levelSelect.innerHTML = '<option value="">(Tous les niveaux)</option>';
+
+      if (checkedThemes.length !== 1) {
+        levelField.style.display = 'none';
         return;
       }
+
       const filtered = levelsData.filter(l => String(l.theme_id) === String(checkedThemes[0]));
       if (filtered.length === 0) {
-        if (levelField) levelField.style.display = 'none';
+        levelField.style.display = 'none';
         return;
       }
       filtered.forEach(l => {
@@ -325,33 +373,15 @@
     };
 
     const updateGroups = () => {
-      if (publicGroup) {
-        publicGroup.style.display = togglePublic && togglePublic.checked ? 'grid' : 'none';
-        if (togglePublic && !togglePublic.checked && themeSelect) {
-          themeSelect.selectedIndex = -1;
-        }
-      }
-      if (listGroup) {
-        listGroup.style.display = toggleLists && toggleLists.checked ? 'grid' : 'none';
-        if (toggleLists && !toggleLists.checked && listSelect) {
-          listSelect.selectedIndex = -1;
-        }
-      }
-      if (sharedGroup) {
-        sharedGroup.style.display = toggleShared && toggleShared.checked ? 'grid' : 'none';
-        if (toggleShared && !toggleShared.checked && sharedSelect) {
-          sharedSelect.selectedIndex = -1;
-        }
-      }
+      if (publicGroup) publicGroup.style.display = togglePublic && togglePublic.checked ? 'block' : 'none';
+      if (listGroup) listGroup.style.display = toggleLists && toggleLists.checked ? 'block' : 'none';
+      if (sharedListGroup) sharedListGroup.style.display = toggleShared && toggleShared.checked ? 'block' : 'none';
       renderLevels();
     };
 
     const updateSliderFill = () => {
       if (!slider) return;
-      const min = slider.min || 1;
-      const max = slider.max || 50;
-      const val = slider.value;
-      const percentage = ((val - min) / (max - min)) * 100;
+      const percentage = ((slider.value - 1) / 49) * 100;
       slider.style.setProperty('--slider-fill', `${percentage}%`);
     };
 
@@ -366,63 +396,183 @@
       }
     };
 
-    // Event Listeners
-    if (rmAll) {
-      rmAll.addEventListener('change', updateRemainingUI);
-      rmAll.addEventListener('click', updateRemainingUI);
-    }
-    if (rmCustom) {
-      rmCustom.addEventListener('change', updateRemainingUI);
-      rmCustom.addEventListener('click', updateRemainingUI);
-    }
+    defaultsForm.querySelectorAll('input[name="theme_ids[]"]').forEach(cb => {
+      cb.addEventListener('change', renderLevels);
+    });
+
+    if (togglePublic) togglePublic.addEventListener('change', updateGroups);
+    if (toggleLists) toggleLists.addEventListener('change', updateGroups);
+    if (toggleShared) toggleShared.addEventListener('change', updateGroups);
+
+    if (rmAll) rmAll.addEventListener('change', updateRemainingUI);
+    if (rmCustom) rmCustom.addEventListener('change', updateRemainingUI);
     if (slider) {
       slider.addEventListener('input', () => {
         if (sliderVal) sliderVal.textContent = slider.value;
         if (remainingInput) remainingInput.value = slider.value;
         updateSliderFill();
       });
+      if (selectedRemainingValue !== 'all') slider.value = selectedRemainingValue;
     }
 
-    if (themeSelect) themeSelect.addEventListener('change', renderLevels);
-    if (togglePublic) togglePublic.addEventListener('change', updateGroups);
-    if (toggleLists) toggleLists.addEventListener('change', updateGroups);
-    if (toggleShared) toggleShared.addEventListener('change', updateGroups);
-
-    // Initialization
-    if (themeSelect && preselectedThemes.length > 0) {
-      preselectedThemes.forEach(val => {
-        const opt = themeSelect.querySelector(`option[value="${val}"]`);
-        if (opt) opt.selected = true;
-      });
-    }
-    if (listSelect && preselectedSets.length > 0) {
-      preselectedSets.forEach(val => {
-        const opt = listSelect.querySelector(`option[value="${val}"]`);
-        if (opt) opt.selected = true;
-      });
-    }
-    if (sharedSelect && preselectedSets.length > 0) {
-      preselectedSets.forEach(val => {
-        const opt = sharedSelect.querySelector(`option[value="${val}"]`);
-        if (opt) opt.selected = true;
-      });
-    }
-
-    updateGroups(); // Set initial visibility of groups
-
-    if (levelSelect && preselectedLevel) {
+    updateGroups();
+    if (preselectedLevel && levelSelect) {
       levelSelect.value = preselectedLevel;
-      if (levelSelect.value && levelField) levelField.style.display = 'block';
+      if (levelSelect.value) levelField.style.display = 'block';
     }
+    updateRemainingUI();
 
-    updateRemainingUI(); // Set initial visibility of slider
+    defaultsForm.addEventListener('submit', () => {
+      const modeInputs = Array.from(defaultsForm.querySelectorAll('input[name="modes[]"]'));
+      if (!modeInputs.some(i => i.checked) && modeInputs[0]) modeInputs[0].checked = true;
+    });
 
-    if (defaultsForm) {
-      defaultsForm.addEventListener('submit', () => {
-        const modeInputs = Array.from(defaultsForm.querySelectorAll('input[name="modes[]"]'));
-        const anyChecked = modeInputs.some(i => i.checked);
-        if (!anyChecked && modeInputs[0]) modeInputs[0].checked = true;
+    // Toggle subthemes visibility
+    document.querySelectorAll('.toggle-subthemes-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const targetId = btn.dataset.target;
+        const target = document.getElementById(targetId);
+        const icon = btn.querySelector('.chevron-icon');
+        if (target) {
+          const isHidden = target.style.display === 'none';
+          target.style.display = isHidden ? 'block' : 'none';
+          btn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+          icon.innerHTML = isHidden ? '&#9660;' : '&#9654;';
+        }
       });
-    }
+    });
+
+    // Allow clicking parent label to toggle open/close
+    document.querySelectorAll('.theme-row.parent-row .theme-label').forEach(label => {
+      const parentRow = label.closest('.parent-row');
+      const btn = parentRow ? parentRow.querySelector('.toggle-subthemes-btn') : null;
+      if (!btn) return;
+      label.addEventListener('click', () => btn.click());
+    });
+
+    // Ensure already-selected subthemes are visible on load
+    document.querySelectorAll('.toggle-subthemes-btn').forEach(btn => {
+      const target = document.getElementById(btn.dataset.target);
+      const icon = btn.querySelector('.chevron-icon');
+      if (!target) return;
+      const hasCheckedChild = target.querySelector('input[type="checkbox"]:checked');
+      if (hasCheckedChild) {
+        target.style.display = 'block';
+        btn.setAttribute('aria-expanded', 'true');
+        if (icon) icon.innerHTML = '&#9660;';
+      }
+    });
   })();
 </script>
+
+<style>
+  .custom-select-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.75rem 0.85rem;
+    max-height: 320px;
+    overflow-y: auto;
+    list-style: none;
+    margin: 0;
+    border: 1px solid var(--border-main);
+    border-radius: 0.85rem;
+    background: var(--bg-card);
+  }
+
+  .custom-select-container>li {
+    list-style: none;
+    margin: 0;
+  }
+
+  .theme-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: 0.45rem;
+    min-height: 28px;
+  }
+
+  .theme-row input[type="checkbox"] {
+    margin: 0;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--text-faint);
+  }
+
+  .theme-row label,
+  .theme-row .theme-label {
+    cursor: pointer;
+    user-select: none;
+    margin: 0;
+    padding: 0;
+    flex-grow: 1;
+    font-weight: 600;
+    color: var(--text-main);
+  }
+
+  .theme-row.parent-row {
+    grid-template-columns: 18px 1fr;
+    column-gap: 0.4rem;
+  }
+
+  .theme-row.parent-row .theme-label {
+    font-weight: 700;
+  }
+
+  .icon-btn.ghost {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-muted);
+    border-radius: 0.25rem;
+  }
+
+  .icon-btn.ghost:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .chevron-icon {
+    font-size: 0.77em;
+    transition: transform 0.2s ease;
+    display: inline-block;
+  }
+
+  .custom-select-container ul {
+    list-style: none;
+    margin: 0.25rem 0 0.2rem 0.65rem;
+    padding-left: 1.25rem;
+    border-left: 2px solid var(--border-main);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .custom-select-container ul li {
+    margin: 0;
+  }
+
+  .custom-select-container ul .theme-row {
+    grid-template-columns: auto 1fr;
+    column-gap: 0.4rem;
+  }
+
+  .custom-select-container ul .theme-row label {
+    font-weight: 600;
+  }
+</style>
+
+
+
+
+<span>Révision par écrit</span>

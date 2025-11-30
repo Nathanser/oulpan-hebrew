@@ -34,7 +34,7 @@
         <% if (typeof isOwner==='undefined' || isOwner) { %>
           <div class="search-actions">
             <button type="button" class="icon-btn ghost" id="select-toggle"
-              title="Deplacer des cartes">&#x21C4;</button>
+              title="Déplacer des cartes">&#x21C4;</button>
             <button type="button" class="icon-btn danger" id="select-cancel" style="display:none;"
               title="Annuler">&#10060;</button>
           </div>
@@ -138,7 +138,7 @@
           <button type="button" class="cta" id="main-action" data-edit-url="/my/lists/<%= set.id %>/edit">Ajouter des
             cartes</button>
           <button type="button" class="cta secondary" id="copy-action" style="display:none;">Copier</button>
-          <button type="button" class="cta" id="move-action" style="display:none;">Deplacer</button>
+          <button type="button" class="cta" id="move-action" style="display:none;">Déplacer</button>
           <button type="button" class="cta secondary" id="toggle-active-action"
             style="display:none;">Masquer/Afficher</button>
 
@@ -149,7 +149,7 @@
     <% if (typeof isOwner==='undefined' || isOwner) { %>
       <div class="modal-backdrop" id="move-modal" style="display:none;">
         <div class="modal-card">
-          <h3 id="move-modal-title">Deplacer vers</h3>
+          <h3 id="move-modal-title">Déplacer vers</h3>
           <% if (!otherSets || otherSets.length===0) { %>
             <p class="muted">Pas d'autre liste disponible.</p>
             <% } else { %>
@@ -318,7 +318,7 @@
                   return;
                 }
                 currentAction = mode;
-                if (modalTitle) modalTitle.textContent = mode === 'copy' ? 'Copier vers' : 'Deplacer vers';
+                if (modalTitle) modalTitle.textContent = mode === 'copy' ? 'Copier vers' : 'Déplacer vers';
                 if (modal) modal.style.display = 'flex';
               };
 

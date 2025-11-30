@@ -2,7 +2,9 @@
   <div class="builder-header">
     <div>
       <p class="eyebrow">Partager ma liste</p>
-      <h1><%= set.name %></h1>
+      <h1>
+        <%= set.name %>
+      </h1>
     </div>
     <div class="builder-actions">
       <a class="link back-link" href="/my/lists">&#8592; Retour</a>
@@ -10,36 +12,42 @@
   </div>
 
   <form method="post" action="/my/lists/<%= set.id %>/share" class="form">
-    <% if (!users || users.length === 0) { %>
-      <p class="muted">Aucun utilisateur &agrave; partager.</p>
-    <% } else { %>
-      <div class="grid two-cols" style="gap:1rem;">
-        <div>
-          <p class="eyebrow">Lecture seule</p>
-          <div class="options-list">
-            <% users.forEach(u => { %>
-              <label class="check-row">
-                <input type="checkbox" name="user_ids" data-user="<%= u.id %>" value="<%= u.id %>" <%= currentShared && currentShared.includes(Number(u.id)) ? 'checked' : '' %> />
-                <span><%= u.display_name %> (<%= u.email %>)</span>
-              </label>
-            <% }) %>
+    <% if (!users || users.length===0) { %>
+      <p class="muted">Aucun utilisateur à partager.</p>
+      <% } else { %>
+        <div class="grid two-cols" style="gap:1rem;">
+          <div>
+            <p class="eyebrow">Lecture seule</p>
+            <div class="options-list">
+              <% users.forEach(u=> { %>
+                <label class="check-row">
+                  <input type="checkbox" name="user_ids" data-user="<%= u.id %>" value="<%= u.id %>" <%=currentShared &&
+                    currentShared.includes(Number(u.id)) ? 'checked' : '' %> />
+                  <span>
+                    <%= u.display_name %> (<%= u.email %>)
+                  </span>
+                </label>
+                <% }) %>
+            </div>
+          </div>
+          <div>
+            <p class="eyebrow">Collaborateurs (peuvent modifier)</p>
+            <p class="muted mini">Ils peuvent ajouter/éditer les cartes mais pas supprimer la liste.</p>
+            <div class="options-list">
+              <% users.forEach(u=> { %>
+                <label class="check-row">
+                  <input type="checkbox" name="collaborator_ids" data-user="<%= u.id %>" value="<%= u.id %>"
+                    <%=currentCollaborators && currentCollaborators.includes(Number(u.id)) ? 'checked' : '' %> />
+                  <span>
+                    <%= u.display_name %> (<%= u.email %>)
+                  </span>
+                </label>
+                <% }) %>
+            </div>
           </div>
         </div>
-        <div>
-          <p class="eyebrow">Collaborateurs (peuvent modifier)</p>
-          <p class="muted mini">Ils peuvent ajouter/editer les cartes mais pas supprimer la liste.</p>
-          <div class="options-list">
-            <% users.forEach(u => { %>
-              <label class="check-row">
-                <input type="checkbox" name="collaborator_ids" data-user="<%= u.id %>" value="<%= u.id %>" <%= currentCollaborators && currentCollaborators.includes(Number(u.id)) ? 'checked' : '' %> />
-                <span><%= u.display_name %> (<%= u.email %>)</span>
-              </label>
-            <% }) %>
-          </div>
-        </div>
-      </div>
-      <button type="submit" class="cta">Enregistrer le partage</button>
-    <% } %>
+        <button type="submit" class="cta">Enregistrer le partage</button>
+        <% } %>
   </form>
 </section>
 

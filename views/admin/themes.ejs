@@ -1,7 +1,7 @@
 ﻿<section>
   <div class="list-header">
     <div>
-      <h1>Themes par defaut</h1>
+      <h1>Thèmes par défaut</h1>
     </div>
   </div>
   <div class="list-actions">
@@ -12,18 +12,18 @@
   <form class="form" action="/admin/themes" method="get" style="max-width:340px;">
     <label>Filtrer par
       <select name="sort" onchange="this.form.submit()">
-        <option value="created_asc" <%=sort==='created_asc' ? 'selected' : '' %>>Date de creation (plus anciennes)
+        <option value="created_asc" <%=sort==='created_asc' ? 'selected' : '' %>>Date de création (plus anciennes)
         </option>
-        <option value="created_desc" <%=sort==='created_desc' ? 'selected' : '' %>>Date de creation (plus recentes)
+        <option value="created_desc" <%=sort==='created_desc' ? 'selected' : '' %>>Date de création (plus récentes)
         </option>
-        <option value="alpha" <%=sort==='alpha' ? 'selected' : '' %>>Ordre alphabetique</option>
+        <option value="alpha" <%=sort==='alpha' ? 'selected' : '' %>>Ordre alphabétique</option>
       </select>
     </label>
   </form>
 
   <% if (!themes || themes.length===0) { %>
     <div class="card set-list-empty">
-      <p>Pas encore de themes par defaut.</p>
+      <p>Pas encore de thèmes par défaut.</p>
       <a class="btn" href="/admin/themes/new">Créer un thème</a>
     </div>
     <% } else { %>
@@ -38,7 +38,7 @@
                   </h3>
                   <% if (theme.children && theme.children.length> 0) { %>
                     <span class="pill muted mini">
-                      <%= theme.children.length %> sous-themes
+                      <%= theme.children.length %> sous-thèmes
                     </span>
                     <% } %>
                 </div>
@@ -57,7 +57,7 @@
               <div class="set-list-actions inline-actions">
                 <% if (theme.children && theme.children.length> 0) { %>
                   <button type="button" class="icon-btn ghost toggle-children-btn"
-                    data-toggle-target="admin-children-<%= theme.id %>" aria-label="Voir sous-themes">
+                    data-toggle-target="admin-children-<%= theme.id %>" aria-label="Voir sous-thèmes">
                     <span class="chevron-icon">&#9654;</span>
                   </button>
                   <% } else { %>
@@ -81,7 +81,7 @@
                           </button>
                         </form>
                         <form action="/admin/themes/<%= theme.id %>?_method=DELETE" method="post"
-                          onsubmit="return confirm('Supprimer ce theme par defaut ?');">
+                          onsubmit="return confirm('Supprimer ce thème par défaut ?');">
                           <button type="submit" class="menu-item danger">
                             <span>Supprimer</span>
                             <span class="menu-icon">&#128465;</span>
@@ -133,7 +133,7 @@
                             </button>
                           </form>
                           <form action="/admin/themes/<%= child.id %>?_method=DELETE" method="post"
-                            onsubmit="return confirm('Supprimer ce sous-theme ?');">
+                            onsubmit="return confirm('Supprimer ce sous-thème ?');">
                             <button type="submit" class="menu-item danger">
                               <span>Supprimer</span>
                               <span class="menu-icon">&#128465;</span>

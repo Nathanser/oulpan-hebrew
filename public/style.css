@@ -387,7 +387,7 @@ h3 {
   color: var(--text-muted);
 }
 
-.form input,
+.form input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]),
 .form select {
   width: 100%;
   padding: 0.5rem 0.6rem;
@@ -395,6 +395,10 @@ h3 {
   border: 1px solid var(--border-input);
   background: var(--bg-input);
   color: var(--text-main);
+}
+
+.form input[type="range"] {
+  width: 100%;
 }
 
 .form {
@@ -601,9 +605,32 @@ button:hover,
   background: var(--bg-card);
   border: 1px solid var(--border-main);
   border-radius: 1rem;
-  padding: 1.2rem;
+  padding: 1.6rem 1.2rem 1.2rem 1.2rem;
   cursor: pointer;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.flashcard-topbar {
+  position: absolute;
+  top: 0.4rem;
+  left: 0.6rem;
+  right: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.flashcard-topbar .flashcard-fav-pill {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.flashcard-topbar .fav-toggle {
+  margin-left: auto;
+  pointer-events: auto;
 }
 
 .flashcard:hover {
@@ -740,6 +767,18 @@ button.ghost {
   align-items: center;
   gap: 0.6rem;
   font-weight: 600;
+}
+
+.session-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.session-actions .fav-pill-inline {
+  margin: 0 auto;
 }
 
 .pill {
@@ -1612,6 +1651,12 @@ details.advanced summary {
   gap: 0.5rem;
 }
 
+.word-card-top-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .badge-icon {
   width: 2.1rem;
   height: 2.1rem;
@@ -1638,6 +1683,24 @@ details.advanced summary {
 .word-card .icon-btn.heart.active {
   color: var(--accent-danger);
   border-color: var(--accent-danger);
+}
+
+.icon-btn.heart {
+  border-color: var(--border-main);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.icon-btn.heart.active {
+  color: #e74c3c;
+  border-color: #e74c3c;
+  background: rgba(231, 76, 60, 0.18);
+}
+
+.flashcard-topbar .icon-btn.heart {
+  width: 2.6rem;
+  height: 2.6rem;
 }
 
 .word-card .icon-btn.ghost {
@@ -2046,9 +2109,13 @@ details.advanced summary {
   padding-left: 1rem;
 }
 
-.check-row input[type="checkbox"] {
+.check-row input[type="checkbox"],
+.check-row input[type="radio"] {
   width: auto;
   height: auto;
+  padding: 0;
+  margin: 0;
+  flex-shrink: 0;
 }
 
 /* --- Custom Bulk Action Button Colors --- */
