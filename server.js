@@ -645,6 +645,8 @@ async function getActiveThemeTreeForUser(userId) {
   const activeIds = new Set(raw.map(t => Number(t.id)));
   const filtered = raw.filter(t => !t.parent_id || activeIds.has(Number(t.parent_id)));
 
+  const sortByIdAsc = (a, b) => Number(a.id) - Number(b.id);
+
   const themeMap = new Map();
   const roots = [];
 
@@ -660,6 +662,9 @@ async function getActiveThemeTreeForUser(userId) {
       roots.push(t);
     }
   });
+
+  roots.sort(sortByIdAsc);
+  filtered.forEach(t => t.children.sort(sortByIdAsc));
 
   return roots;
 }
@@ -2842,7 +2847,7 @@ app.get('/train/setup', requireAuth, async (req, res) => {
        FROM sets s
        LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
        WHERE s.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
-       ORDER BY s.created_at DESC`,
+       ORDER BY s.id ASC`,
     [userId, userId]
   );
   const sharedSets = await all(
@@ -2852,7 +2857,7 @@ app.get('/train/setup', requireAuth, async (req, res) => {
        LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
        JOIN users owner ON owner.id = s.user_id
        WHERE sh.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
-       ORDER BY s.created_at DESC`,
+       ORDER BY s.id ASC`,
     [userId, userId]
   );
   const state = req.session.trainState || null;
@@ -2932,7 +2937,7 @@ app.post('/train/session', requireAuth, async (req, res) => {
        FROM sets s
        LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
        WHERE s.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
-       ORDER BY s.created_at DESC`,
+       ORDER BY s.id ASC`,
       [userId, userId]
     );
     const sharedSets = await all(
@@ -2942,7 +2947,7 @@ app.post('/train/session', requireAuth, async (req, res) => {
        LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
        JOIN users owner ON owner.id = s.user_id
        WHERE sh.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
-       ORDER BY s.created_at DESC`,
+       ORDER BY s.id ASC`,
       [userId, userId]
     );
     return res.render('train_setup', {
