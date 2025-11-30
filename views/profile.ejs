@@ -2,180 +2,238 @@
   <h1>Mes informations</h1>
 
   <% if (message) { %>
-    <div class="alert alert-success"><%= message %></div>
-  <% } %>
-  <% if (pwdMessage) { %>
-    <div class="alert alert-success"><%= pwdMessage %></div>
-  <% } %>
-  <% if (error) { %>
-    <div class="alert alert-error"><%= error %></div>
-  <% } %>
+    <div class="alert alert-success">
+      <%= message %>
+    </div>
+    <% } %>
+      <% if (pwdMessage) { %>
+        <div class="alert alert-success">
+          <%= pwdMessage %>
+        </div>
+        <% } %>
+          <% if (error) { %>
+            <div class="alert alert-error">
+              <%= error %>
+            </div>
+            <% } %>
 
-  <form method="post" action="/profile/info" class="form">
-    <label>Prenom
-      <input type="text" name="first_name" value="<%= user ? user.first_name : '' %>" placeholder="David" required />
-    </label>
+              <form method="post" action="/profile/info" class="form">
+                <label>Prenom
+                  <input type="text" name="first_name" value="<%= user ? user.first_name : '' %>" placeholder="David"
+                    required />
+                </label>
 
-    <label>Nom
-      <input type="text" name="last_name" value="<%= user ? user.last_name : '' %>" placeholder="COHEN" />
-    </label>
+                <label>Nom
+                  <input type="text" name="last_name" value="<%= user ? user.last_name : '' %>" placeholder="COHEN" />
+                </label>
 
-    <label>Nom affiche
-      <input type="text" name="display_name" value="<%= user ? user.display_name : '' %>" placeholder="David COHEN" required />
-    </label>
+                <label>Nom affiche
+                  <input type="text" name="display_name" value="<%= user ? user.display_name : '' %>"
+                    placeholder="David COHEN" required />
+                </label>
 
-    <label>Email
-      <input type="email" name="email" value="<%= user ? user.email : '' %>" placeholder="david@hebrewlearn.fr" required />
-    </label>
+                <label>Email
+                  <input type="email" name="email" value="<%= user ? user.email : '' %>"
+                    placeholder="david@hebrewlearn.fr" required />
+                </label>
 
-    <label>Niveau
-      <select name="level" required>
-        <% (levels || []).forEach(lvl => { %>
-          <option value="<%= lvl %>" <%= user && user.level === lvl ? 'selected' : '' %>><%= lvl %></option>
-        <% }) %>
-      </select>
-    </label>
+                <label>Niveau
+                  <select name="level" required>
+                    <% (levels || []).forEach(lvl=> { %>
+                      <option value="<%= lvl %>" <%=user && user.level===lvl ? 'selected' : '' %>><%= lvl %>
+                      </option>
+                      <% }) %>
+                  </select>
+                </label>
 
-    <button type="submit" class="btn ghost">Mettre a jour</button>
+                <button type="submit" class="btn ghost">Mettre a jour</button>
+              </form>
+</section>
+
+<section class="card">
+  <h2>Color Theme</h2>
+  <form method="post" action="/profile/theme" class="form">
+    <div class="mode-grid">
+      <label class="check-row">
+        <input type="radio" name="theme" value="dark" <%=(!user.theme || user.theme==='dark' ) ? 'checked' : '' %>>
+        <span style="white-space: nowrap;">Dark Theme</span>
+      </label>
+      <label class="check-row">
+        <input type="radio" name="theme" value="light" <%=(user.theme==='light' ) ? 'checked' : '' %>>
+        <span style="white-space: nowrap;">Light Theme</span>
+      </label>
+    </div>
+    <button type="submit" class="btn ghost" style="margin-top:0.5rem;">Enregistrer le theme</button>
   </form>
 </section>
 
 <section class="card">
-  <h2>Mode de revision par defaut</h2>
+  <h2>Mode de révision par défaut</h2>
   <% if (prefMessage) { %>
-    <div class="alert alert-success"><%= prefMessage %></div>
-  <% } %>
-  <% if (prefError) { %>
-    <div class="alert alert-error"><%= prefError %></div>
-  <% } %>
-
-  <%
-    const defParams = defaultParams || {};
-    const defModes = Array.isArray(defParams.modes) ? defParams.modes : [defParams.modes || 'flashcards'];
-    const defThemes = new Set((defParams.theme_ids || []).map(v => String(v)));
-    const defSets = new Set((defParams.set_ids || []).map(v => String(v)));
-    const defRemaining = defParams.remaining === 'all' ? 'all' : String(defParams.remaining || 10);
-    const defRevMode = defParams.rev_mode || 'order';
-    const defPhonetic = typeof defParams.show_phonetic !== 'undefined' ? String(defParams.show_phonetic) : '1';
-    const defLevel = defParams.level_id ? String(defParams.level_id) : '';
-  %>
-  <p class="muted mini">Ces reglages seront pre-remplis dans la configuration de revision. Tu pourras toujours les modifier avant de lancer une session.</p>
-
-  <form method="post" action="/profile/revision-defaults" class="form" id="defaults-form">
-    <div class="field-block">
-      <div class="field-title">Modes de revision</div>
-      <div class="mode-grid">
-        <label class="check-row">
-          <input type="checkbox" name="modes[]" value="flashcards" <%= defModes.includes('flashcards') ? 'checked' : '' %>>
-          <span>Flashcards classique</span>
-        </label>
-        <label class="check-row">
-          <input type="checkbox" name="modes[]" value="flashcards_reverse" <%= defModes.includes('flashcards_reverse') ? 'checked' : '' %>>
-          <span>Flashcards reverse</span>
-        </label>
-        <label class="check-row">
-          <input type="checkbox" name="modes[]" value="written" <%= defModes.includes('written') ? 'checked' : '' %>>
-          <span>Revision par ecrit</span>
-        </label>
-      </div>
+    <div class="alert alert-success">
+      <%= prefMessage %>
     </div>
-
-    <div class="field-block">
-      <div class="field-title">Preselection des themes et listes</div>
-      <div class="theme-toggles inline">
-        <label class="check-row"><input type="checkbox" id="pref-toggle-public" <%= defThemes.size > 0 ? 'checked' : '' %>> <span>Themes en ligne</span></label>
-        <label class="check-row"><input type="checkbox" id="pref-toggle-lists" <%= defSets.size > 0 ? 'checked' : '' %>> <span>Mes listes</span></label>
-        <label class="check-row"><input type="checkbox" id="pref-toggle-shared" <%= defSets.size > 0 ? 'checked' : '' %>> <span>Listes partagees</span></label>
-      </div>
-      <div class="theme-groups">
-        <div class="theme-group" id="pref-public-group">
-          <p class="muted mini" style="margin:0 0 0.2rem;">Themes en ligne</p>
-          <% if (!trainThemes || trainThemes.filter(t => !t.user_id).length === 0) { %>
-            <p class="muted mini">Aucun theme en ligne disponible.</p>
-          <% } else { %>
-            <select id="pref-theme-select" name="theme_ids[]" multiple size="5">
-              <% trainThemes.forEach(t => { if (!t.user_id) { %>
-                <option value="<%= t.id %>" <%= defThemes.has(String(t.id)) ? 'selected' : '' %>><%= t.name %></option>
-              <% } }) %>
-            </select>
-          <% } %>
+    <% } %>
+      <% if (prefError) { %>
+        <div class="alert alert-error">
+          <%= prefError %>
         </div>
-        <div class="theme-group" id="pref-list-group">
-          <p class="muted mini" style="margin:0 0 0.2rem;">Mes Listes</p>
-          <% if (!trainSets || trainSets.length === 0) { %>
-            <p class="muted mini">Aucune liste pour le moment.</p>
-          <% } else { %>
-            <select id="pref-list-select" name="set_ids[]" multiple size="5">
-              <% trainSets.forEach(s => { %>
-                <option value="<%= s.id %>" <%= defSets.has(String(s.id)) ? 'selected' : '' %>><%= s.name %></option>
-              <% }) %>
-            </select>
-          <% } %>
-        </div>
-        <div class="theme-group" id="pref-shared-group">
-          <p class="muted mini" style="margin:0 0 0.2rem;">Listes partagees</p>
-          <% if (!trainSharedSets || trainSharedSets.length === 0) { %>
-            <p class="muted mini">Aucune liste partagee.</p>
-          <% } else { %>
-            <select id="pref-shared-select" name="set_ids[]" multiple size="5">
-              <% trainSharedSets.forEach(s => { %>
-                <option value="<%= s.id %>" <%= defSets.has(String(s.id)) ? 'selected' : '' %>><%= s.name %> (<%= s.owner_name %>)</option>
-              <% }) %>
-            </select>
-          <% } %>
-        </div>
-      </div>
-    </div>
+        <% } %>
 
-    <div class="field-block" id="pref-level-field" style="display:none;">
-      <label>Niveau
-        <select name="level_id" id="pref-level-select">
-          <option value="">(Tous les niveaux)</option>
-        </select>
-      </label>
-    </div>
+          <% const defParams=defaultParams || {}; const defModes=Array.isArray(defParams.modes) ? defParams.modes :
+            [defParams.modes || 'flashcards' ]; const defThemes=new Set((defParams.theme_ids || []).map(v=> String(v)));
+            const defSets = new Set((defParams.set_ids || []).map(v => String(v)));
+            const defRemaining = defParams.remaining === 'all' ? 'all' : String(defParams.remaining || 10);
+            const defRevMode = defParams.rev_mode || 'order';
+            const defPhonetic = typeof defParams.show_phonetic !== 'undefined' ? String(defParams.show_phonetic) : '1';
+            const defLevel = defParams.level_id ? String(defParams.level_id) : '';
+            %>
+            <p class="muted mini">Ces réglages seront pré-remplis dans la configuration de révision. Tu pourras toujours
+              les modifier avant de lancer une session.</p>
 
-    <div class="field-block">
-      <label>Nombre de mots
-        <select name="remaining" id="pref-remaining">
-          <option value="all" <%= defRemaining === 'all' ? 'selected' : '' %>>Tout le theme/liste</option>
-          <option value="5" <%= defRemaining === '5' ? 'selected' : '' %>>5</option>
-          <option value="10" <%= defRemaining === '10' ? 'selected' : '' %>>10</option>
-          <option value="15" <%= defRemaining === '15' ? 'selected' : '' %>>15</option>
-          <option value="20" <%= defRemaining === '20' ? 'selected' : '' %>>20</option>
-          <option value="50" <%= defRemaining === '50' ? 'selected' : '' %>>50</option>
-        </select>
-      </label>
-      <input type="hidden" name="total" value="<%= defRemaining %>">
-    </div>
+            <form method="post" action="/profile/revision-defaults" class="form" id="defaults-form"
+              data-levels="<%= JSON.stringify(trainLevels || []) %>"
+              data-default-params="<%= JSON.stringify(defaultParams || {}) %>">
+              <div class="field-block">
+                <div class="field-title">Modes de révision</div>
+                <div class="mode-grid">
+                  <label class="check-row">
+                    <input type="checkbox" name="modes[]" value="flashcards" <%=defModes.includes('flashcards')
+                      ? 'checked' : '' %>>
+                    <span>Flashcards classique</span>
+                  </label>
+                  <label class="check-row">
+                    <input type="checkbox" name="modes[]" value="flashcards_reverse"
+                      <%=defModes.includes('flashcards_reverse') ? 'checked' : '' %>>
+                    <span>Flashcards reverse</span>
+                  </label>
+                  <label class="check-row">
+                    <input type="checkbox" name="modes[]" value="written" <%=defModes.includes('written') ? 'checked'
+                      : '' %>>
+                    <span>Révision par écrit</span>
+                  </label>
+                </div>
+              </div>
 
-    <div class="field-block">
-      <label>Mode de revision
-        <select name="rev_mode">
-          <option value="order" <%= defRevMode === 'order' ? 'selected' : '' %>>Dans l'ordre</option>
-          <option value="random" <%= defRevMode === 'random' ? 'selected' : '' %>>Aleatoire</option>
-          <option value="favorites" <%= defRevMode === 'favorites' ? 'selected' : '' %>>Favoris</option>
-          <option value="new" <%= defRevMode === 'new' ? 'selected' : '' %>>Nouveaux mots</option>
-          <option value="weak" <%= defRevMode === 'weak' ? 'selected' : '' %>>Mots faibles / Non maitrises</option>
-        </select>
-      </label>
-      <fieldset class="check-row" style="margin-top:0.5rem;">
-        <legend style="margin-bottom:0.35rem;">Phonetique ?</legend>
-        <label class="check-row">
-          <input type="radio" name="show_phonetic" value="1" <%= defPhonetic !== '0' ? 'checked' : '' %>> <span>Oui</span>
-        </label>
-        <label class="check-row">
-          <input type="radio" name="show_phonetic" value="0" <%= defPhonetic === '0' ? 'checked' : '' %>> <span>Non</span>
-        </label>
-      </fieldset>
-    </div>
+              <div class="field-block">
+                <div class="field-title">Preselection des themes et listes</div>
+                <div class="theme-toggles inline">
+                  <label class="check-row"><input type="checkbox" id="pref-toggle-public" <%=defThemes.size> 0 ?
+                    'checked' : '' %>> <span>Themes en ligne</span></label>
+                  <label class="check-row"><input type="checkbox" id="pref-toggle-lists" <%=(trainSets || []).some(s=>
+                    defSets.has(String(s.id))) ? 'checked' : '' %>> <span>Mes listes</span></label>
+                  <label class="check-row"><input type="checkbox" id="pref-toggle-shared" <%=(trainSharedSets ||
+                      []).some(s=> defSets.has(String(s.id))) ? 'checked' : '' %>> <span>Listes partagees</span></label>
+                </div>
+                <div class="theme-groups">
+                  <div class="theme-group" id="pref-public-group">
+                    <p class="muted mini" style="margin:0 0 0.2rem;">Themes en ligne</p>
+                    <% if (!trainThemes || trainThemes.filter(t=> !t.user_id).length === 0) { %>
+                      <p class="muted mini">Aucun theme en ligne disponible.</p>
+                      <% } else { %>
+                        <select id="pref-theme-select" name="theme_ids[]" multiple size="5">
+                          <% trainThemes.forEach(t=> { if (!t.user_id) { %>
+                            <option value="<%= t.id %>" <%=defThemes.has(String(t.id)) ? 'selected' : '' %>><%= t.name
+                                %>
+                            </option>
+                            <% } }) %>
+                        </select>
+                        <% } %>
+                  </div>
+                  <div class="theme-group" id="pref-list-group">
+                    <p class="muted mini" style="margin:0 0 0.2rem;">Mes Listes</p>
+                    <% if (!trainSets || trainSets.length===0) { %>
+                      <p class="muted mini">Aucune liste pour le moment.</p>
+                      <% } else { %>
+                        <select id="pref-list-select" name="set_ids[]" multiple size="5">
+                          <% trainSets.forEach(s=> { %>
+                            <option value="<%= s.id %>" <%=defSets.has(String(s.id)) ? 'selected' : '' %>><%= s.name %>
+                            </option>
+                            <% }) %>
+                        </select>
+                        <% } %>
+                  </div>
+                  <div class="theme-group" id="pref-shared-group">
+                    <p class="muted mini" style="margin:0 0 0.2rem;">Listes partagees</p>
+                    <% if (!trainSharedSets || trainSharedSets.length===0) { %>
+                      <p class="muted mini">Aucune liste partagee.</p>
+                      <% } else { %>
+                        <select id="pref-shared-select" name="set_ids[]" multiple size="5">
+                          <% trainSharedSets.forEach(s=> { %>
+                            <option value="<%= s.id %>" <%=defSets.has(String(s.id)) ? 'selected' : '' %>><%= s.name %>
+                                (<%= s.owner_name %>)</option>
+                            <% }) %>
+                        </select>
+                        <% } %>
+                  </div>
+                </div>
+              </div>
 
-    <div class="mode-switch" style="justify-content:flex-start; gap:0.5rem;">
-      <button type="submit" class="btn">Enregistrer</button>
-      <button type="submit" form="defaults-reset" class="btn ghost">Reset par defaut</button>
-    </div>
-  </form>
-  <form id="defaults-reset" method="post" action="/profile/revision-defaults/reset"></form>
+              <div class="field-block" id="pref-level-field" style="display:none;">
+                <label>Niveau
+                  <select name="level_id" id="pref-level-select">
+                    <option value="">(Tous les niveaux)</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="field-block">
+                <div class="field-title">Nombre de mots</div>
+                <div class="mode-grid">
+                  <label class="check-row">
+                    <input type="radio" name="remaining_mode" value="all" id="pref-rm-all" <%=defRemaining==='all'
+                      ? 'checked' : '' %>>
+                    <span style="white-space: nowrap;">Tout le thème/liste</span>
+                  </label>
+                  <label class="check-row">
+                    <input type="radio" name="remaining_mode" value="custom" id="pref-rm-custom" <%=defRemaining
+                      !=='all' ? 'checked' : '' %>>
+                    <span style="white-space: nowrap;">Nombre défini</span>
+                  </label>
+                </div>
+                <div id="pref-slider-container" style="display:none; margin-top:0.5rem; padding-left:0.5rem;">
+                  <div style="display:flex; align-items:center; gap:0.75rem;">
+                    <input type="range" min="1" max="50" value="<%= defRemaining !== 'all' ? defRemaining : '10' %>"
+                      id="pref-remaining-slider" style="flex:1; cursor:pointer;">
+                    <span id="pref-slider-val" style="font-weight:700; min-width:1.5rem; text-align:right;">
+                      <%= defRemaining !=='all' ? defRemaining : '10' %>
+                    </span>
+                  </div>
+                </div>
+                <input type="hidden" name="remaining" id="pref-remaining-input" value="<%= defRemaining %>">
+                <input type="hidden" name="total" value="<%= defRemaining %>">
+              </div>
+
+              <div class="field-block">
+                <label>Mode de révision
+                  <select name="rev_mode">
+                    <option value="order" <%=defRevMode==='order' ? 'selected' : '' %>>Dans l'ordre</option>
+                    <option value="random" <%=defRevMode==='random' ? 'selected' : '' %>>Aleatoire</option>
+                    <option value="favorites" <%=defRevMode==='favorites' ? 'selected' : '' %>>Favoris</option>
+                    <option value="new" <%=defRevMode==='new' ? 'selected' : '' %>>Nouveaux mots</option>
+                    <option value="weak" <%=defRevMode==='weak' ? 'selected' : '' %>>Mots faibles / Non maitrises
+                    </option>
+                  </select>
+                </label>
+                <fieldset class="check-row" style="margin-top:0.5rem;">
+                  <legend style="margin-bottom:0.35rem;">Phonétique ?</legend>
+                  <label class="check-row">
+                    <input type="radio" name="show_phonetic" value="1" <%=defPhonetic !=='0' ? 'checked' : '' %>>
+                    <span>Oui</span>
+                  </label>
+                  <label class="check-row">
+                    <input type="radio" name="show_phonetic" value="0" <%=defPhonetic==='0' ? 'checked' : '' %>>
+                    <span>Non</span>
+                  </label>
+                </fieldset>
+              </div>
+
+              <div class="mode-switch" style="justify-content:flex-start; gap:0.5rem;">
+                <button type="submit" class="btn">Enregistrer</button>
+                <button type="submit" form="defaults-reset" class="btn ghost">Reset par défaut</button>
+              </div>
+            </form>
+            <form id="defaults-reset" method="post" action="/profile/revision-defaults/reset"></form>
 </section>
 
 <section class="card">
@@ -199,7 +257,8 @@
     </form>
     <br>
 
-    <form method="post" action="/profile/delete" onsubmit="return confirm('Voulez-vous vraiment supprimer votre compte ? Cette action est irreversible.');">
+    <form method="post" action="/profile/delete"
+      onsubmit="return confirm('Voulez-vous vraiment supprimer votre compte ? Cette action est irreversible.');">
       <label>Mot de passe (confirmation)
         <input type="password" name="password" required />
       </label>
@@ -211,12 +270,16 @@
 
 <script>
   (() => {
-    const levelsData = <%- JSON.stringify(trainLevels || []) %>;
-    const defaultParamsData = <%- JSON.stringify(defaultParams || {}) %>;
+    const defaultsForm = document.getElementById('defaults-form');
+    if (!defaultsForm) return;
+
+    const levelsData = JSON.parse(defaultsForm.dataset.levels || '[]');
+    const defaultParamsData = JSON.parse(defaultsForm.dataset.defaultParams || '{}');
     const preselectedThemes = (defaultParamsData.theme_ids || []).map(v => String(v));
     const preselectedSets = (defaultParamsData.set_ids || []).map(v => String(v));
     const preselectedLevel = defaultParamsData.level_id ? String(defaultParamsData.level_id) : '';
     const selectedRemaining = defaultParamsData.remaining === 'all' ? 'all' : String(defaultParamsData.remaining || '10');
+
     const levelSelect = document.getElementById('pref-level-select');
     const levelField = document.getElementById('pref-level-field');
     const publicGroup = document.getElementById('pref-public-group');
@@ -228,15 +291,20 @@
     const themeSelect = document.getElementById('pref-theme-select');
     const listSelect = document.getElementById('pref-list-select');
     const sharedSelect = document.getElementById('pref-shared-select');
-    const remainingSelect = document.getElementById('pref-remaining');
-    const defaultsForm = document.getElementById('defaults-form');
+
+    const remainingInput = document.getElementById('pref-remaining-input');
+    const rmAll = document.getElementById('pref-rm-all');
+    const rmCustom = document.getElementById('pref-rm-custom');
+    const sliderContainer = document.getElementById('pref-slider-container');
+    const slider = document.getElementById('pref-remaining-slider');
+    const sliderVal = document.getElementById('pref-slider-val');
 
     const renderLevels = () => {
       const checkedThemes = themeSelect
         ? Array.from(themeSelect.selectedOptions || []).map(o => o.value).filter(Boolean)
         : [];
       if (levelSelect) {
-        levelSelect.innerHTML = '<option value=\"\">(Tous les niveaux)</option>';
+        levelSelect.innerHTML = '<option value="">(Tous les niveaux)</option>';
       }
       if (!levelSelect || checkedThemes.length !== 1) {
         if (levelField) levelField.style.display = 'none';
@@ -278,42 +346,80 @@
       renderLevels();
     };
 
-    if (themeSelect && preselectedThemes.length > 0) {
-      preselectedThemes.forEach(val => {
-        const opt = themeSelect.querySelector(`option[value=\"${val}\"]`);
-        if (opt) opt.selected = true;
+    const updateSliderFill = () => {
+      if (!slider) return;
+      const min = slider.min || 1;
+      const max = slider.max || 50;
+      const val = slider.value;
+      const percentage = ((val - min) / (max - min)) * 100;
+      slider.style.setProperty('--slider-fill', `${percentage}%`);
+    };
+
+    const updateRemainingUI = () => {
+      if (rmAll && rmAll.checked) {
+        if (sliderContainer) sliderContainer.style.display = 'none';
+        if (remainingInput) remainingInput.value = 'all';
+      } else {
+        if (sliderContainer) sliderContainer.style.display = 'block';
+        if (remainingInput && slider) remainingInput.value = slider.value;
+        updateSliderFill();
+      }
+    };
+
+    // Event Listeners
+    if (rmAll) {
+      rmAll.addEventListener('change', updateRemainingUI);
+      rmAll.addEventListener('click', updateRemainingUI);
+    }
+    if (rmCustom) {
+      rmCustom.addEventListener('change', updateRemainingUI);
+      rmCustom.addEventListener('click', updateRemainingUI);
+    }
+    if (slider) {
+      slider.addEventListener('input', () => {
+        if (sliderVal) sliderVal.textContent = slider.value;
+        if (remainingInput) remainingInput.value = slider.value;
+        updateSliderFill();
       });
     }
-    if (listSelect && preselectedSets.length > 0) {
-      preselectedSets.forEach(val => {
-        const opt = listSelect.querySelector(`option[value=\"${val}\"]`);
-        if (opt) opt.selected = true;
-      });
-    }
-    if (sharedSelect && preselectedSets.length > 0) {
-      preselectedSets.forEach(val => {
-        const opt = sharedSelect.querySelector(`option[value=\"${val}\"]`);
-        if (opt) opt.selected = true;
-      });
-    }
-    renderLevels();
-    if (levelSelect && preselectedLevel) {
-      levelSelect.value = preselectedLevel;
-      if (levelSelect.value) levelField.style.display = 'block';
-    }
-    if (remainingSelect && selectedRemaining) {
-      remainingSelect.value = selectedRemaining;
-    }
-    updateGroups();
 
     if (themeSelect) themeSelect.addEventListener('change', renderLevels);
     if (togglePublic) togglePublic.addEventListener('change', updateGroups);
     if (toggleLists) toggleLists.addEventListener('change', updateGroups);
     if (toggleShared) toggleShared.addEventListener('change', updateGroups);
 
+    // Initialization
+    if (themeSelect && preselectedThemes.length > 0) {
+      preselectedThemes.forEach(val => {
+        const opt = themeSelect.querySelector(`option[value="${val}"]`);
+        if (opt) opt.selected = true;
+      });
+    }
+    if (listSelect && preselectedSets.length > 0) {
+      preselectedSets.forEach(val => {
+        const opt = listSelect.querySelector(`option[value="${val}"]`);
+        if (opt) opt.selected = true;
+      });
+    }
+    if (sharedSelect && preselectedSets.length > 0) {
+      preselectedSets.forEach(val => {
+        const opt = sharedSelect.querySelector(`option[value="${val}"]`);
+        if (opt) opt.selected = true;
+      });
+    }
+
+    updateGroups(); // Set initial visibility of groups
+
+    if (levelSelect && preselectedLevel) {
+      levelSelect.value = preselectedLevel;
+      if (levelSelect.value && levelField) levelField.style.display = 'block';
+    }
+
+    updateRemainingUI(); // Set initial visibility of slider
+
     if (defaultsForm) {
       defaultsForm.addEventListener('submit', () => {
-        const modeInputs = Array.from(defaultsForm.querySelectorAll('input[name=\"modes[]\"]'));
+        const modeInputs = Array.from(defaultsForm.querySelectorAll('input[name="modes[]"]'));
         const anyChecked = modeInputs.some(i => i.checked);
         if (!anyChecked && modeInputs[0]) modeInputs[0].checked = true;
       });

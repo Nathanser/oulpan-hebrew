@@ -7,7 +7,7 @@
   <form class="form" method="get" action="/admin/words" style="margin-bottom:1rem;">
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;">
       <label>Recherche
-        <input type="text" name="search" value="<%= filters && filters.search ? filters.search : '' %>" placeholder="francais / hebreu / transliteration" />
+        <input type="text" name="search" value="<%= filters && filters.search ? filters.search : '' %>" placeholder="français / hébreu / transliteration" />
       </label>
       <label>Theme
         <select name="theme_id">
@@ -44,7 +44,7 @@
         <select name="sort">
           <option value="created_asc" <%= !filters || !filters.sort || filters.sort === 'created_asc' ? 'selected' : '' %>>Creation (plus anciens)</option>
           <option value="recent" <%= filters && filters.sort === 'recent' ? 'selected' : '' %>>Plus recent</option>
-          <option value="french" <%= filters && filters.sort === 'french' ? 'selected' : '' %>>Francais</option>
+          <option value="french" <%= filters && filters.sort === 'french' ? 'selected' : '' %>>Français</option>
           <option value="difficulty" <%= filters && filters.sort === 'difficulty' ? 'selected' : '' %>>Difficulte</option>
         </select>
       </label>
@@ -59,8 +59,8 @@
     <thead>
       <tr>
         <th>#</th>
-        <th>Francais</th>
-        <th>Hebreu</th>
+        <th>Français</th>
+        <th>Hébreu</th>
         <th>Translitteration</th>
         <th>Theme</th>
         <th>Niveau</th>

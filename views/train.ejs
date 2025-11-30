@@ -1,119 +1,134 @@
-<% 
-  const f = filters || {};
-  const themeIdsString = (f.theme_ids || []).join(',');
-  const setIdsString = (f.set_ids || []).join(',');
-  const isAll = total === 'all' || remaining === 'all';
-  const remainingCount = isAll ? 'all' : (typeof remaining !== 'undefined' ? Number(remaining) : 10);
-  const totalCount = isAll ? 'all' : (typeof total !== 'undefined' ? Number(total) : remainingCount);
-  const answeredCount = typeof answered !== 'undefined'
-    ? Number(answered)
-    : (isAll ? 0 : (totalCount - remainingCount + (word ? 1 : 0)));
-  const correctCount = typeof correct !== 'undefined' ? Number(correct) : 0;
-  const currentStep = isAll
-    ? (answeredCount + (word ? 1 : 0))
-    : (totalCount - remainingCount + (word ? 1 : 0));
-  const totalLabel = isAll ? 'tout' : totalCount;
-  const selectedModes = Array.isArray(modes) ? modes : (modes ? [modes] : []);
-  const qMode = typeof questionMode !== 'undefined' ? questionMode : mode;
-  const isFlashcard = qMode === 'flashcards' || qMode === 'flashcards_reverse';
-  const isReverse = qMode === 'flashcards_reverse';
-  const isWritten = qMode === 'written';
-  const showPhonetic = !(filters && (filters.show_phonetic === 0 || filters.show_phonetic === '0' || String(filters.show_phonetic).toLowerCase() === 'false'));
-  const modeLabels = {
-    flashcards: 'Flashcards classique',
-    flashcards_reverse: 'Flashcards reverse',
-    written: 'Revision par ecrit'
-  };
-  const baseLabel = selectedModes.length > 0 ? selectedModes.map(m => modeLabels[m] || 'Revision').join(' + ') : (modeLabels[mode] || 'Revision');
+<% const f=filters || {}; const themeIdsString=(f.theme_ids || []).join(','); const setIdsString=(f.set_ids ||
+  []).join(','); const isAll=total==='all' || remaining==='all' ; const remainingCount=isAll ? 'all' : (typeof remaining
+  !=='undefined' ? Number(remaining) : 10); const totalCount=isAll ? 'all' : (typeof total !=='undefined' ?
+  Number(total) : remainingCount); const answeredCount=typeof answered !=='undefined' ? Number(answered) : (isAll ? 0 :
+  (totalCount - remainingCount + (word ? 1 : 0))); const correctCount=typeof correct !=='undefined' ? Number(correct) :
+  0; const currentStep=isAll ? (answeredCount + (word ? 1 : 0)) : (totalCount - remainingCount + (word ? 1 : 0)); const
+  totalLabel=isAll ? 'tout' : totalCount; const selectedModes=Array.isArray(modes) ? modes : (modes ? [modes] : []);
+  const qMode=typeof questionMode !=='undefined' ? questionMode : mode; const isFlashcard=qMode==='flashcards' ||
+  qMode==='flashcards_reverse' ; const isReverse=qMode==='flashcards_reverse' ; const isWritten=qMode==='written' ;
+  const showPhonetic=!(filters && (filters.show_phonetic===0 || filters.show_phonetic==='0' ||
+  String(filters.show_phonetic).toLowerCase()==='false' )); const modeLabels={ flashcards: 'Flashcards classique' ,
+  flashcards_reverse: 'Flashcards reverse' , written: 'Révision par écrit' }; const baseLabel=selectedModes.length> 0 ?
+  selectedModes.map(m => modeLabels[m] || 'Révision').join(' + ') : (modeLabels[mode] || 'Révision');
   const questionLabel = modeLabels[qMode] || baseLabel;
-%>
+  %>
 
-<section class="card session-card">
-  <div class="session-top">
-    <a class="icon-btn" href="/train/setup">&#8592;</a>
-    <div class="session-progress">
-      <span><%= currentStep %>/<%= totalLabel %></span>
-      <span class="pill"><%= questionLabel %></span>
+  <section class="card session-card">
+    <div class="session-top">
+      <a class="icon-btn" href="/train/setup">&#8592;</a>
+      <div class="session-progress">
+        <span>
+          <%= currentStep %>/<%= totalLabel %>
+        </span>
+        <span class="pill">
+          <%= questionLabel %>
+        </span>
+      </div>
+      <a class="icon-btn" href="/train/setup?current=1">&#9881;</a>
     </div>
-    <a class="icon-btn" href="/train/setup?current=1">&#9881;</a>
-  </div>
 
-  <% if (word && (!f.source || f.source !== 'cards')) { %>
-    <form method="post" action="/favorites/<%= word.id %>" class="fav-form">
-      <input type="hidden" name="redirectTo" value="/train">
-      <button type="submit" class="icon-btn ghost">&#9829;</button>
-    </form>
-  <% } %>
-
-  <% if (message) { %>
-    <p><%= message %></p>
-  <% } %>
-
-  <% if (word && isWritten) { %>
-    <div class="quiz">
-      <p class="quiz-label">Traduire en francais :</p>
-      <p class="quiz-word"><%= word.hebrew %></p>
-      <% if (showPhonetic && word.transliteration) { %>
-        <p class="flashcard-sub"><%= word.transliteration %></p>
-      <% } %>
-
-      <form method="post" action="/train/answer" class="form">
-        <input type="hidden" name="word_id" value="<%= word.id %>" />
-        <input type="hidden" name="question_mode" value="<%= qMode %>" />
-        <label>Votre reponse (francais)
-          <input type="text" name="user_answer" autocomplete="off" required />
-        </label>
-        <button type="submit">Valider</button>
+    <% if (word && (!f.source || f.source !=='cards' )) { %>
+      <form method="post" action="/favorites/<%= word.id %>" class="fav-form">
+        <input type="hidden" name="redirectTo" value="/train">
+        <button type="submit" class="icon-btn ghost">&#9829;</button>
       </form>
-    </div>
-  <% } %>
-
-  <% if (word && isFlashcard) { %>
-    <div class="flashcard" id="flashcard">
-      <p class="flashcard-label"><%= isReverse ? 'Francais' : 'Hebreu' %></p>
-      <p class="flashcard-word"><%= isReverse ? word.french : word.hebrew %></p>
-      <% if (!isReverse && showPhonetic && word.transliteration) { %>
-        <p class="flashcard-sub"><%= word.transliteration %></p>
       <% } %>
-      <p class="flashcard-hint"><%= isReverse ? 'Choisis la bonne traduction en hebreu' : 'Choisis la bonne traduction en francais' %></p>
-    </div>
 
-    <form method="post" action="/train/flashcards" class="flashcard-options">
-      <input type="hidden" name="word_id" value="<%= word.id %>" />
-      <input type="hidden" name="question_mode" value="<%= qMode %>" />
-      <div class="options-grid">
-        <% (options || []).forEach(opt => { %>
-          <button type="submit" name="choice_word_id" value="<%= opt.id %>" class="option-btn"><%= opt.label || opt.french || opt.hebrew %></button>
-        <% }) %>
-      </div>
-    </form>
-  <% } %>
+        <% if (message) { %>
+          <p>
+            <%= message %>
+          </p>
+          <% } %>
 
-  <% if (result) { %>
-    <div class="result <%= result.isCorrect ? 'success' : 'error' %>">
-      <% if (result.isCorrect) { %>
-        <p>Bonne reponse !</p>
-      <% } else { %>
-        <p>Mauvaise reponse.</p>
-      <% } %>
-      <p>Hebreu : <strong><%= result.hebrew %></strong></p>
-      <% if (!isReverse && showPhonetic && result.transliteration) { %>
-        <p>Transliteration : <%= result.transliteration %></p>
-      <% } %>
-      <p>Francais : <strong><%= result.french %></strong></p>
-    </div>
-    <% if (nextUrl) { %>
-      <a class="btn" href="<%= nextUrl %>">Suivant</a>
-    <% } else { %>
-      <div class="result success">
-        <p>Session terminee.</p>
-        <p>Score : <strong><%= correctCount %>/<%= totalLabel %></strong></p>
-      </div>
-    <% } %>
-  <% } %>
+            <% if (word && isWritten) { %>
+              <div class="quiz">
+                <p class="quiz-label">Traduire en français :</p>
+                <p class="quiz-word">
+                  <%= word.hebrew %>
+                </p>
+                <% if (showPhonetic && word.transliteration) { %>
+                  <p class="flashcard-sub">
+                    <%= word.transliteration %>
+                  </p>
+                  <% } %>
 
-  <% if (!word && !result && !message) { %>
-    <p>Aucun mot a reviser avec ces parametres.</p>
-  <% } %>
-</section>
+                    <form method="post" action="/train/answer" class="form">
+                      <input type="hidden" name="word_id" value="<%= word.id %>" />
+                      <input type="hidden" name="question_mode" value="<%= qMode %>" />
+                      <label>Votre réponse (français)
+                        <input type="text" name="user_answer" autocomplete="off" required />
+                      </label>
+                      <button type="submit">Valider</button>
+                    </form>
+              </div>
+              <% } %>
 
+                <% if (word && isFlashcard) { %>
+                  <div class="flashcard" id="flashcard">
+                    <p class="flashcard-label">
+                      <%= isReverse ? 'Français' : 'Hébreu' %>
+                    </p>
+                    <p class="flashcard-word">
+                      <%= isReverse ? word.french : word.hebrew %>
+                    </p>
+                    <% if (!isReverse && showPhonetic && word.transliteration) { %>
+                      <p class="flashcard-sub">
+                        <%= word.transliteration %>
+                      </p>
+                      <% } %>
+                        <p class="flashcard-hint">
+                          <%= isReverse ? 'Choisis la bonne traduction en hébreu'
+                            : 'Choisis la bonne traduction en français' %>
+                        </p>
+                  </div>
+
+                  <form method="post" action="/train/flashcards" class="flashcard-options">
+                    <input type="hidden" name="word_id" value="<%= word.id %>" />
+                    <input type="hidden" name="question_mode" value="<%= qMode %>" />
+                    <div class="options-grid">
+                      <% (options || []).forEach(opt=> { %>
+                        <button type="submit" name="choice_word_id" value="<%= opt.id %>" class="option-btn">
+                          <%= opt.label || opt.french || opt.hebrew %>
+                        </button>
+                        <% }) %>
+                    </div>
+                  </form>
+                  <% } %>
+
+                    <% if (result) { %>
+                      <div class="result <%= result.isCorrect ? 'success' : 'error' %>">
+                        <% if (result.isCorrect) { %>
+                          <p>Bonne réponse !</p>
+                          <% } else { %>
+                            <p>Mauvaise réponse.</p>
+                            <% } %>
+                              <p>Hébreu : <strong>
+                                  <%= result.hebrew %>
+                                </strong></p>
+                              <% if (!isReverse && showPhonetic && result.transliteration) { %>
+                                <p>Phonétique : <strong>
+                                    <%= result.transliteration %>
+                                  </strong></p>
+                                <% } %>
+                                  <p>Français : <strong>
+                                      <%= result.french %>
+                                    </strong></p>
+                      </div>
+                      <br>
+                      <% if (nextUrl) { %>
+                        <a class="btn" href="<%= nextUrl %>">Suivant</a>
+                        <% } else { %>
+                          <div class="result success">
+                            <p>Session terminée.</p>
+                            <p>Score : <strong>
+                                <%= correctCount %>/<%= totalLabel %>
+                              </strong></p>
+                          </div>
+                          <% } %>
+                            <% } %>
+
+                              <% if (!word && !result && !message) { %>
+                                <p>Aucun mot à réviser avec ces paramètres.</p>
+                                <% } %>
+  </section>

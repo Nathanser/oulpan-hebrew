@@ -4,7 +4,7 @@
       <h1>Themes par defaut</h1>
     </div>
     <div class="list-actions">
-      <a class="btn" href="/admin/themes/new">Creer un theme par defaut</a>
+      <a class="btn" href="/admin/themes/new">Créer un thème par défaut</a>
     </div>
   </div>
 
@@ -22,7 +22,7 @@
   <% if (!themes || themes.length === 0) { %>
     <div class="card set-list-empty">
       <p>Pas encore de themes par defaut.</p>
-      <a class="btn" href="/admin/themes/new">Creer un theme</a>
+      <a class="btn" href="/admin/themes/new">Créer un thème</a>
     </div>
   <% } else { %>
     <div class="grid set-list-grid">
@@ -32,7 +32,7 @@
             <div>
               <h3><%= theme.name %></h3>
               <p class="muted"><%= theme.word_count || 0 %> mot<%= Number(theme.word_count) > 1 ? 's' : '' %></p>
-              <p class="muted mini">Cree le <%= theme.created_at ? new Date(theme.created_at).toLocaleDateString('fr-FR') : '-' %></p>
+              <p class="muted mini">Créé le <%= theme.created_at ? new Date(theme.created_at).toLocaleDateString('fr-FR') : '-' %></p>
               <div class="pill-row" style="margin-top:0.35rem;">
                 <span class="pill <%= theme.active ? 'success' : 'muted' %>"><%= theme.active ? 'Actif' : 'Inactif' %></span>
               </div>
@@ -47,7 +47,7 @@
                 </a>
                 <form action="/admin/themes/<%= theme.id %>/toggle" method="post">
                   <button type="submit" class="menu-item">
-                    <span><%= theme.active ? 'Desactiver' : 'Activer' %></span>
+                    <span><%= theme.active ? 'Désactiver' : 'Activer' %></span>
                     <span class="menu-icon"><%= theme.active ? 'Off' : 'On' %></span>
                   </button>
                 </form>

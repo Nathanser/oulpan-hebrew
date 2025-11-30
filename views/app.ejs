@@ -21,7 +21,7 @@
         <div class="list">
           <div class="list-header" style="margin-bottom:0.5rem;">
             <div>
-              <% const modeLabels = { flashcards: 'Flashcards classique', flashcards_reverse: 'Flashcards reverse', written: 'Revision par ecrit' }; %>
+              <% const modeLabels = { flashcards: 'Flashcards classique', flashcards_reverse: 'Flashcards reverse', written: 'Révision par écrit' }; %>
               <% const displayModes = (ongoing.modes && ongoing.modes.length ? ongoing.modes : [ongoing.mode || 'flashcards']).map(m => modeLabels[m] || 'Flashcards').join(' + '); %>
               <p class="muted mini">Mode : <%= displayModes %></p>
               <p class="muted mini">Progression : <%= Number(ongoing.answered || 0) %>/<%= ongoing.total === 'all' ? 'total' : ongoing.total %></p>

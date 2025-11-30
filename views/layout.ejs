@@ -1,18 +1,22 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title><%= typeof title !== 'undefined' ? title : 'Hebrew Learn' %></title>
+  <title>
+    <%= typeof title !=='undefined' ? title : 'Hebrew Learn' %>
+  </title>
   <link rel="stylesheet" href="/style.css" />
 </head>
-<body>
+
+<body class="<%= (currentUser && currentUser.theme === 'light') ? 'light-theme' : '' %>">
   <div class="layout-shell">
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-top">
         <div class="logo">Hebrew Learn</div>
         <div class="top-icons">
-          <a class="icon-btn link" href="/train/setup" title="Rechercher / réviser">&#128269;</a>
+          <button class="icon-btn" id="theme-switcher" title="Changer de thème"></button>
           <button class="burger" id="burger" aria-label="Menu">&#9776;</button>
         </div>
       </div>
@@ -33,21 +37,21 @@
           <div class="nav-section">
             <a class="nav-item" href="/profile">&#128100; Profil</a>
             <a class="nav-item" href="/import">&#128229; Import / Export</a>
-            <% if (currentUser.role === 'admin') { %>
+            <% if (currentUser.role==='admin' ) { %>
               <a class="nav-item" href="/admin">&#9881; Admin</a>
-            <% } %>
+              <% } %>
           </div>
           <div class="nav-section">
             <form action="/logout" method="post" style="display:block;">
               <button type="submit" class="nav-item nav-button">&#128682; Déconnexion</button>
             </form>
           </div>
-        <% } else { %>
-          <div class="nav-section">
-            <a class="nav-item" href="/login">&#128272; Connexion</a>
-            <a class="nav-item" href="/register">&#10133; Inscription</a>
-          </div>
-        <% } %>
+          <% } else { %>
+            <div class="nav-section">
+              <a class="nav-item" href="/login">&#128272; Connexion</a>
+              <a class="nav-item" href="/register">&#10133; Inscription</a>
+            </div>
+            <% } %>
       </nav>
     </aside>
 
@@ -61,7 +65,7 @@
         <%- body %>
       </main>
       <footer class="footer">
-        <p>Projet d'apprentissage de l'hebreu</p>
+        <p>Projet d'apprentissage de l'hébreu</p>
       </footer>
     </div>
   </div>
@@ -78,6 +82,56 @@
       if (burger && sidebar) {
         burger.addEventListener('click', () => {
           sidebar.classList.toggle('open');
+        });
+      }
+
+      document.addEventListener('click', (e) => {
+        if (sidebar && sidebar.classList.contains('open')) {
+          const isClickInsideSidebar = sidebar.contains(e.target);
+          const isClickOnMobileBurger = mobileBurger && (mobileBurger.contains(e.target) || e.target === mobileBurger);
+
+          if (!isClickInsideSidebar && !isClickOnMobileBurger) {
+            sidebar.classList.remove('open');
+          }
+        }
+      });
+
+      // Theme switcher
+      const themeSwitcher = document.getElementById('theme-switcher');
+      const body = document.body;
+      const sunIcon = '&#9728;&#65039;';
+      const moonIcon = '&#127769;';
+
+      const applyTheme = (theme) => {
+        if (theme === 'light') {
+          body.classList.add('light-theme');
+          if (themeSwitcher) {
+            themeSwitcher.innerHTML = moonIcon;
+            themeSwitcher.title = 'Passer au thème sombre';
+          }
+        } else {
+          body.classList.remove('light-theme');
+          if (themeSwitcher) {
+            themeSwitcher.innerHTML = sunIcon;
+            themeSwitcher.title = 'Passer au thème clair';
+          }
+        }
+      };
+
+      const serverTheme = "<%= currentUser ? (currentUser.theme || 'dark') : '' %>";
+      let savedTheme = localStorage.getItem('theme') || 'dark';
+      if (serverTheme) {
+        savedTheme = serverTheme;
+        localStorage.setItem('theme', savedTheme);
+      }
+      applyTheme(savedTheme);
+
+      if (themeSwitcher) {
+        themeSwitcher.addEventListener('click', () => {
+          const currentTheme = body.classList.contains('light-theme') ? 'light' : 'dark';
+          const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+          localStorage.setItem('theme', newTheme);
+          applyTheme(newTheme);
         });
       }
 
@@ -98,4 +152,5 @@
     })();
   </script>
 </body>
+
 </html>

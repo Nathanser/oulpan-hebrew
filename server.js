@@ -51,8 +51,8 @@ const DEFAULT_TRAIN_PARAMS = {
   set_ids: [],
   level_id: '',
   scope: 'all',
-  remaining: 10,
-  total: 10
+  remaining: 'all',
+  total: 'all'
 };
 
 function normalizeMode(raw) {
@@ -85,9 +85,9 @@ function modeLabel(mode) {
     case MODE_FLASHCARDS_REVERSE:
       return 'Flashcards reverse';
     case MODE_WRITTEN:
-      return 'Revision par ecrit';
+      return 'Révision par écrit';
     default:
-      return 'Revision';
+      return 'Révision';
   }
 }
 
@@ -388,7 +388,9 @@ function normalizeTrainParams(raw = {}) {
   params.level_id = raw.level_id ? Number(raw.level_id) : '';
   params.scope = raw.scope || params.scope;
 
-  const remainingVal = raw.remaining === 'all' ? 'all' : Number(raw.remaining || params.remaining);
+  let remainingVal = raw.remaining === 'all' ? 'all' : Number(raw.remaining || params.remaining);
+  if (remainingVal === 10) remainingVal = 'all'; // Legacy default migration
+
   params.remaining =
     remainingVal === 'all'
       ? 'all'
@@ -660,7 +662,8 @@ async function reloadUser(req, res) {
     first_name: fresh.first_name,
     last_name: fresh.last_name,
     level: fresh.level || 'Debutant',
-    role: fresh.role
+    role: fresh.role,
+    theme: fresh.theme || 'dark'
   };
   req.session.user = normalized;
   res.locals.currentUser = normalized;
@@ -734,7 +737,7 @@ async function requireAuth(req, res, next) {
   try {
     const updated = await reloadUser(req, res);
     if (!updated) {
-      req.session.destroy(() => {});
+      req.session.destroy(() => { });
       return res.redirect('/login');
     }
     next();
@@ -1079,7 +1082,7 @@ app.post('/profile/info', requireAuth, async (req, res) => {
   try {
     const existing = await get('SELECT id FROM users WHERE email = ? AND id <> ?', [email, userId]);
     if (existing) {
-      return res.redirect('/profile?err=Email deja utilise');
+      return res.redirect('/profile?err=Email déjà utilisé');
     }
     await run(
       'UPDATE users SET first_name = ?, last_name = ?, display_name = ?, email = ?, level = ? WHERE id = ?',
@@ -1097,6 +1100,19 @@ app.post('/profile/info', requireAuth, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.redirect('/profile?err=Erreur de mise a jour');
+  }
+});
+
+app.post('/profile/theme', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const theme = req.body.theme === 'light' ? 'light' : 'dark';
+  try {
+    await run('UPDATE users SET theme = ? WHERE id = ?', [theme, userId]);
+    req.session.user.theme = theme;
+    res.redirect('/profile?msg=Theme mis a jour');
+  } catch (e) {
+    console.error(e);
+    res.redirect('/profile?err=Erreur de mise a jour du theme');
   }
 });
 
@@ -1130,10 +1146,10 @@ app.post('/profile/revision-defaults', requireAuth, async (req, res) => {
   try {
     const filtered = await filterTrainParamsForUser(userId, params);
     await saveUserTrainDefaults(userId, filtered);
-    return res.redirect('/profile?pref=' + encodeURIComponent('Parametres enregistres'));
+    return res.redirect('/profile?pref=' + encodeURIComponent('Paramètres enregistrés'));
   } catch (e) {
     console.error(e);
-    return res.redirect('/profile?preferr=' + encodeURIComponent('Impossible de sauver les parametres'));
+    return res.redirect('/profile?preferr=' + encodeURIComponent('Impossible de sauver les paramètres'));
   }
 });
 
@@ -1141,7 +1157,7 @@ app.post('/profile/revision-defaults/reset', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   try {
     await clearUserTrainDefaults(userId);
-    return res.redirect('/profile?pref=' + encodeURIComponent('Parametres remis par defaut'));
+    return res.redirect('/profile?pref=' + encodeURIComponent('Paramètres remis par défaut'));
   } catch (e) {
     console.error(e);
     return res.redirect('/profile?preferr=' + encodeURIComponent('Impossible de reinitialiser'));
@@ -1400,7 +1416,7 @@ app.get('/my/words', requireAuth, async (req, res) => {
        LEFT JOIN favorites f ON f.word_id = w.id AND f.user_id = ?
         WHERE w.user_id = ?
        ORDER BY w.id ASC`,
-     [userId, userId]
+      [userId, userId]
     );
     const favorites = await all(
       `SELECT w.*, t.name AS theme_name, l.name AS level_name, f.id AS fav_id
@@ -1479,13 +1495,13 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
       const card = await get('SELECT * FROM cards WHERE id = ?', [cardId]);
       if (!card) return res.redirect('/train');
       const isCorrect = String(chosenId) === String(cardId);
-    if (isCorrect) correctCount += 1;
-    await upsertCardProgress(userId, cardId, isCorrect);
-    if (remainingCount > 0) {
+      if (isCorrect) correctCount += 1;
+      await upsertCardProgress(userId, cardId, isCorrect);
+      if (remainingCount > 0) {
         req.session.trainState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount, modes: modeList, replay: null };
-    } else {
-      delete req.session.trainState;
-    }
+      } else {
+        delete req.session.trainState;
+      }
       const result = {
         isCorrect,
         hebrew: card.hebrew,
@@ -1553,7 +1569,7 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
       message: 'Erreur serveur.',
       result: null,
       mode: modeList[0] || activeMode,
-        modes: modeList,
+      modes: modeList,
       questionMode: activeMode,
       filters,
       options: null,
@@ -2083,7 +2099,7 @@ app.put('/my/lists/:id/cards/:cardId', requireAuth, async (req, res) => {
         set,
         card: { ...card, hebrew, french, transliteration, active: active ? 1 : 0, favorite: favorite ? 1 : 0, memorized: memorized ? 1 : 0 },
         action: `/my/lists/${set.id}/cards/${card.id}?_method=PUT`,
-        error: 'Hebreu et franÃ§ais sont obligatoires.'
+        error: 'Hébreu et français sont obligatoires.'
       });
     }
     await run(
@@ -2208,7 +2224,7 @@ app.post('/my/lists', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   const { name } = req.body;
   const cards = normalizeCardsPayload(req.body.cards);
-    const title = name ? name.trim() : '';
+  const title = name ? name.trim() : '';
   if (!title) {
     return res.render('my_list_form', {
       set: null,
@@ -2238,7 +2254,7 @@ app.post('/my/lists', requireAuth, async (req, res) => {
       set: null,
       cards,
       action: '/my/lists',
-      error: 'Impossible de creer la liste pour le moment.'
+      error: 'Impossible de créer la liste pour le moment.'
     });
   }
 });
@@ -2389,6 +2405,119 @@ app.post('/my/lists/:id/cards/:cardId/action', requireAuth, async (req, res) => 
     console.error(e);
   }
   res.redirect(backUrl);
+});
+
+app.post('/my/lists/:id/cards/bulk-status', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const setId = Number(req.params.id);
+  const desired = req.body.mode === 'activate' ? 1 : req.body.mode === 'deactivate' ? 0 : null;
+  const cardIds = normalizeIds(req.body.card_ids);
+  const fallback = `/my/lists/${setId}`;
+  const backUrl = req.body.redirectTo || req.get('referer') || fallback;
+  if (desired === null || cardIds.length === 0) return res.redirect(backUrl);
+  try {
+    const set = await get('SELECT * FROM sets WHERE id = ?', [setId]);
+    if (!set) return res.redirect('/my/lists');
+    const shared = await get('SELECT can_edit FROM set_shares WHERE set_id = ? AND user_id = ?', [set.id, userId]);
+    const isOwner = set.user_id === userId;
+    const isCollaborator = shared && Number(shared.can_edit) === 1;
+    if (!isOwner && !shared) return res.redirect(backUrl);
+
+    const placeholders = cardIds.map(() => '?').join(',');
+    const cards = await all(
+      `SELECT id, active, favorite, memorized FROM cards WHERE id IN (${placeholders}) AND set_id = ?`,
+      [...cardIds, set.id]
+    );
+    if (!cards || cards.length === 0) return res.redirect(backUrl);
+    const allowedIds = cards.map(c => c.id);
+    const allowedPlaceholders = allowedIds.map(() => '?').join(',');
+
+    if (isOwner || isCollaborator) {
+      await run(`UPDATE cards SET active = ? WHERE id IN (${allowedPlaceholders}) AND set_id = ?`, [
+        desired,
+        ...allowedIds,
+        set.id
+      ]);
+    } else {
+      for (const card of cards) {
+        const existingOverride = await get('SELECT * FROM card_overrides WHERE card_id = ? AND user_id = ?', [
+          card.id,
+          userId
+        ]);
+        const favorite = existingOverride && existingOverride.favorite !== null ? existingOverride.favorite : card.favorite;
+        const memorized =
+          existingOverride && existingOverride.memorized !== null ? existingOverride.memorized : card.memorized;
+        await run(
+          'INSERT OR REPLACE INTO card_overrides (card_id, user_id, active, favorite, memorized) VALUES (?,?,?,?,?)',
+          [card.id, userId, desired, favorite, memorized]
+        );
+      }
+    }
+  } catch (e) {
+    console.error('Bulk card status error:', e);
+  }
+  res.redirect(backUrl);
+});
+
+app.post('/my/cards/batch-toggle-active', requireAuth, express.json(), async (req, res) => {
+  const userId = req.session.user.id;
+  const { card_ids, set_id } = req.body;
+
+  const cardIds = normalizeIds(card_ids);
+  const setId = Number(set_id);
+
+  if (cardIds.length === 0 || !setId) {
+    return res.status(400).json({ success: false, error: 'Missing parameters' });
+  }
+
+  try {
+    const set = await get('SELECT * FROM sets WHERE id = ?', [setId]);
+    if (!set) {
+      return res.status(404).json({ success: false, error: 'List not found' });
+    }
+
+    const shared = await get('SELECT can_edit FROM set_shares WHERE set_id = ? AND user_id = ?', [set.id, userId]);
+    const isOwner = set.user_id === userId;
+    const isCollaborator = shared && Number(shared.can_edit) === 1;
+
+    if (!isOwner && !shared) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    const placeholders = cardIds.map(() => '?').join(',');
+    const cards = await all(
+      `SELECT c.id, c.active, c.favorite, c.memorized, co.active as override_active
+       FROM cards c
+       LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+       WHERE c.id IN (${placeholders}) AND c.set_id = ?`,
+      [userId, ...cardIds, setId]
+    );
+
+    if (cards.length === 0) {
+      return res.status(404).json({ success: false, error: 'No valid cards found in this list' });
+    }
+
+    const toggled = [];
+    for (const card of cards) {
+      if (isOwner || isCollaborator) {
+        const newStatus = card.active ? 0 : 1;
+        await run('UPDATE cards SET active = ? WHERE id = ?', [newStatus, card.id]);
+      } else { // Shared read-only user
+        const currentEffectiveStatus = card.override_active === null ? card.active : card.override_active;
+        const newStatus = currentEffectiveStatus ? 0 : 1;
+        await run(
+          'INSERT INTO card_overrides (card_id, user_id, active) VALUES (?, ?, ?) ON CONFLICT(card_id, user_id) DO UPDATE SET active = excluded.active',
+          [card.id, userId, newStatus]
+        );
+      }
+      toggled.push(card.id);
+    }
+
+    res.json({ success: true, toggled });
+  } catch (e) {
+    console.error('Batch toggle error:', e);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
 });
 
 app.delete('/my/lists/:id', requireAuth, async (req, res) => {
@@ -2562,29 +2691,29 @@ app.get('/themes/:id', requireAuth, async (req, res) => {
 });
 
 // ---------- EntraÃ®nement ----------
-	app.get('/train/setup', requireAuth, async (req, res) => {
-	  const userId = req.session.user.id;
-	  const themes = await getActiveThemesForUser(userId);
-	  const levels = await getLevelsForUser(userId);
-	  const sets = await all(
-      `SELECT s.id, s.name
+app.get('/train/setup', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const themes = await getActiveThemesForUser(userId);
+  const levels = await getLevelsForUser(userId);
+  const sets = await all(
+    `SELECT s.id, s.name
        FROM sets s
        LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
        WHERE s.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
        ORDER BY s.created_at DESC`,
-      [userId, userId]
-    );
-    const sharedSets = await all(
-      `SELECT s.id, s.name, owner.display_name AS owner_name
+    [userId, userId]
+  );
+  const sharedSets = await all(
+    `SELECT s.id, s.name, owner.display_name AS owner_name
        FROM set_shares sh
        JOIN sets s ON s.id = sh.set_id
        LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
        JOIN users owner ON owner.id = s.user_id
        WHERE sh.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
        ORDER BY s.created_at DESC`,
-      [userId, userId]
-    );
-	  const state = req.session.trainState || null;
+    [userId, userId]
+  );
+  const state = req.session.trainState || null;
   const useSessionParams = (req.query.current === '1' || req.query.current === 'true' || req.query.source === 'session');
 
   const storedDefaults = await getUserTrainDefaults(userId);
@@ -2595,13 +2724,13 @@ app.get('/themes/:id', requireAuth, async (req, res) => {
   };
 
   let params = { ...baseParams };
-	  if (useSessionParams && state) {
-	    const allowedThemeIds = new Set(await getActiveThemeIdsForUser(userId));
-	    const themeIdsRaw = Array.isArray(state.theme_ids) ? state.theme_ids : state.theme_ids ? [state.theme_ids] : [];
-      const themeIds = themeIdsRaw
-        .flatMap(t => String(t).split(','))
-        .map(id => Number(id))
-        .filter(id => !Number.isNaN(id) && allowedThemeIds.has(id));
+  if (useSessionParams && state) {
+    const allowedThemeIds = new Set(await getActiveThemeIdsForUser(userId));
+    const themeIdsRaw = Array.isArray(state.theme_ids) ? state.theme_ids : state.theme_ids ? [state.theme_ids] : [];
+    const themeIds = themeIdsRaw
+      .flatMap(t => String(t).split(','))
+      .map(id => Number(id))
+      .filter(id => !Number.isNaN(id) && allowedThemeIds.has(id));
     const allowedSets = new Set(await getAccessibleSetIds(userId));
     const setIdsRaw = Array.isArray(state.set_ids) ? state.set_ids : state.set_ids ? [state.set_ids] : [];
     const setIds = setIdsRaw
@@ -2613,25 +2742,25 @@ app.get('/themes/:id', requireAuth, async (req, res) => {
     params = {
       ...baseParams,
       modes: normalizeModes(state.modes || state.mode),
-  rev_mode: state.rev_mode || baseParams.rev_mode,
+      rev_mode: state.rev_mode || baseParams.rev_mode,
       show_phonetic: typeof state.show_phonetic === 'undefined' ? baseParams.show_phonetic : state.show_phonetic,
       theme_ids: themeIds,
       set_ids: setIds,
       level_id: state.level_id || '',
       scope: state.scope || baseParams.scope,
       remaining: remainingVal,
-	      total: totalVal
-	    };
-	  }
+      total: totalVal
+    };
+  }
 
-	  res.render('train_setup', {
-	    themes,
-	    levels,
-	    sets,
-      sharedSets,
-	    params
-	  });
-	});
+  res.render('train_setup', {
+    themes,
+    levels,
+    sets,
+    sharedSets,
+    params
+  });
+});
 
 app.post('/train/session', requireAuth, async (req, res) => {
   const { modes, mode, theme_ids, set_ids, level_id, rev_mode, remaining, show_phonetic, total } = req.body;
@@ -2682,7 +2811,7 @@ app.post('/train/session', requireAuth, async (req, res) => {
       error: 'Selectionne au moins un theme ou une liste.',
       params: {
         modes: modeList,
-    rev_mode: rev_mode || 'order',
+        rev_mode: rev_mode || 'order',
         theme_id: '',
         level_id: level_id || '',
         scope: 'all',
@@ -2711,16 +2840,16 @@ app.post('/train/session', requireAuth, async (req, res) => {
         const overlapThemeNames =
           overlapThemes.length > 0
             ? await all(
-                `SELECT id, name FROM themes WHERE id IN (${overlapThemes.map(() => '?').join(',')})`,
-                overlapThemes
-              )
+              `SELECT id, name FROM themes WHERE id IN (${overlapThemes.map(() => '?').join(',')})`,
+              overlapThemes
+            )
             : [];
         const overlapSetNames =
           overlapSets.length > 0
             ? await all(
-                `SELECT id, name FROM sets WHERE id IN (${overlapSets.map(() => '?').join(',')})`,
-                overlapSets
-              )
+              `SELECT id, name FROM sets WHERE id IN (${overlapSets.map(() => '?').join(',')})`,
+              overlapSets
+            )
             : [];
         return res.render('train_conflict', {
           overlapThemes: overlapThemeNames,
@@ -2810,7 +2939,7 @@ app.post('/train/session', requireAuth, async (req, res) => {
       error: 'Aucun mot disponible avec cette selection.',
       params: {
         modes: modeList,
-    rev_mode: rev_mode || 'order',
+        rev_mode: rev_mode || 'order',
         theme_id: '',
         level_id: level_id || '',
         scope: 'all',
@@ -2913,11 +3042,11 @@ app.get('/train', requireAuth, async (req, res) => {
     if (filters.source === 'cards') {
       if (replay && replay.type === 'card') {
         const cardId = Number(replay.id);
-      const allowedSetIds = await getAccessibleSetIds(userId);
-      const card = await get('SELECT * FROM cards WHERE id = ?', [cardId]);
-      const stillAllowed = card && allowedSetIds.includes(Number(card.set_id));
-      if (card && stillAllowed) {
-        const word = { id: `card_${cardId}`, hebrew: card.hebrew, transliteration: card.transliteration, french: card.french };
+        const allowedSetIds = await getAccessibleSetIds(userId);
+        const card = await get('SELECT * FROM cards WHERE id = ?', [cardId]);
+        const stillAllowed = card && allowedSetIds.includes(Number(card.set_id));
+        if (card && stillAllowed) {
+          const word = { id: `card_${cardId}`, hebrew: card.hebrew, transliteration: card.transliteration, french: card.french };
           const isReverse = questionMode === MODE_FLASHCARDS_REVERSE;
           const cardsPool = await getEffectiveCardsForUser(userId, state.set_ids || []);
           const poolCopy = cardsPool.filter(c => c.id !== cardId);
@@ -2926,21 +3055,21 @@ app.get('/train', requireAuth, async (req, res) => {
             const idx = Math.floor(Math.random() * poolCopy.length);
             distractors.push(poolCopy.splice(idx, 1)[0]);
           }
-        const optionsRaw = [
-          ...distractors.map(c => ({ id: `card_${c.id}`, label: isReverse ? c.hebrew : c.french })),
-          { id: `card_${cardId}`, label: isReverse ? card.hebrew : card.french }
-        ];
-        for (let i = optionsRaw.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [optionsRaw[i], optionsRaw[j]] = [optionsRaw[j], optionsRaw[i]];
-        }
-        state.replay = null;
-        req.session.trainState = state;
-        return res.render('train', {
-          word,
-          message: null,
-          result: null,
-          mode,
+          const optionsRaw = [
+            ...distractors.map(c => ({ id: `card_${c.id}`, label: isReverse ? c.hebrew : c.french })),
+            { id: `card_${cardId}`, label: isReverse ? card.hebrew : card.french }
+          ];
+          for (let i = optionsRaw.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [optionsRaw[i], optionsRaw[j]] = [optionsRaw[j], optionsRaw[i]];
+          }
+          state.replay = null;
+          req.session.trainState = state;
+          return res.render('train', {
+            word,
+            message: null,
+            result: null,
+            mode,
             modes: modeList,
             questionMode,
             filters,
@@ -3019,12 +3148,12 @@ app.get('/train', requireAuth, async (req, res) => {
       req.session.trainState = state;
 
       if (questionMode === MODE_WRITTEN) {
-          return res.render('train', {
-            word,
-            message: null,
-            result: null,
-            mode,
-      modes: modeList,
+        return res.render('train', {
+          word,
+          message: null,
+          result: null,
+          mode,
+          modes: modeList,
           questionMode,
           filters,
           options: null,
@@ -3081,6 +3210,14 @@ app.get('/train', requireAuth, async (req, res) => {
     if (!word) {
       const excludedIds = state.usedWordIds.map(id => Number(id)).filter(id => !Number.isNaN(id));
       word = await fetchNextWord(userId, { ...filters, excludedIds });
+
+      // If no word found and we have excluded words, it means we exhausted the pool.
+      // Reset used words and try again to allow repetition.
+      if (!word && excludedIds.length > 0) {
+        state.usedWordIds = [];
+        // We pass empty excludedIds to fetch from the full pool again
+        word = await fetchNextWord(userId, { ...filters, excludedIds: [] });
+      }
       if (word) {
         const wordId = Number(word.id);
         if (!state.usedWordIds.includes(wordId)) {
@@ -3091,10 +3228,10 @@ app.get('/train', requireAuth, async (req, res) => {
     }
 
     const isReverse = questionMode === MODE_FLASHCARDS_REVERSE;
-      const options =
-        word && (questionMode === MODE_FLASHCARDS || questionMode === MODE_FLASHCARDS_REVERSE)
-          ? await getFlashcardOptions(userId, word, filters, isReverse)
-          : null;
+    const options =
+      word && (questionMode === MODE_FLASHCARDS || questionMode === MODE_FLASHCARDS_REVERSE)
+        ? await getFlashcardOptions(userId, word, filters, isReverse)
+        : null;
     const message = !word ? 'Aucun mot pour ces criteres.' : null;
     state.replay = null;
     req.session.trainState = state;
@@ -3233,7 +3370,7 @@ app.post('/train/answer', requireAuth, async (req, res) => {
       message: remainingCount > 0 ? null : 'Session terminee.',
       result,
       mode: modeList[0] || activeMode,
-        modes: modeList,
+      modes: modeList,
       questionMode: MODE_WRITTEN,
       filters,
       options: null,
@@ -3371,6 +3508,52 @@ app.post('/words/:id/toggle-self', requireAuth, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.redirect(redirectTo);
+  }
+});
+
+app.post('/my/words/batch-toggle-active', requireAuth, express.json(), async (req, res) => {
+  const userId = req.session.user.id;
+  const isAdmin = req.session.user && req.session.user.role === 'admin';
+  const { word_ids } = req.body;
+  const wordIds = normalizeIds(word_ids);
+
+  if (wordIds.length === 0) {
+    return res.status(400).json({ success: false, error: 'Missing parameters' });
+  }
+
+  try {
+    const placeholders = wordIds.map(() => '?').join(',');
+    const words = await all(
+      `SELECT w.id, w.active, w.user_id, o.active as override_active
+       FROM words w
+       LEFT JOIN user_word_overrides o ON o.word_id = w.id AND o.user_id = ?
+       WHERE w.id IN (${placeholders})`,
+      [userId, ...wordIds]
+    );
+
+    const toggled = [];
+    for (const word of words) {
+      const canEditGlobal = isAdmin && !word.user_id;
+      const isOwner = word.user_id === userId;
+
+      if (canEditGlobal || isOwner) {
+        const newStatus = word.active ? 0 : 1;
+        await run('UPDATE words SET active = ? WHERE id = ?', [newStatus, word.id]);
+      } else {
+        // Regular user on a global word or another user's word they don't own
+        const effectiveStatus = word.override_active === null ? word.active : word.override_active;
+        const newStatus = effectiveStatus ? 0 : 1;
+        await run(
+          'INSERT INTO user_word_overrides (word_id, user_id, active) VALUES (?, ?, ?) ON CONFLICT(word_id, user_id) DO UPDATE SET active = excluded.active',
+          [word.id, userId, newStatus]
+        );
+      }
+      toggled.push(word.id);
+    }
+    res.json({ success: true, toggled });
+  } catch (e) {
+    console.error('Batch word toggle error:', e);
+    res.status(500).json({ success: false, error: 'Server error' });
   }
 });
 

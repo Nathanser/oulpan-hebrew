@@ -2,11 +2,11 @@
   <h1><%= word ? 'Modifier le mot' : 'Ajouter un mot' %></h1>
 
   <form method="post" action="<%= action %>" class="form">
-    <label>Francais
+    <label>Français
       <input type="text" name="french" value="<%= word ? word.french : '' %>" required />
     </label>
 
-    <label>Hebreu
+    <label>Hébreu
       <input type="text" name="hebrew" value="<%= word ? word.hebrew : '' %>" required />
     </label>
 
@@ -47,6 +47,6 @@
       Actif (inclus en révision)
     </label>
 
-    <button type="submit"><%= word ? 'Enregistrer' : 'Creer' %></button>
+    <button type="submit"><%= word ? 'Enregistrer' : 'Créer' %></button>
   </form>
 </section>

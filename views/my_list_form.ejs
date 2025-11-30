@@ -48,14 +48,14 @@
           </div>
           <div class="builder-fields">
             <input type="hidden" data-field="id" name="cards[<%= idx %>][id]" value="<%= card.id || '' %>" />
-            <label class="field-hebrew"><span class="field-label">Mot hebreu</span>
+            <label class="field-hebrew"><span class="field-label">Mot hébreu</span>
               <input data-field="hebrew" name="cards[<%= idx %>][hebrew]" type="text" value="<%= card.hebrew || '' %>" placeholder="שָׁלוֹם" required />
             </label>
-            <label class="field-french"><span class="field-label">Mot francais</span>
+            <label class="field-french"><span class="field-label">Mot français</span>
               <input data-field="french" name="cards[<%= idx %>][french]" type="text" value="<%= card.french || '' %>" placeholder="Bonjour" required />
             </label>
-            <label class="field-translit"><span class="field-label">Phonetique</span>
-              <input data-field="transliteration" name="cards[<%= idx %>][transliteration]" type="text" value="<%= card.transliteration || '' %>" placeholder="Shalom" />
+            <label class="field-translit"><span class="field-label">Phonétique</span>
+              <input data-field="transliteration" name="cards[<%= idx %>][transliteration]" type="text" value="<%= card.transliteration || '' %>" placeholder="shalom" />
             </label>
           </div>
         </div>
@@ -68,8 +68,8 @@
     </div>
 
     <div class="list-bottom-actions fixed-actions">
-      <button type="button" class="cta secondary" id="add-card-bottom">Ajouter des cartes</button>
-      <button type="submit" form="list-builder-form" class="cta">Enregistrer la liste</button>
+        <button type="button" class="cta secondary" id="add-card-bottom">Ajouter une carte</button>
+        <button type="submit" form="list-builder-form" class="cta"><%= set ? 'Enregistrer la liste' : 'Créer la liste' %></button>
     </div>
   </form>
 
@@ -87,14 +87,14 @@
       </div>
       <div class="builder-fields">
         <input type="hidden" data-field="id" name="" value="" />
-        <label class="field-hebrew"><span class="field-label">Mot hebreu</span>
-          <input data-field="hebrew" name="" type="text" value="" placeholder="שָׁלוֹם" required />
+        <label class="field-hebrew"><span class="field-label">Mot hébreu</span>
+          <input data-field="hebrew" name="" type="text" value="" placeholder="shalom" required />
         </label>
-        <label class="field-french"><span class="field-label">Mot francais</span>
+        <label class="field-french"><span class="field-label">Mot français</span>
           <input data-field="french" name="" type="text" value="" placeholder="Bonjour" required />
         </label>
-        <label class="field-translit"><span class="field-label">Phonetique</span>
-          <input data-field="transliteration" name="" type="text" value="" placeholder="Shalom" />
+        <label class="field-translit"><span class="field-label">Phonétique</span>
+          <input data-field="transliteration" name="" type="text" value="" placeholder="shalom" />
         </label>
       </div>
     </div>

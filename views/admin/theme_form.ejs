@@ -1,7 +1,7 @@
 <section class="card set-builder">
   <div class="builder-header">
     <div>
-      <p class="eyebrow"><%= theme ? 'Modifier le theme par defaut' : 'Creer un theme par defaut' %></p>
+      <p class="eyebrow"><%= theme ? 'Modifier le theme par défaut' : 'Créer un thème par défaut' %></p>
       <h1><%= theme ? theme.name : 'Nouveau theme' %></h1>
     </div>
     <div class="builder-actions">
@@ -53,13 +53,13 @@
           </div>
           <div class="builder-fields">
             <input type="hidden" data-field="id" name="cards[<%= idx %>][id]" value="<%= card.id || '' %>" />
-            <label class="field-hebrew"><span class="field-label">Mot hebreu</span>
+            <label class="field-hebrew"><span class="field-label">Mot hébreu</span>
               <input data-field="hebrew" name="cards[<%= idx %>][hebrew]" type="text" value="<%= card.hebrew || '' %>" placeholder="shalom" required />
             </label>
-            <label class="field-french"><span class="field-label">Mot francais</span>
+            <label class="field-french"><span class="field-label">Mot français</span>
               <input data-field="french" name="cards[<%= idx %>][french]" type="text" value="<%= card.french || '' %>" placeholder="Bonjour" required />
             </label>
-            <label class="field-translit"><span class="field-label">Phonetique</span>
+            <label class="field-translit"><span class="field-label">Phonétique</span>
               <input data-field="transliteration" name="cards[<%= idx %>][transliteration]" type="text" value="<%= card.transliteration || '' %>" placeholder="shalom" />
             </label>
           </div>
@@ -74,7 +74,7 @@
 
     <div class="list-bottom-actions fixed-actions">
       <button type="button" class="cta secondary" id="add-card-bottom">Ajouter des cartes</button>
-      <button type="submit" form="theme-builder-form" class="cta"><%= theme ? 'Enregistrer le theme' : 'Creer le theme' %></button>
+      <button type="submit" form="theme-builder-form" class="cta"><%= theme ? 'Enregistrer le thème' : 'Créer le thème' %></button>
     </div>
   </form>
 
@@ -92,13 +92,13 @@
       </div>
       <div class="builder-fields">
         <input type="hidden" data-field="id" name="" value="" />
-        <label class="field-hebrew"><span class="field-label">Mot hebreu</span>
+        <label class="field-hebrew"><span class="field-label">Mot hébreu</span>
           <input data-field="hebrew" name="" type="text" value="" placeholder="shalom" required />
         </label>
-        <label class="field-french"><span class="field-label">Mot francais</span>
+        <label class="field-french"><span class="field-label">Mot français</span>
           <input data-field="french" name="" type="text" value="" placeholder="Bonjour" required />
         </label>
-        <label class="field-translit"><span class="field-label">Phonetique</span>
+        <label class="field-translit"><span class="field-label">Phonétique</span>
           <input data-field="transliteration" name="" type="text" value="" placeholder="shalom" />
         </label>
       </div>
