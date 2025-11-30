@@ -1437,12 +1437,13 @@ app.post('/export', requireAuth, async (req, res) => {
     };
 
     if (isAdmin) {
-      const themes = await all('SELECT * FROM themes');
+      const themes = await all('SELECT t.*, p.name AS parent_name FROM themes t LEFT JOIN themes p ON p.id = t.parent_id');
       for (const t of themes) {
         const words = await all('SELECT hebrew, french, transliteration, active, difficulty FROM words WHERE theme_id = ? ORDER BY position ASC, id ASC', [t.id]);
         const payload = {
           name: t.name,
           active: t.active,
+          ...(t.parent_id ? { parent_name: t.parent_name } : {}),
           words: words.map(w => ({
             hebrew: w.hebrew,
             french: w.french,
