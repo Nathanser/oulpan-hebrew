@@ -301,6 +301,19 @@ main.container {
   gap: 0.75rem;
 }
 
+.space-section .progress-grid.scrollable-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 0.35rem;
+}
+
+.space-section .progress-grid.scrollable-progress .progress-card {
+  min-height: 165px;
+}
+
 .progress-card {
   border: 1px solid var(--border-main);
   border-radius: 0.85rem;

@@ -48,7 +48,7 @@
     <% if (!setStats || setStats.length===0) { %>
       <p class="muted">Crée une liste pour suivre ta progression.</p>
       <% } else { %>
-        <div class="progress-grid">
+        <div class="progress-grid scrollable-progress">
           <% setStats.forEach(s=> {
             const total = Number(s.total_cards) || 0;
             const mem = Number(s.memorized_cards) || 0;
@@ -102,7 +102,7 @@
     <% if (!themeStats || themeStats.length===0) { %>
       <p class="muted">Pas de thèmes en ligne actifs.</p>
       <% } else { %>
-        <div class="progress-grid">
+        <div class="progress-grid scrollable-progress">
           <% themeStats.forEach(t=> {
             const total = Number(t.total_words) || 0;
             const seen = Number(t.seen_words) || 0;

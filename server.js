@@ -1991,7 +1991,13 @@ app.get('/space', requireAuth, async (req, res) => {
        LEFT JOIN words w ON w.theme_id = t.id AND w.active = 1
        LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = ?
        LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
-       WHERE t.user_id IS NULL AND t.active = 1 AND COALESCE(uto.active, 1) = 1
+       WHERE t.user_id IS NULL
+         AND t.active = 1
+         AND COALESCE(uto.active, 1) = 1
+         AND NOT EXISTS (
+           SELECT 1 FROM themes child
+           WHERE child.parent_id = t.id AND child.active = 1
+         )
        GROUP BY t.id
        ORDER BY t.id ASC`,
       [userId, userId]
