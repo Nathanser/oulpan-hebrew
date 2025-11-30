@@ -625,6 +625,30 @@ async function getActiveThemesForUser(userId) {
   );
 }
 
+async function getActiveThemeTreeForUser(userId) {
+  const raw = await getActiveThemesForUser(userId);
+  const activeIds = new Set(raw.map(t => Number(t.id)));
+  const filtered = raw.filter(t => !t.parent_id || activeIds.has(Number(t.parent_id)));
+
+  const themeMap = new Map();
+  const roots = [];
+
+  filtered.forEach(t => {
+    t.children = [];
+    themeMap.set(t.id, t);
+  });
+
+  filtered.forEach(t => {
+    if (t.parent_id && themeMap.has(t.parent_id)) {
+      themeMap.get(t.parent_id).children.push(t);
+    } else {
+      roots.push(t);
+    }
+  });
+
+  return roots;
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -1294,10 +1318,28 @@ app.post('/import', requireAuth, async (req, res) => {
         );
       }
 
+      let parentId = null;
+      if (parsed.parent_name) {
+        const parentName = parsed.parent_name.trim();
+        let parent = await get('SELECT id FROM themes WHERE name = ? AND user_id IS NULL', [parentName]);
+        if (!parent) {
+          // Auto-create parent theme
+          const newParentId = await findFirstAvailableId('themes');
+          const parentDisplayNo = await nextDisplayNo('themes', null);
+          await run(
+            'INSERT INTO themes (id, name, active, user_id, created_at, display_no, parent_id) VALUES (?,?,?,NULL, CURRENT_TIMESTAMP, ?, NULL)',
+            [newParentId, parentName, 1, parentDisplayNo]
+          );
+          parentId = newParentId;
+        } else {
+          parentId = parent.id;
+        }
+      }
+
       const newId = await findFirstAvailableId('themes');
       const themeId = existing
         ? existing.id
-        : (await run('INSERT INTO themes (id, name, active, user_id, created_at, display_no) VALUES (?,?,?,NULL, CURRENT_TIMESTAMP, ?)', [newId, name, active, await nextDisplayNo('themes', null)])).lastID;
+        : (await run('INSERT INTO themes (id, name, active, user_id, created_at, display_no, parent_id) VALUES (?,?,?,NULL, CURRENT_TIMESTAMP, ?, ?)', [newId, name, active, await nextDisplayNo('themes', null), parentId])).lastID;
 
       let positionSeed = existing ? await nextWordPosition(themeId, null) : 1;
       for (let i = 0; i < words.length; i++) {
@@ -2564,12 +2606,38 @@ async function renderThemeList(req, res) {
        FROM themes t
        LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
        WHERE t.user_id IS NULL
-       ORDER BY t.id ASC`,
+       ORDER BY t.display_no ASC, t.id ASC`,
       [userId]
     );
-    const activeThemes = allThemes.filter(t => Number(t.effective_active) === 1 && Number(t.active) === 1);
-    const inactiveProposed = allThemes.filter(t => Number(t.active) === 0);
-    const inactivePersonal = allThemes.filter(t => Number(t.active) === 1 && Number(t.effective_active) === 0);
+
+    // Build hierarchy
+    const themeMap = new Map();
+    const rootThemes = [];
+
+    // First pass: create nodes
+    allThemes.forEach(t => {
+      t.children = [];
+      themeMap.set(t.id, t);
+    });
+
+    // Second pass: link parents and children
+    allThemes.forEach(t => {
+      if (t.parent_id && themeMap.has(t.parent_id)) {
+        themeMap.get(t.parent_id).children.push(t);
+      } else {
+        rootThemes.push(t);
+      }
+    });
+
+    // Filter active/inactive based on root themes, but keep structure
+    // For the view, we might want to pass the whole tree and let the view decide visibility
+    // But existing logic separates active/inactive.
+    // Let's keep existing logic for roots, and children are properties of roots.
+
+    const activeThemes = rootThemes.filter(t => Number(t.effective_active) === 1 && Number(t.active) === 1);
+    const inactiveProposed = rootThemes.filter(t => Number(t.active) === 0);
+    const inactivePersonal = rootThemes.filter(t => Number(t.active) === 1 && Number(t.effective_active) === 0);
+
     res.render('themes', {
       activeThemes,
       inactiveProposed,
@@ -2601,10 +2669,20 @@ app.post('/themes/:id/toggle-visibility', requireAuth, async (req, res) => {
     if (theme.user_id && theme.user_id !== userId) return res.redirect('/themes');
     if (!theme.active) return res.redirect(backUrl);
     const nextStatus = theme.effective_active ? 0 : 1;
-    await run(
-      'INSERT INTO user_theme_overrides (theme_id, user_id, active) VALUES (?,?,?) ON CONFLICT(theme_id, user_id) DO UPDATE SET active=excluded.active',
-      [theme.id, userId, nextStatus]
-    );
+
+    // Apply the same visibility to the theme and, if it's a parent, all direct subthemes.
+    const idsToUpdate = [theme.id];
+    if (!theme.parent_id) {
+      const children = await all('SELECT id FROM themes WHERE parent_id = ?', [theme.id]);
+      children.forEach(c => idsToUpdate.push(c.id));
+    }
+
+    for (const id of idsToUpdate) {
+      await run(
+        'INSERT INTO user_theme_overrides (theme_id, user_id, active) VALUES (?,?,?) ON CONFLICT(theme_id, user_id) DO UPDATE SET active=excluded.active',
+        [id, userId, nextStatus]
+      );
+    }
   } catch (e) {
     console.error('Toggle theme visibility error:', e);
   }
@@ -2710,7 +2788,8 @@ app.get('/themes/:id', requireAuth, async (req, res) => {
 // ---------- EntraÃ®nement ----------
 app.get('/train/setup', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
-  const themes = await getActiveThemesForUser(userId);
+  const rootThemes = await getActiveThemeTreeForUser(userId);
+
   const levels = await getLevelsForUser(userId);
   const sets = await all(
     `SELECT s.id, s.name
@@ -2771,7 +2850,7 @@ app.get('/train/setup', requireAuth, async (req, res) => {
   }
 
   res.render('train_setup', {
-    themes,
+    themes: rootThemes,
     levels,
     sets,
     sharedSets,
@@ -2800,7 +2879,7 @@ app.post('/train/session', requireAuth, async (req, res) => {
 
   if (themeList.length === 0 && setList.length === 0) {
     const userId = req.session.user.id;
-    const themes = await getActiveThemesForUser(userId);
+    const themes = await getActiveThemeTreeForUser(userId);
     const levels = await getLevelsForUser(userId);
     const sets = await all(
       `SELECT s.id, s.name
@@ -2928,7 +3007,7 @@ app.post('/train/session', requireAuth, async (req, res) => {
 
   if (!remain || Number(remain) <= 0) {
     const userId = req.session.user.id;
-    const themes = await getActiveThemesForUser(userId);
+    const themes = await getActiveThemeTreeForUser(userId);
     const levels = await getLevelsForUser(userId);
     const sets = await all(
       `SELECT s.id, s.name
@@ -3715,14 +3794,36 @@ app.get('/admin/themes', requireAdmin, async (req, res) => {
     if (sort === 'alpha') orderBy = 't.name COLLATE NOCASE ASC';
     const themes = await all(
       `SELECT t.*,
+        p.name AS parent_name,
         COUNT(w.id) AS word_count
        FROM themes t
+       LEFT JOIN themes p ON p.id = t.parent_id
        LEFT JOIN words w ON w.theme_id = t.id AND w.user_id IS NULL
        WHERE t.user_id IS NULL
        GROUP BY t.id
        ORDER BY ${orderBy}`
     );
-    res.render('admin/themes', { themes, sort });
+
+    // Build hierarchy for admin view
+    const themeMap = new Map();
+    const rootThemes = [];
+
+    // First pass: create nodes
+    themes.forEach(t => {
+      t.children = [];
+      themeMap.set(t.id, t);
+    });
+
+    // Second pass: link parents and children
+    themes.forEach(t => {
+      if (t.parent_id && themeMap.has(t.parent_id)) {
+        themeMap.get(t.parent_id).children.push(t);
+      } else {
+        rootThemes.push(t);
+      }
+    });
+
+    res.render('admin/themes', { themes: rootThemes, sort });
   } catch (e) {
     console.error(e);
     res.render('admin/themes', { themes: [], sort: req.query.sort || 'created_asc' });
@@ -3732,9 +3833,11 @@ app.get('/admin/themes', requireAdmin, async (req, res) => {
 
 app.get('/admin/themes/new', requireAdmin, async (req, res) => {
   try {
+    const potentialParents = await all('SELECT * FROM themes WHERE user_id IS NULL AND parent_id IS NULL ORDER BY name ASC');
     res.render('admin/theme_form', {
       theme: null,
       cards: [],
+      potentialParents,
       action: '/admin/themes'
     });
   } catch (e) {
@@ -3744,14 +3847,18 @@ app.get('/admin/themes/new', requireAdmin, async (req, res) => {
 });
 
 app.post('/admin/themes', requireAdmin, async (req, res) => {
-  const { name, active } = req.body;
+  const { name, active, parent_id } = req.body;
   const cards = normalizeCardsPayload(req.body.cards);
   try {
     const displayNo = await nextDisplayNo('themes', null);
-    const createdTheme = await run(
-      'INSERT INTO themes (name, active, user_id, created_at, display_no) VALUES (?,?,NULL, CURRENT_TIMESTAMP, ?)',
-      [name, active ? 1 : 0, displayNo]
+    const parentIdVal = parent_id ? Number(parent_id) : null;
+    const newId = await findFirstAvailableId('themes');
+
+    await run(
+      'INSERT INTO themes (id, name, active, user_id, created_at, display_no, parent_id) VALUES (?,?,?,NULL, CURRENT_TIMESTAMP, ?, ?)',
+      [newId, name, active ? 1 : 0, displayNo, parentIdVal]
     );
+    const createdTheme = { lastID: newId };
     const newThemeId = createdTheme.lastID;
     if (newThemeId && cards.length > 0) {
       for (let i = 0; i < cards.length; i++) {
@@ -3779,9 +3886,11 @@ app.get('/admin/themes/:id/edit', requireAdmin, async (req, res) => {
       'SELECT id, hebrew, french, transliteration FROM words WHERE theme_id = ? AND user_id IS NULL ORDER BY position ASC, id ASC',
       [theme.id]
     );
+    const potentialParents = await all('SELECT * FROM themes WHERE user_id IS NULL AND parent_id IS NULL AND id != ? ORDER BY name ASC', [theme.id]);
     res.render('admin/theme_form', {
       theme,
       cards,
+      potentialParents,
       action: `/admin/themes/${theme.id}?_method=PUT`
     });
   } catch (e) {
@@ -3796,6 +3905,12 @@ app.post('/admin/themes/:id/toggle', requireAdmin, async (req, res) => {
     if (!theme) return res.redirect('/admin/themes');
     const newStatus = theme.active ? 0 : 1;
     await run('UPDATE themes SET active = ? WHERE id = ?', [newStatus, theme.id]);
+
+    // Cascade to direct children when toggling a parent.
+    if (!theme.parent_id) {
+      await run('UPDATE themes SET active = ? WHERE parent_id = ?', [newStatus, theme.id]);
+    }
+
     res.redirect('/admin/themes');
   } catch (e) {
     console.error(e);
@@ -3931,15 +4046,21 @@ app.post('/admin/themes/:id/levels', requireAdmin, async (req, res) => {
 });
 
 app.put('/admin/themes/:id', requireAdmin, async (req, res) => {
-  const { name, active } = req.body;
+  const { name, active, parent_id } = req.body;
   const cards = normalizeCardsPayload(req.body.cards);
   try {
     const theme = await get('SELECT * FROM themes WHERE id = ? AND user_id IS NULL', [req.params.id]);
     if (!theme) return res.redirect('/admin/themes');
 
+    const parentIdVal = parent_id ? Number(parent_id) : null;
+    // Prevent self-parenting loop (basic check)
+    if (parentIdVal === theme.id) {
+      // ignore or error
+    }
+
     await run(
-      'UPDATE themes SET name = ?, active = ? WHERE id = ?',
-      [name, active ? 1 : 0, theme.id]
+      'UPDATE themes SET name = ?, active = ?, parent_id = ? WHERE id = ?',
+      [name, active ? 1 : 0, parentIdVal, theme.id]
     );
 
     const existing = await all('SELECT * FROM words WHERE theme_id = ? AND user_id IS NULL', [theme.id]);
@@ -4009,6 +4130,18 @@ app.post('/admin/levels/:id/toggle', requireAdmin, async (req, res) => {
 
 app.delete('/admin/themes/:id', requireAdmin, async (req, res) => {
   try {
+    // Cascading delete: delete sub-themes first
+    // For each sub-theme, we need to clean up its words/levels/progress too
+    const subThemes = await all('SELECT id FROM themes WHERE parent_id = ?', [req.params.id]);
+    for (const sub of subThemes) {
+      await run('DELETE FROM progress WHERE word_id IN (SELECT id FROM words WHERE theme_id = ? AND user_id IS NULL)', [sub.id]);
+      await run('DELETE FROM favorites WHERE word_id IN (SELECT id FROM words WHERE theme_id = ? AND user_id IS NULL)', [sub.id]);
+      await run('DELETE FROM words WHERE theme_id = ? AND user_id IS NULL', [sub.id]);
+      await run('DELETE FROM theme_levels WHERE theme_id = ?', [sub.id]);
+      await run('DELETE FROM themes WHERE id = ?', [sub.id]);
+    }
+
+    // Now delete the theme itself
     await run('DELETE FROM progress WHERE word_id IN (SELECT id FROM words WHERE theme_id = ? AND user_id IS NULL)', [req.params.id]);
     await run('DELETE FROM favorites WHERE word_id IN (SELECT id FROM words WHERE theme_id = ? AND user_id IS NULL)', [req.params.id]);
     await run('DELETE FROM words WHERE theme_id = ? AND user_id IS NULL', [req.params.id]);

@@ -1,50 +1,123 @@
 <section class="card set-builder">
   <div class="builder-header">
     <div>
-      <p class="eyebrow"><%= theme ? 'Modifier le theme par défaut' : 'Créer un thème par défaut' %></p>
-      <h1><%= theme ? theme.name : 'Nouveau theme' %></h1>
+      <p class="eyebrow">
+        <%= theme ? 'Modifier le theme par défaut' : 'Créer un thème par défaut' %>
+      </p>
+      <h1>
+        <%= theme ? theme.name : 'Nouveau thème' %>
+      </h1>
     </div>
     <div class="builder-actions">
       <a class="link back-link" href="/admin/themes">&#8592; Retour</a>
     </div>
   </div>
 
-  <% if (typeof error !== 'undefined' && error) { %>
-    <div class="alert alert-error"><%= error %></div>
-  <% } %>
-  <div class="form-banner" id="form-banner" style="display:none;"></div>
+  <% if (typeof error !=='undefined' && error) { %>
+    <div class="alert alert-error">
+      <%= error %>
+    </div>
+    <% } %>
+      <div class="form-banner" id="form-banner" style="display:none;"></div>
 
-  <form id="theme-builder-form" method="post" action="<%= action %>" class="builder-form">
-    <div class="title-field title-with-action">
-      <div class="title-label">Titre du theme</div>
-      <div class="title-input-row">
-        <input type="text" name="name" value="<%= theme ? theme.name : '' %>" placeholder="Ex : Vocabulaire de base" required />
-        <button type="button" class="dots-btn list-mode-btn" id="list-mode-toggle" aria-haspopup="true" aria-expanded="false" aria-label="Options du theme">&#8230;</button>
-        <div class="list-mode-menu" id="list-mode-menu">
-          <button type="button" class="menu-item" data-mode="reorder">
-            <span class="menu-label">Changer l'ordre</span>
-            <span class="menu-icon">&#8693;</span>
-          </button>
-          <button type="button" class="menu-item danger" data-mode="delete">
-            <span class="menu-label">Supprimer</span>
-            <span class="menu-icon">&#128465;</span>
+      <form id="theme-builder-form" method="post" action="<%= action %>" class="builder-form">
+        <div class="title-field title-with-action">
+          <div class="title-label">Titre du thème</div>
+          <div class="title-input-row">
+            <input type="text" name="name" value="<%= theme ? theme.name : '' %>" placeholder="Ex : Vocabulaire de base"
+              required />
+            <button type="button" class="dots-btn list-mode-btn" id="list-mode-toggle" aria-haspopup="true"
+              aria-expanded="false" aria-label="Options du theme">&#8230;</button>
+
+            <div class="list-mode-menu" id="list-mode-menu">
+              <button type="button" class="menu-item" data-mode="reorder">
+                <span class="menu-label">Changer l'ordre</span>
+                <span class="menu-icon">&#8693;</span>
+              </button>
+              <button type="button" class="menu-item danger" data-mode="delete">
+                <span class="menu-label">Supprimer</span>
+                <span class="menu-icon">&#128465;</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <br>
+
+        <label class="checkbox-row" style="margin:0.5rem 0 1rem;">
+          <input type="checkbox" name="active" value="1" <%=!theme || theme.active ? 'checked' : '' %> />
+          Theme actif (visible pour les utilisateurs)
+        </label>
+        <br><br>
+
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label style="display:block; margin-bottom:0.5rem; font-weight:500;">Theme parent (optionnel)</label>
+          <select name="parent_id"
+            style="width:100%; padding:0.5rem; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-card);">
+            <option value="">-- Aucun (Theme principal) --</option>
+            <% (typeof potentialParents !=='undefined' ? potentialParents : []).forEach(p=> { %>
+              <option value="<%= p.id %>" <%=theme && theme.parent_id===p.id ? 'selected' : '' %>><%= p.name %>
+              </option>
+              <% }) %>
+          </select>
+        </div>
+
+        <div id="cards-container" class="cards-stack">
+          <% (cards || []).forEach((card, idx)=> { %>
+            <div class="builder-card" data-card-index="<%= idx %>" id="card-<%= card.id ? card.id : 'new-' + idx %>">
+              <div class="builder-card-head">
+                <div class="card-number">
+                  <%= idx + 1 %>
+                </div>
+                <div class="card-head-actions">
+                  <button type="button" class="reorder-handle" data-drag-handle
+                    title="Réordonner cette carte">&#9776;</button>
+                  <label class="select-toggle">
+                    <input type="checkbox" data-select-checkbox
+                      aria-label="Sélectionner cette carte pour suppression" />
+                    <span class="select-box"></span>
+                  </label>
+                </div>
+              </div>
+              <div class="builder-fields">
+                <input type="hidden" data-field="id" name="cards[<%= idx %>][id]" value="<%= card.id || '' %>" />
+                <label class="field-hebrew"><span class="field-label">Mot hébreu</span>
+                  <input data-field="hebrew" name="cards[<%= idx %>][hebrew]" type="text"
+                    value="<%= card.hebrew || '' %>" placeholder="shalom" required />
+                </label>
+                <label class="field-french"><span class="field-label">Mot français</span>
+                  <input data-field="french" name="cards[<%= idx %>][french]" type="text"
+                    value="<%= card.french || '' %>" placeholder="Bonjour" required />
+                </label>
+                <label class="field-translit"><span class="field-label">Phonétique</span>
+                  <input data-field="transliteration" name="cards[<%= idx %>][transliteration]" type="text"
+                    value="<%= card.transliteration || '' %>" placeholder="shalom" />
+                </label>
+              </div>
+            </div>
+            <% }) %>
+        </div>
+
+        <div class="bulk-action-bar" id="bulk-action-bar">
+          <button type="button" class="bulk-trash" id="bulk-delete-btn" disabled
+            aria-label="Supprimer les cartes sélectionnées">&#128465;</button>
+          <div class="bulk-count" id="bulk-count">0 sélectionné</div>
+        </div>
+
+        <div class="list-bottom-actions fixed-actions">
+          <button type="button" class="cta secondary" id="add-card-bottom">Ajouter des cartes</button>
+          <button type="submit" form="theme-builder-form" class="cta">
+            <%= theme ? 'Enregistrer le thème' : 'Créer le thème' %>
           </button>
         </div>
-      </div>
-    </div>
+      </form>
 
-    <label class="checkbox-row" style="margin:0.5rem 0 1rem;">
-      <input type="checkbox" name="active" value="1" <%= !theme || theme.active ? 'checked' : '' %> />
-      Theme actif (visible pour les utilisateurs)
-    </label>
-
-    <div id="cards-container" class="cards-stack">
-      <% (cards || []).forEach((card, idx) => { %>
-        <div class="builder-card" data-card-index="<%= idx %>" id="card-<%= card.id ? card.id : 'new-' + idx %>">
+      <template id="card-template">
+        <div class="builder-card" data-card-index="__index__" id="card-new-__index__">
           <div class="builder-card-head">
-            <div class="card-number"><%= idx + 1 %></div>
+            <div class="card-number"></div>
             <div class="card-head-actions">
-              <button type="button" class="reorder-handle" data-drag-handle title="Réordonner cette carte">&#9776;</button>
+              <button type="button" class="reorder-handle" data-drag-handle
+                title="Réordonner cette carte">&#9776;</button>
               <label class="select-toggle">
                 <input type="checkbox" data-select-checkbox aria-label="Sélectionner cette carte pour suppression" />
                 <span class="select-box"></span>
@@ -52,58 +125,19 @@
             </div>
           </div>
           <div class="builder-fields">
-            <input type="hidden" data-field="id" name="cards[<%= idx %>][id]" value="<%= card.id || '' %>" />
+            <input type="hidden" data-field="id" name="" value="" />
             <label class="field-hebrew"><span class="field-label">Mot hébreu</span>
-              <input data-field="hebrew" name="cards[<%= idx %>][hebrew]" type="text" value="<%= card.hebrew || '' %>" placeholder="shalom" required />
+              <input data-field="hebrew" name="" type="text" value="" placeholder="shalom" required />
             </label>
             <label class="field-french"><span class="field-label">Mot français</span>
-              <input data-field="french" name="cards[<%= idx %>][french]" type="text" value="<%= card.french || '' %>" placeholder="Bonjour" required />
+              <input data-field="french" name="" type="text" value="" placeholder="Bonjour" required />
             </label>
             <label class="field-translit"><span class="field-label">Phonétique</span>
-              <input data-field="transliteration" name="cards[<%= idx %>][transliteration]" type="text" value="<%= card.transliteration || '' %>" placeholder="shalom" />
+              <input data-field="transliteration" name="" type="text" value="" placeholder="shalom" />
             </label>
           </div>
         </div>
-      <% }) %>
-    </div>
-
-    <div class="bulk-action-bar" id="bulk-action-bar">
-      <button type="button" class="bulk-trash" id="bulk-delete-btn" disabled aria-label="Supprimer les cartes sélectionnées">&#128465;</button>
-      <div class="bulk-count" id="bulk-count">0 sélectionné</div>
-    </div>
-
-    <div class="list-bottom-actions fixed-actions">
-      <button type="button" class="cta secondary" id="add-card-bottom">Ajouter des cartes</button>
-      <button type="submit" form="theme-builder-form" class="cta"><%= theme ? 'Enregistrer le thème' : 'Créer le thème' %></button>
-    </div>
-  </form>
-
-  <template id="card-template">
-    <div class="builder-card" data-card-index="__index__" id="card-new-__index__">
-      <div class="builder-card-head">
-        <div class="card-number"></div>
-        <div class="card-head-actions">
-          <button type="button" class="reorder-handle" data-drag-handle title="Réordonner cette carte">&#9776;</button>
-          <label class="select-toggle">
-            <input type="checkbox" data-select-checkbox aria-label="Sélectionner cette carte pour suppression" />
-            <span class="select-box"></span>
-          </label>
-        </div>
-      </div>
-      <div class="builder-fields">
-        <input type="hidden" data-field="id" name="" value="" />
-        <label class="field-hebrew"><span class="field-label">Mot hébreu</span>
-          <input data-field="hebrew" name="" type="text" value="" placeholder="shalom" required />
-        </label>
-        <label class="field-french"><span class="field-label">Mot français</span>
-          <input data-field="french" name="" type="text" value="" placeholder="Bonjour" required />
-        </label>
-        <label class="field-translit"><span class="field-label">Phonétique</span>
-          <input data-field="transliteration" name="" type="text" value="" placeholder="shalom" />
-        </label>
-      </div>
-    </div>
-  </template>
+      </template>
 </section>
 
 <script src="/builder.js"></script>

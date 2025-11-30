@@ -3,18 +3,28 @@
     <h1>Choisir mon mode de révision</h1>
   </div>
 
-  <% const selectedModes=(params && params.modes ? (Array.isArray(params.modes) ? params.modes : [params.modes]) :
-    ['flashcards']); const selectedThemes=new Set((params && params.theme_ids ? (Array.isArray(params.theme_ids) ?
-    params.theme_ids : [params.theme_ids]) : []).map(v=> String(v)));
-    const selectedSets = new Set((params && params.set_ids ? (Array.isArray(params.set_ids) ? params.set_ids :
-    [params.set_ids]) : []).map(v => String(v)));
+  <% let selectedModes=['flashcards']; if (params && params.modes) { selectedModes=Array.isArray(params.modes) ?
+    params.modes : [params.modes]; } let selectedThemes=new Set(); if (params && params.theme_ids) { const
+    ids=Array.isArray(params.theme_ids) ? params.theme_ids : [params.theme_ids]; ids.forEach(id=>
+    selectedThemes.add(String(id)));
+    }
 
-    let selectedRemaining = (params && typeof params.remaining !== 'undefined') ? String(params.remaining) : 'all';
+    let selectedSets = new Set();
+    if (params && params.set_ids) {
+    const ids = Array.isArray(params.set_ids) ? params.set_ids : [params.set_ids];
+    ids.forEach(id => selectedSets.add(String(id)));
+    }
+
+    let selectedRemaining = 'all';
+    if (params && typeof params.remaining !== 'undefined') {
+    selectedRemaining = String(params.remaining);
+    }
     if (selectedRemaining === '10') selectedRemaining = 'all';
 
-    const selectedRevMode = params && typeof params.rev_mode !== 'undefined' ? String(params.rev_mode) : 'order';
-    const selectedPhonetic = params && typeof params.show_phonetic !== 'undefined' ? String(params.show_phonetic) : '1';
-    const selectedLevel = params && params.level_id ? String(params.level_id) : '';
+    const selectedRevMode = (params && typeof params.rev_mode !== 'undefined') ? String(params.rev_mode) : 'order';
+    const selectedPhonetic = (params && typeof params.show_phonetic !== 'undefined') ? String(params.show_phonetic) :
+    '1';
+    const selectedLevel = (params && params.level_id) ? String(params.level_id) : '';
     %>
 
     <form class="form setup-grid" action="/train/session" method="post" id="setup-form"
@@ -23,6 +33,7 @@
       data-selected-sets="<%= JSON.stringify(Array.from(selectedSets)) %>"
       data-selected-level="<%= JSON.stringify(selectedLevel || '') %>"
       data-selected-remaining="<%= JSON.stringify(selectedRemaining) %>">
+
       <% if (typeof error !=='undefined' && error) { %>
         <div class="alert alert-error">
           <%= error %>
@@ -60,45 +71,94 @@
               <label class="check-row"><input type="checkbox" id="toggle-shared" <%=(sharedSets || []).some(s=>
                 selectedSets.has(String(s.id))) ? 'checked' : '' %>> <span>Listes partagées</span></label>
             </div>
+
             <div class="theme-groups">
               <div class="theme-group" id="public-group" style="display:none;">
                 <p class="muted mini" style="margin:0 0 0.2rem;">Thèmes en ligne</p>
-                <% if (!themes || themes.filter(t=> !t.user_id).length === 0) { %>
+                <% if (!themes || themes.length===0) { %>
                   <p class="muted mini">Aucun thème en ligne disponible.</p>
                   <% } else { %>
-                    <select id="theme-select" name="theme_ids[]" multiple size="6">
-                      <% themes.forEach(t=> { if (!t.user_id) { %>
-                        <option value="<%= t.id %>" <%=selectedThemes.has(String(t.id)) ? 'selected' : '' %>><%= t.name
-                            %>
-                        </option>
-                        <% } }) %>
-                    </select>
+                    <ul class="custom-select-container">
+                          <% themes.forEach(t=> { %>
+                            <% if (t.children && t.children.length> 0) { %>
+                          <li>
+                            <div class="theme-row parent-row">
+                              <button type="button" class="icon-btn ghost toggle-subthemes-btn"
+                                data-target="subthemes-<%= t.id %>" aria-expanded="false">
+                                <span class="chevron-icon">&#9654;</span>
+                              </button>
+                              <span class="theme-label">
+                                <%= t.name %>
+                              </span>
+                            </div>
+                            <ul id="subthemes-<%= t.id %>" style="display:none;">
+                              <% t.children.forEach(child=> { %>
+                                <li>
+                                  <div class="theme-row">
+                                    <input type="checkbox" name="theme_ids[]" value="<%= child.id %>"
+                                      id="theme-<%= child.id %>" <%=selectedThemes.has(String(child.id)) ? 'checked'
+                                      : '' %>>
+                                    <label for="theme-<%= child.id %>">
+                                      <%= child.name %>
+                                    </label>
+                                  </div>
+                                </li>
+                                <% }) %>
+                            </ul>
+                          </li>
+                          <% } else { %>
+                            <li>
+                              <div class="theme-row">
+                                <input type="checkbox" name="theme_ids[]" value="<%= t.id %>" id="theme-<%= t.id %>"
+                                  <%=selectedThemes.has(String(t.id)) ? 'checked' : '' %>>
+                                <label for="theme-<%= t.id %>">
+                                  <%= t.name %>
+                                </label>
+                              </div>
+                            </li>
+                            <% } %>
+                              <% }) %>
+                    </ul>
                     <% } %>
               </div>
+
               <div class="theme-group" id="list-group" style="display:none;">
                 <p class="muted mini" style="margin:0 0 0.2rem;">Mes Listes</p>
                 <% if (!sets || sets.length===0) { %>
                   <p class="muted mini">Aucune liste pour le moment.</p>
                   <% } else { %>
-                    <select id="list-select" name="set_ids[]" multiple size="6">
+                    <ul class="custom-select-container">
                       <% sets.forEach(s=> { %>
-                        <option value="<%= s.id %>" <%=selectedSets.has(String(s.id)) ? 'selected' : '' %>><%= s.name %>
-                        </option>
+                        <li>
+                          <div class="theme-row">
+                            <input type="checkbox" name="set_ids[]" value="<%= s.id %>" id="set-<%= s.id %>"
+                              <%=selectedSets.has(String(s.id)) ? 'checked' : '' %>>
+                            <label for="set-<%= s.id %>"><%= s.name %></label>
+                          </div>
+                        </li>
                         <% }) %>
-                    </select>
+                    </ul>
                     <% } %>
               </div>
+
               <div class="theme-group" id="shared-list-group" style="display:none;">
                 <p class="muted mini" style="margin:0 0 0.2rem;">Listes partagées</p>
                 <% if (!sharedSets || sharedSets.length===0) { %>
                   <p class="muted mini">Aucune liste partagée.</p>
                   <% } else { %>
-                    <select id="shared-list-select" name="set_ids[]" multiple size="6">
+                    <ul class="custom-select-container">
                       <% sharedSets.forEach(s=> { %>
-                        <option value="<%= s.id %>" <%=selectedSets.has(String(s.id)) ? 'selected' : '' %>><%= s.name %>
-                            (<%= s.owner_name %>)</option>
+                        <li>
+                          <div class="theme-row">
+                            <input type="checkbox" name="set_ids[]" value="<%= s.id %>" id="shared-set-<%= s.id %>"
+                              <%=selectedSets.has(String(s.id)) ? 'checked' : '' %>>
+                            <label for="shared-set-<%= s.id %>">
+                              <%= s.name %> (<%= s.owner_name %>)
+                            </label>
+                          </div>
+                        </li>
                         <% }) %>
-                    </select>
+                    </ul>
                     <% } %>
               </div>
             </div>
@@ -178,8 +238,6 @@
     if (!form) return;
 
     const levelsData = JSON.parse(form.dataset.levels || '[]');
-    const preselectedThemes = JSON.parse(form.dataset.selectedThemes || '[]');
-    const preselectedSets = JSON.parse(form.dataset.selectedSets || '[]');
     const preselectedLevel = JSON.parse(form.dataset.selectedLevel || '""');
     const selectedRemainingValue = JSON.parse(form.dataset.selectedRemaining || '"all"');
 
@@ -191,20 +249,18 @@
     const togglePublic = document.getElementById('toggle-public');
     const toggleLists = document.getElementById('toggle-lists');
     const toggleShared = document.getElementById('toggle-shared');
-    const themeSelect = document.getElementById('theme-select');
-    const listSelect = document.getElementById('list-select');
-    const sharedListSelect = document.getElementById('shared-list-select');
-    const remainingSelect = document.querySelector('select[name="remaining"]');
 
     const renderLevels = () => {
-      const checkedThemes = themeSelect
-        ? Array.from(themeSelect.selectedOptions || []).map(o => o.value).filter(Boolean)
-        : [];
+      const checkedInputs = document.querySelectorAll('input[name="theme_ids[]"]:checked');
+      const checkedThemes = Array.from(checkedInputs).map(cb => cb.value);
+
       levelSelect.innerHTML = '<option value="">(Tous les niveaux)</option>';
+
       if (checkedThemes.length !== 1) {
         levelField.style.display = 'none';
         return;
       }
+
       const filtered = levelsData.filter(l => String(l.theme_id) === String(checkedThemes[0]));
       if (filtered.length === 0) {
         levelField.style.display = 'none';
@@ -220,33 +276,15 @@
     };
 
     const updateGroups = () => {
-      if (publicGroup) {
-        publicGroup.style.display = togglePublic && togglePublic.checked ? 'grid' : 'none';
-        if (togglePublic && !togglePublic.checked) {
-          if (themeSelect) themeSelect.selectedIndex = -1;
-        }
-      }
-      if (listGroup) {
-        listGroup.style.display = toggleLists && toggleLists.checked ? 'grid' : 'none';
-        if (toggleLists && !toggleLists.checked) {
-          if (listSelect) listSelect.selectedIndex = -1;
-        }
-      }
-      if (sharedListGroup) {
-        sharedListGroup.style.display = toggleShared && toggleShared.checked ? 'grid' : 'none';
-        if (toggleShared && !toggleShared.checked) {
-          if (sharedListSelect) sharedListSelect.selectedIndex = -1;
-        }
-      }
+      if (publicGroup) publicGroup.style.display = togglePublic && togglePublic.checked ? 'block' : 'none';
+      if (listGroup) listGroup.style.display = toggleLists && toggleLists.checked ? 'block' : 'none';
+      if (sharedListGroup) sharedListGroup.style.display = toggleShared && toggleShared.checked ? 'block' : 'none';
       renderLevels();
     };
 
     const updateSliderFill = () => {
       if (!slider) return;
-      const min = slider.min || 1;
-      const max = slider.max || 50;
-      const val = slider.value;
-      const percentage = ((val - min) / (max - min)) * 100;
+      const percentage = ((slider.value - 1) / 49) * 100;
       slider.style.setProperty('--slider-fill', `${percentage}%`);
     };
 
@@ -261,24 +299,14 @@
       }
     };
 
-    if (themeSelect) themeSelect.addEventListener('change', renderLevels);
-    if (listSelect) listSelect.addEventListener('change', () => { });
-    if (sharedListSelect) sharedListSelect.addEventListener('change', () => { });
+    document.querySelectorAll('input[name="theme_ids[]"]').forEach(cb => {
+      cb.addEventListener('change', renderLevels);
+    });
+
     if (togglePublic) togglePublic.addEventListener('change', updateGroups);
     if (toggleLists) toggleLists.addEventListener('change', updateGroups);
     if (toggleShared) toggleShared.addEventListener('change', updateGroups);
-    if (themeSelect && preselectedThemes && preselectedThemes.length > 0) {
-      preselectedThemes.forEach(val => {
-        const opt = themeSelect.querySelector(`option[value="${val}"]`);
-        if (opt) opt.selected = true;
-      });
-    }
-    if (listSelect && preselectedSets && preselectedSets.length > 0) {
-      preselectedSets.forEach(val => {
-        const opt = listSelect.querySelector(`option[value="${val}"]`);
-        if (opt) opt.selected = true;
-      });
-    }
+
     const rmAll = document.getElementById('rm-all');
     const rmCustom = document.getElementById('rm-custom');
     const sliderContainer = document.getElementById('slider-container');
@@ -286,14 +314,8 @@
     const sliderVal = document.getElementById('slider-val');
     const remainingInput = document.getElementById('remaining-input');
 
-    if (rmAll) {
-      rmAll.addEventListener('change', updateRemainingUI);
-      rmAll.addEventListener('click', updateRemainingUI);
-    }
-    if (rmCustom) {
-      rmCustom.addEventListener('change', updateRemainingUI);
-      rmCustom.addEventListener('click', updateRemainingUI);
-    }
+    if (rmAll) rmAll.addEventListener('change', updateRemainingUI);
+    if (rmCustom) rmCustom.addEventListener('change', updateRemainingUI);
     if (slider) {
       slider.addEventListener('input', () => {
         if (sliderVal) sliderVal.textContent = slider.value;
@@ -302,20 +324,157 @@
       });
     }
 
-    updateGroups(); // This calls renderLevels
-
-    if (preselectedLevel && levelSelect) {
-      levelSelect.value = preselectedLevel;
-      // Ensure level field is visible if a level is selected
-      if (levelSelect.value && levelField) levelField.style.display = 'block';
-    }
-
-    updateRemainingUI(); // This sets initial slider visibility and fill
+    updateGroups();
+    if (preselectedLevel && levelSelect) levelSelect.value = preselectedLevel;
+    updateRemainingUI();
 
     form.addEventListener('submit', () => {
       const modeInputs = Array.from(document.querySelectorAll('input[name="modes[]"]'));
-      const anyChecked = modeInputs.some(i => i.checked);
-      if (!anyChecked && modeInputs[0]) modeInputs[0].checked = true;
+      if (!modeInputs.some(i => i.checked) && modeInputs[0]) modeInputs[0].checked = true;
     });
+
+    // Toggle subthemes visibility
+    document.querySelectorAll('.toggle-subthemes-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const targetId = btn.dataset.target;
+        const target = document.getElementById(targetId);
+        const icon = btn.querySelector('.chevron-icon');
+        if (target) {
+          const isHidden = target.style.display === 'none';
+          target.style.display = isHidden ? 'block' : 'none';
+          btn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+          icon.innerHTML = isHidden ? '&#9660;' : '&#9654;';
+        }
+      });
+    });
+
+    // Allow clicking parent label to toggle open/close
+    document.querySelectorAll('.theme-row.parent-row .theme-label').forEach(label => {
+      const parentRow = label.closest('.parent-row');
+      const btn = parentRow ? parentRow.querySelector('.toggle-subthemes-btn') : null;
+      if (!btn) return;
+      label.addEventListener('click', () => btn.click());
+    });
+
+    // Ensure already-selected subthemes are visible on load
+    document.querySelectorAll('.toggle-subthemes-btn').forEach(btn => {
+      const target = document.getElementById(btn.dataset.target);
+      const icon = btn.querySelector('.chevron-icon');
+      if (!target) return;
+      const hasCheckedChild = target.querySelector('input[type="checkbox"]:checked');
+      if (hasCheckedChild) {
+        target.style.display = 'block';
+        btn.setAttribute('aria-expanded', 'true');
+        if (icon) icon.innerHTML = '&#9660;';
+      }
+    });
+
   })();
 </script>
+
+<style>
+  .custom-select-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.75rem 0.85rem;
+    max-height: 320px;
+    overflow-y: auto;
+    list-style: none;
+    margin: 0;
+    border: 1px solid var(--border-main);
+    border-radius: 0.85rem;
+    background: var(--bg-card);
+  }
+
+  .custom-select-container>li {
+    list-style: none;
+    margin: 0;
+  }
+
+  .theme-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: 0.45rem;
+    min-height: 28px;
+  }
+
+  .theme-row input[type="checkbox"] {
+    margin: 0;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--text-faint);
+  }
+
+  .theme-row label,
+  .theme-row .theme-label {
+    cursor: pointer;
+    user-select: none;
+    margin: 0;
+    padding: 0;
+    flex-grow: 1;
+    font-weight: 600;
+    color: var(--text-main);
+  }
+
+  .theme-row.parent-row {
+    grid-template-columns: 18px 1fr;
+    column-gap: 0.4rem;
+  }
+
+  .theme-row.parent-row .theme-label {
+    font-weight: 700;
+  }
+
+  .icon-btn.ghost {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-muted);
+    border-radius: 0.25rem;
+  }
+
+  .icon-btn.ghost:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .chevron-icon {
+    font-size: 0.77em;
+    transition: transform 0.2s ease;
+    display: inline-block;
+  }
+
+  .custom-select-container ul {
+    list-style: none;
+    margin: 0.25rem 0 0.2rem 0.65rem;
+    padding-left: 1.25rem;
+    border-left: 2px solid var(--border-main);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .custom-select-container ul li {
+    margin: 0;
+  }
+
+  .custom-select-container ul .theme-row {
+    grid-template-columns: auto 1fr;
+    column-gap: 0.4rem;
+  }
+
+  .custom-select-container ul .theme-row label {
+    font-weight: 600;
+  }
+</style>

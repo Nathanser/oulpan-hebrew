@@ -3,83 +3,186 @@
     <div>
       <h1>Themes par defaut</h1>
     </div>
-    <div class="list-actions">
-      <a class="btn" href="/admin/themes/new">Créer un thème par défaut</a>
-    </div>
   </div>
-
+  <div class="list-actions">
+    <a class="btn" href="/admin/themes/new">Créer un thème par défaut</a>
+  </div>
+  <br>
 
   <form class="form" action="/admin/themes" method="get" style="max-width:340px;">
     <label>Filtrer par
       <select name="sort" onchange="this.form.submit()">
-        <option value="created_asc" <%= sort === 'created_asc' ? 'selected' : '' %>>Date de creation (plus anciennes)</option>
-        <option value="created_desc" <%= sort === 'created_desc' ? 'selected' : '' %>>Date de creation (plus recentes)</option>
-        <option value="alpha" <%= sort === 'alpha' ? 'selected' : '' %>>Ordre alphabetique</option>
+        <option value="created_asc" <%=sort==='created_asc' ? 'selected' : '' %>>Date de creation (plus anciennes)
+        </option>
+        <option value="created_desc" <%=sort==='created_desc' ? 'selected' : '' %>>Date de creation (plus recentes)
+        </option>
+        <option value="alpha" <%=sort==='alpha' ? 'selected' : '' %>>Ordre alphabetique</option>
       </select>
     </label>
   </form>
 
-  <% if (!themes || themes.length === 0) { %>
+  <% if (!themes || themes.length===0) { %>
     <div class="card set-list-empty">
       <p>Pas encore de themes par defaut.</p>
       <a class="btn" href="/admin/themes/new">Créer un thème</a>
     </div>
-  <% } else { %>
-    <div class="grid set-list-grid">
-      <% themes.forEach(theme => { %>
-        <div class="card set-list-card">
-          <div class="set-list-top">
-            <div>
-              <h3><%= theme.name %></h3>
-              <p class="muted"><%= theme.word_count || 0 %> mot<%= Number(theme.word_count) > 1 ? 's' : '' %></p>
-              <p class="muted mini">Créé le <%= theme.created_at ? new Date(theme.created_at).toLocaleDateString('fr-FR') : '-' %></p>
-              <div class="pill-row" style="margin-top:0.35rem;">
-                <span class="pill <%= theme.active ? 'success' : 'muted' %>"><%= theme.active ? 'Actif' : 'Inactif' %></span>
+    <% } else { %>
+      <div class="grid set-list-grid">
+        <% themes.forEach(theme=> { %>
+          <div class="card set-list-card" style="display:flex; flex-direction:column; gap:0.5rem;">
+            <div class="set-list-top">
+              <div>
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                  <h3>
+                    <%= theme.name %>
+                  </h3>
+                  <% if (theme.children && theme.children.length> 0) { %>
+                    <span class="pill muted mini">
+                      <%= theme.children.length %> sous-themes
+                    </span>
+                    <% } %>
+                </div>
+                <p class="muted">
+                  <%= theme.word_count || 0 %> mot<%= Number(theme.word_count)> 1 ? 's' : '' %>
+                </p>
+                <p class="muted mini">Créé le <%= theme.created_at ? new
+                    Date(theme.created_at).toLocaleDateString('fr-FR') : '-' %>
+                </p>
+                <div class="pill-row" style="margin-top:0.35rem;">
+                  <span class="pill <%= theme.active ? 'success' : 'muted' %>">
+                    <%= theme.active ? 'Actif' : 'Inactif (admin)' %>
+                  </span>
+                </div>
+              </div>
+              <div class="set-list-actions inline-actions">
+                <% if (theme.children && theme.children.length> 0) { %>
+                  <button type="button" class="icon-btn ghost toggle-children-btn"
+                    data-toggle-target="admin-children-<%= theme.id %>" aria-label="Voir sous-themes">
+                    <span class="chevron-icon">&#9654;</span>
+                  </button>
+                  <% } else { %>
+                    <a class="btn ghost" href="/admin/themes/<%= theme.id %>">Ouvrir</a>
+                    <% } %>
+                      <button type="button" class="icon-btn ghost dots-btn" data-menu-btn
+                        aria-label="Actions">&#8942;</button>
+                      <div class="card-menu" data-menu>
+                        <a class="menu-item" href="/admin/themes/<%= theme.id %>/edit">
+                          <span>Modifier</span>
+                          <span class="menu-icon">&#9998;</span>
+                        </a>
+                        <form action="/admin/themes/<%= theme.id %>/toggle" method="post">
+                          <button type="submit" class="menu-item">
+                            <span>
+                              <%= theme.active ? 'Désactiver (admin)' : 'Activer (admin)' %>
+                            </span>
+                            <span class="menu-icon">
+                              <%= theme.active ? 'Off' : 'On' %>
+                            </span>
+                          </button>
+                        </form>
+                        <form action="/admin/themes/<%= theme.id %>?_method=DELETE" method="post"
+                          onsubmit="return confirm('Supprimer ce theme par defaut ?');">
+                          <button type="submit" class="menu-item danger">
+                            <span>Supprimer</span>
+                            <span class="menu-icon">&#128465;</span>
+                          </button>
+                        </form>
+                      </div>
               </div>
             </div>
-            <div class="set-list-actions inline-actions">
-              <a class="btn ghost" href="/admin/themes/<%= theme.id %>">Ouvrir</a>
-              <button type="button" class="icon-btn ghost dots-btn" data-menu-btn aria-label="Actions">&#8942;</button>
-              <div class="card-menu" data-menu>
-                <a class="menu-item" href="/admin/themes/<%= theme.id %>/edit">
-                  <span>Modifier</span>
-                  <span class="menu-icon">&#9998;</span>
-                </a>
-                <form action="/admin/themes/<%= theme.id %>/toggle" method="post">
-                  <button type="submit" class="menu-item">
-                    <span><%= theme.active ? 'Désactiver' : 'Activer' %></span>
-                    <span class="menu-icon"><%= theme.active ? 'Off' : 'On' %></span>
-                  </button>
-                </form>
-                <form action="/admin/themes/<%= theme.id %>?_method=DELETE" method="post" onsubmit="return confirm('Supprimer ce theme par defaut ?');">
-                  <button type="submit" class="menu-item danger">
-                    <span>Supprimer</span>
-                    <span class="menu-icon">&#128465;</span>
-                  </button>
-                </form>
+
+            <% if (theme.children && theme.children.length> 0) { %>
+              <div id="admin-children-<%= theme.id %>"
+                style="display:none; margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border-main);">
+                <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                  <% theme.children.forEach(child=> { %>
+                    <div
+                      style="display:flex; align-items:center; justify-content:space-between; padding:0.4rem; background:var(--bg-hover); border-radius:0.5rem;">
+                      <div>
+                        <strong style="font-size:0.95rem;">
+                          <%= child.name %>
+                        </strong>
+                        <div style="display:flex; gap:0.5rem; align-items:center;">
+                          <span class="muted mini">
+                            <%= child.word_count || 0 %> mots
+                          </span>
+                          <span class="pill <%= child.active ? 'success' : 'muted' %> mini"
+                            style="padding:0 0.4rem; font-size:0.75rem;">
+                            <%= child.active ? 'Actif' : 'Inactif (admin)' %>
+                          </span>
+                        </div>
+                      </div>
+                      <div class="inline-actions">
+                        <a class="btn ghost" href="/admin/themes/<%= child.id %>"
+                          style="padding:0.2rem 0.5rem; font-size:0.85rem;">Ouvrir</a>
+                        <button type="button" class="icon-btn ghost dots-btn" data-menu-btn aria-label="Actions"
+                          style="width:2rem; height:2rem;">&#8942;</button>
+                        <div class="card-menu" data-menu>
+                          <a class="menu-item" href="/admin/themes/<%= child.id %>/edit">
+                            <span>Modifier</span>
+                            <span class="menu-icon">&#9998;</span>
+                          </a>
+                          <form action="/admin/themes/<%= child.id %>/toggle" method="post">
+                            <button type="submit" class="menu-item">
+                              <span>
+                                <%= child.active ? 'Désactiver (admin)' : 'Activer (admin)' %>
+                              </span>
+                              <span class="menu-icon">
+                                <%= child.active ? 'Off' : 'On' %>
+                              </span>
+                            </button>
+                          </form>
+                          <form action="/admin/themes/<%= child.id %>?_method=DELETE" method="post"
+                            onsubmit="return confirm('Supprimer ce sous-theme ?');">
+                            <button type="submit" class="menu-item danger">
+                              <span>Supprimer</span>
+                              <span class="menu-icon">&#128465;</span>
+                            </button>
+                          </form>
+                        </div>
+                      </div>
+                    </div>
+                    <% }) %>
+                </div>
               </div>
-            </div>
+              <% } %>
           </div>
-        </div>
-      <% }) %>
-    </div>
-  <% } %>
+          <% }) %>
+      </div>
+      <% } %>
 </section>
 
 <script>
   (() => {
-    const closeMenus = () => document.querySelectorAll('.card-menu.open').forEach(m => m.classList.remove('open'));
+    const closeMenus = () => {
+      document.querySelectorAll('.card-menu.open').forEach(m => m.classList.remove('open'));
+    };
     document.querySelectorAll('[data-menu-btn]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        closeMenus();
         const menu = btn.parentElement.querySelector('[data-menu]');
-        if (menu) menu.classList.add('open');
+        if (!menu) return;
+        const isOpen = menu.classList.contains('open');
+        closeMenus();
+        if (!isOpen) menu.classList.add('open');
       });
     });
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.inline-actions')) closeMenus();
     });
 
+    document.querySelectorAll('.toggle-children-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const targetId = btn.dataset.toggleTarget;
+        const target = document.getElementById(targetId);
+        const icon = btn.querySelector('.chevron-icon');
+        if (target) {
+          const isHidden = target.style.display === 'none';
+          target.style.display = isHidden ? 'block' : 'none';
+          icon.innerHTML = isHidden ? '&#9660;' : '&#9654;';
+        }
+      });
+    });
   })();
 </script>

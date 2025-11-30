@@ -142,13 +142,17 @@
 
 <script>
   (() => {
-    const closeMenus = () => document.querySelectorAll('.card-menu.open').forEach(m => m.classList.remove('open'));
+    const closeMenus = () => {
+      document.querySelectorAll('.card-menu.open').forEach(m => m.classList.remove('open'));
+    };
     document.querySelectorAll('[data-menu-btn]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        closeMenus();
         const menu = btn.parentElement.querySelector('[data-menu]');
-        if (menu) menu.classList.add('open');
+        if (!menu) return;
+        const isOpen = menu.classList.contains('open');
+        closeMenus();
+        if (!isOpen) menu.classList.add('open');
       });
     });
     document.addEventListener('click', (e) => {
