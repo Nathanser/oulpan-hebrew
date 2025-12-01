@@ -1,0 +1,148 @@
+<section class="search-page">
+  <div class="card search-hero">
+    <div>
+      <p class="eyebrow">Recherche</p>
+      <h1>Explorer tous les mots</h1>
+      <p class="muted">Parcourt en direct l'ensemble des themes et listes disponibles pour ton compte.</p>
+      <div class="search-stats">
+        <span class="stat-chip">Total <strong><%= counts.total %></strong></span>
+        <span class="stat-chip">Themes <strong><%= counts.themes %></strong></span>
+        <span class="stat-chip">Listes <strong><%= counts.lists %></strong></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card search-controls">
+    <div class="search-bar-row search-page-bar">
+      <div class="search-row">
+        <span class="search-icon">&#128269;</span>
+        <input type="search" id="global-search" placeholder="Tape un mot, un theme ou une liste" autocomplete="off" />
+      </div>
+      <button type="button" class="btn ghost" id="reset-search">Reinitialiser</button>
+      <a class="btn" href="/search/duplicates" style="white-space:nowrap;text-align: center;">Voir les doublons</a>
+    </div>
+    <div class="search-filter-grid">
+      <label>
+        <span class="filter-label">Source</span>
+        <select id="filter-source" class="search-filter">
+          <option value="all">Themes + listes</option>
+          <option value="theme">Themes</option>
+          <option value="list">Listes</option>
+        </select>
+      </label>
+      <label>
+        <span class="filter-label">Statut</span>
+        <select id="filter-status" class="search-filter">
+          <option value="all">Actifs + inactifs</option>
+          <option value="active">Actifs</option>
+          <option value="inactive">Inactifs</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="list-header">
+      <div>
+        <p class="eyebrow">Resultats</p>
+        <h2><span id="result-count"><%= searchItems.length %></span> mot<%= searchItems.length > 1 ? 's' : '' %></h2>
+      </div>
+    </div>
+
+    <div class="search-results-grid" id="search-results">
+      <% searchItems.forEach(item => { 
+        const typeLabel = item.kind === 'theme' ? 'Theme' : 'Liste';
+        const originLabel = item.origin === 'global' ? 'Propose' : item.origin === 'shared' ? 'Partage' : 'Perso';
+        const locationText = item.kind === 'theme'
+          ? (item.location + (item.level ? ' - ' + item.level : ''))
+          : item.location;
+        const searchStr = (item.hebrew + ' ' + item.french + ' ' + (item.transliteration || '') + ' ' + locationText + ' ' + (item.owner || '')).toLowerCase();
+      %>
+        <div class="search-card" data-kind="<%= item.kind %>" data-origin="<%= item.origin %>" data-active="<%= item.active %>"
+          data-search="<%= searchStr %>">
+          <div class="search-card-top">
+            <span class="pill muted mini"><%= typeLabel %></span>
+            <span class="pill <%= item.active ? 'success' : 'muted' %> mini"><%= item.active ? 'Actif pour toi' : 'Inactif' %></span>
+          </div>
+          <div class="search-card-body">
+            <p class="hebrew-word"><%= item.hebrew %></p>
+            <p class="french-word"><%= item.french %></p>
+            <% if (item.transliteration) { %>
+              <p class="translit"><%= item.transliteration %></p>
+              <% } %>
+          </div>
+          <div class="search-card-meta">
+            <div class="meta-row">
+              <span class="meta-label">Origine</span>
+              <span class="meta-value"><%= originLabel %></span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label"><%= typeLabel %></span>
+              <span class="meta-value">
+                <%= locationText %>
+                <% if (item.kind === 'list' && item.owner) { %>
+                  <span class="muted">- <%= item.owner %></span>
+                  <% } %>
+              </span>
+            </div>
+            <div class="meta-tags">
+              <% if (!item.baseActive) { %><span class="pill muted mini">Entree inactive</span><% } %>
+              <% if (item.kind === 'theme' && item.level && item.levelActive === 0) { %>
+                <span class="pill muted mini">Niveau inactif</span>
+              <% } %>
+              <% const hideContainerTag = (item.kind === 'theme' && item.levelActive === 0); %>
+              <% if (!item.containerActive && !hideContainerTag) { %>
+                <span class="pill muted mini"><%= item.kind === 'list' ? 'Liste masquee' : 'Theme masquee' %></span>
+              <% } %>
+            </div>
+          </div>
+        </div>
+        <% }) %>
+    </div>
+    <div class="empty-state" id="empty-results" style="display:none;">
+      <p>Aucun resultat ne correspond aux filtres.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+  (() => {
+    const searchInput = document.getElementById('global-search');
+    const sourceFilter = document.getElementById('filter-source');
+    const statusFilter = document.getElementById('filter-status');
+    const resetBtn = document.getElementById('reset-search');
+    const cards = Array.from(document.querySelectorAll('.search-card'));
+    const resultCount = document.getElementById('result-count');
+    const emptyState = document.getElementById('empty-results');
+    const applyFilters = () => {
+      const term = (searchInput?.value || '').trim().toLowerCase();
+      const source = sourceFilter ? sourceFilter.value : 'all';
+      const status = statusFilter ? statusFilter.value : 'all';
+      let visible = 0;
+      cards.forEach(card => {
+        const matchesTerm = !term || (card.dataset.search || '').includes(term);
+        const matchesSource = source === 'all' || card.dataset.kind === source;
+        const matchesStatus = status === 'all' || (status === 'active' ? card.dataset.active === '1' : card.dataset.active !== '1');
+        const show = matchesTerm && matchesSource && matchesStatus;
+        card.style.display = show ? '' : 'none';
+        if (show) visible += 1;
+      });
+      if (resultCount) resultCount.textContent = visible;
+      if (emptyState) emptyState.style.display = visible === 0 ? 'flex' : 'none';
+    };
+    [searchInput, sourceFilter, statusFilter].forEach(el => {
+      if (!el) return;
+      const evt = el === searchInput ? 'input' : 'change';
+      el.addEventListener(evt, applyFilters);
+    });
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (searchInput) searchInput.value = '';
+        if (sourceFilter) sourceFilter.value = 'all';
+        if (statusFilter) statusFilter.value = 'all';
+        applyFilters();
+      });
+    }
+    applyFilters();
+  })();
+</script>

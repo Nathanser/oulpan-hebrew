@@ -487,6 +487,19 @@ function slugify(str = '') {
     .toLowerCase() || 'item';
 }
 
+function duplicateKey(hebrew, french) {
+  const clean = (val = '') =>
+    String(val)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+  const fr = clean(french);
+  const he = clean(hebrew);
+  if (!fr && !he) return '';
+  return `${fr}|${he}`;
+}
+
 function crc32(buf) {
   const table = crc32.table || (crc32.table = (() => {
     let c;
@@ -1822,14 +1835,16 @@ app.put('/my/words/:id', requireAuth, async (req, res) => {
 
 app.delete('/my/words/:id', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
+  const redirectTo = req.body.redirectTo;
+  const backUrl = redirectTo && redirectTo.startsWith('/') ? redirectTo : '/my/words';
   try {
     await run('DELETE FROM progress WHERE word_id = ? AND user_id = ?', [req.params.id, userId]);
     await run('DELETE FROM favorites WHERE word_id = ? AND user_id = ?', [req.params.id, userId]);
     await run('DELETE FROM words WHERE id = ? AND user_id = ?', [req.params.id, userId]);
-    res.redirect('/my/words');
+    res.redirect(backUrl);
   } catch (e) {
     console.error(e);
-    res.redirect('/my/words');
+    res.redirect(backUrl);
   }
 });
 
@@ -2018,6 +2033,269 @@ app.get('/space', requireAuth, async (req, res) => {
       pageClass: 'page-compact'
     });
   }
+});
+
+// ---------- Recherche globale ----------
+app.get('/search', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  try {
+    const themeWords = await all(
+      `SELECT w.id, w.hebrew, w.french, w.transliteration,
+              w.active AS word_active,
+              w.user_id,
+              w.theme_id,
+              w.level_id,
+              t.name AS theme_name,
+              t.user_id AS theme_owner_id,
+              t.active AS theme_active,
+              COALESCE(uto.active, t.active) AS theme_user_active,
+              l.name AS level_name,
+              l.active AS level_active,
+              uwo.active AS override_active
+         FROM words w
+         LEFT JOIN themes t ON t.id = w.theme_id
+         LEFT JOIN theme_levels l ON l.id = w.level_id
+         LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
+         LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
+        WHERE (w.user_id IS NULL OR w.user_id = ?)
+          AND (w.theme_id IS NULL OR t.user_id IS NULL OR t.user_id = ?)
+        ORDER BY w.id ASC`,
+      [userId, userId, userId, userId]
+    );
+
+    const listCards = await all(
+      `SELECT c.id, c.hebrew, c.french, c.transliteration,
+              c.active AS card_active,
+              c.set_id,
+              s.name AS set_name,
+              s.user_id AS owner_id,
+              owner.display_name AS owner_name,
+              s.active AS set_active,
+              COALESCE(uso.active, s.active) AS set_user_active,
+              co.active AS override_active,
+              sh.id AS share_id
+         FROM sets s
+         JOIN users owner ON owner.id = s.user_id
+         JOIN cards c ON c.set_id = s.id
+         LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
+         LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+         LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+        WHERE s.user_id = ? OR sh.id IS NOT NULL
+        ORDER BY s.created_at DESC, c.position ASC, c.id ASC`,
+      [userId, userId, userId, userId]
+    );
+
+    const searchItems = [];
+
+    for (const w of themeWords) {
+      const themeActive = w.theme_id ? (w.theme_user_active === null ? w.theme_active : w.theme_user_active) : 1;
+      const levelActive = w.level_id ? w.level_active : 1;
+      const containerActive = themeActive && levelActive ? 1 : 0;
+      const effectiveActive =
+        (w.word_active && containerActive)
+          ? (w.override_active === null ? w.word_active : w.override_active)
+          : 0;
+      searchItems.push({
+        id: `word-${w.id}`,
+        kind: 'theme',
+        hebrew: w.hebrew,
+        french: w.french,
+        transliteration: w.transliteration || '',
+        location: w.theme_name || 'Sans theme',
+        level: w.level_name || '',
+        origin: w.user_id ? 'mine' : 'global',
+        active: effectiveActive ? 1 : 0,
+        baseActive: w.word_active ? 1 : 0,
+        containerActive,
+        levelActive: levelActive ? 1 : 0
+      });
+    }
+
+    for (const c of listCards) {
+      const setActive = c.set_user_active === null ? c.set_active : c.set_user_active;
+      const cardActive = c.override_active === null ? c.card_active : c.override_active;
+      const effectiveActive = setActive && cardActive ? 1 : 0;
+      searchItems.push({
+        id: `card-${c.id}`,
+        kind: 'list',
+        hebrew: c.hebrew,
+        french: c.french,
+        transliteration: c.transliteration || '',
+        location: c.set_name,
+        owner: c.owner_name,
+        origin: c.owner_id === userId ? 'mine' : 'shared',
+        active: effectiveActive ? 1 : 0,
+        baseActive: c.card_active ? 1 : 0,
+        containerActive: setActive ? 1 : 0,
+        levelActive: 1
+      });
+    }
+
+    searchItems.sort((a, b) => {
+      return String(a.french || '').localeCompare(String(b.french || ''), 'fr', { sensitivity: 'base' });
+    });
+
+    res.render('search', {
+      searchItems,
+      counts: {
+        total: searchItems.length,
+        themes: themeWords.length,
+        lists: listCards.length
+      },
+      title: 'Recherche'
+    });
+  } catch (e) {
+    console.error('Search page error:', e);
+    res.render('search', { searchItems: [], counts: { total: 0, themes: 0, lists: 0 }, title: 'Recherche' });
+  }
+});
+
+app.get('/search/duplicates', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const isAdmin = req.session.user && req.session.user.role === 'admin';
+  try {
+    const ignoredRows = await all('SELECT dup_key FROM duplicate_ignores WHERE user_id = ?', [userId]);
+    const ignoredSet = new Set(ignoredRows.map(r => r.dup_key));
+
+    const themeWords = await all(
+      `SELECT w.id, w.hebrew, w.french, w.transliteration, w.user_id, w.theme_id, w.level_id,
+              w.active AS word_active,
+              t.name AS theme_name,
+              t.active AS theme_active,
+              COALESCE(uto.active, t.active) AS theme_user_active,
+              l.name AS level_name,
+              l.active AS level_active,
+              uwo.active AS override_active
+         FROM words w
+         LEFT JOIN themes t ON t.id = w.theme_id
+         LEFT JOIN theme_levels l ON l.id = w.level_id
+         LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
+         LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
+        WHERE w.user_id IS NULL OR w.user_id = ?`,
+      [userId, userId, userId]
+    );
+
+    const accessibleSetIds = await getAccessibleSetIds(userId);
+    let listCards = [];
+    if (accessibleSetIds.length > 0) {
+      const ph = accessibleSetIds.map(() => '?').join(',');
+      listCards = await all(
+        `SELECT c.id, c.hebrew, c.french, c.transliteration,
+                c.active AS card_active,
+                c.set_id,
+                s.name AS set_name,
+                s.user_id AS owner_id,
+                u.display_name AS owner_name,
+                s.active AS set_active,
+                COALESCE(uso.active, s.active) AS set_user_active,
+                co.active AS override_active,
+                sh.can_edit
+           FROM cards c
+           JOIN sets s ON s.id = c.set_id
+           JOIN users u ON u.id = s.user_id
+           LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
+           LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+           LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+          WHERE s.id IN (${ph})`,
+        [userId, userId, userId, ...accessibleSetIds]
+      );
+    }
+
+    const map = new Map();
+    const addItem = (key, item) => {
+      if (!key) return;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(item);
+    };
+
+    themeWords.forEach(w => {
+      const key = duplicateKey(w.hebrew, w.french);
+      const themeActive = w.theme_id ? (w.theme_user_active === null ? w.theme_active : w.theme_user_active) : 1;
+      const levelActive = w.level_id ? w.level_active : 1;
+      const containerActive = themeActive && levelActive ? 1 : 0;
+      const effectiveActive = containerActive ? (w.override_active === null ? w.word_active : w.override_active) : 0;
+      addItem(key, {
+        key,
+        kind: 'theme',
+        id: w.id,
+        hebrew: w.hebrew,
+        french: w.french,
+        transliteration: w.transliteration || '',
+        container: w.theme_name || 'Sans theme',
+        level: w.level_name || '',
+        themeId: w.theme_id || null,
+        active: effectiveActive ? 1 : 0,
+        baseActive: w.word_active ? 1 : 0,
+        containerActive,
+        levelActive: levelActive ? 1 : 0,
+        isOwner: w.user_id === userId,
+        isGlobal: !w.user_id
+      });
+    });
+
+    listCards.forEach(c => {
+      const key = duplicateKey(c.hebrew, c.french);
+      const setActive = c.set_user_active === null ? c.set_active : c.set_user_active;
+      const cardActive = c.override_active === null ? c.card_active : c.override_active;
+      const effectiveActive = setActive && cardActive ? 1 : 0;
+      const isOwner = c.owner_id === userId;
+      const canEdit = isOwner || Number(c.can_edit) === 1;
+      addItem(key, {
+        key,
+        kind: 'list',
+        id: c.id,
+        setId: c.set_id,
+        hebrew: c.hebrew,
+        french: c.french,
+        transliteration: c.transliteration || '',
+        container: c.set_name || 'Sans liste',
+        ownerName: c.owner_name || '',
+        active: effectiveActive ? 1 : 0,
+        baseActive: c.card_active ? 1 : 0,
+        containerActive: setActive ? 1 : 0,
+        isOwner,
+        canEdit
+      });
+    });
+
+    const groups = Array.from(map.entries())
+      .filter(([, items]) => items.length > 1)
+      .map(([key, items]) => ({
+        key,
+        items,
+        sample: items[0],
+        kind:
+          items.some(i => i.kind === 'theme') && items.some(i => i.kind === 'list')
+            ? 'cross'
+            : items[0].kind
+      }))
+      .sort((a, b) => String(a.sample.french || '').localeCompare(String(b.sample.french || ''), 'fr', { sensitivity: 'base' }));
+
+    const ignoredGroups = groups.filter(g => ignoredSet.has(g.key));
+    const activeGroups = groups.filter(g => !ignoredSet.has(g.key));
+
+    res.render('duplicates_user', { groups: activeGroups, ignoredGroups, title: 'Doublons', isAdmin });
+  } catch (e) {
+    console.error('User duplicate scan error:', e);
+    res.render('duplicates_user', { groups: [], ignoredGroups: [], title: 'Doublons', isAdmin: false });
+  }
+});
+
+app.post('/search/duplicates/ignore', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const { dup_key, action } = req.body;
+  const backUrl = '/search/duplicates';
+  if (!dup_key) return res.redirect(backUrl);
+  try {
+    if (action === 'ignore') {
+      await run('INSERT OR IGNORE INTO duplicate_ignores (user_id, dup_key) VALUES (?, ?)', [userId, dup_key]);
+    } else if (action === 'unignore') {
+      await run('DELETE FROM duplicate_ignores WHERE user_id = ? AND dup_key = ?', [userId, dup_key]);
+    }
+  } catch (e) {
+    console.error('Ignore duplicate toggle error:', e);
+  }
+  res.redirect(backUrl);
 });
 
 app.get('/my/lists/new', requireAuth, (req, res) => {
@@ -2440,17 +2718,21 @@ app.put('/my/lists/:id', requireAuth, async (req, res) => {
 
 app.post('/my/lists/:id/cards/:cardId/action', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
+  const isAdmin = req.session.user && req.session.user.role === 'admin';
   const { action, redirectTo } = req.body;
   const fallback = `/my/lists/${req.params.id}`;
-  const allowedRedirects = ['/my/lists', '/my/words'];
+  const allowedRedirects = ['/my/lists', '/my/words', '/search/duplicates'];
   const backUrl = redirectTo && allowedRedirects.some(p => redirectTo.startsWith(p)) ? redirectTo : fallback;
   try {
     const set = await get('SELECT * FROM sets WHERE id = ?', [req.params.id]);
     if (!set) return res.redirect('/my/lists');
-    const isOwner = set.user_id === userId;
+    let isOwner = set.user_id === userId;
     const shared = await get('SELECT can_edit FROM set_shares WHERE set_id = ? AND user_id = ?', [set.id, userId]);
     const isCollaborator = shared && Number(shared.can_edit) === 1;
-    if (!isOwner && !shared) return res.redirect(backUrl);
+    if (isAdmin) {
+      isOwner = true; // admin can agir comme proprio pour modifs
+    }
+    if (!isOwner && !shared && !isAdmin) return res.redirect(backUrl);
     const card = await get('SELECT * FROM cards WHERE id = ? AND set_id = ?', [req.params.cardId, set.id]);
     if (!card) return res.redirect(backUrl);
     const existingOverride = await get('SELECT * FROM card_overrides WHERE card_id = ? AND user_id = ?', [card.id, userId]);
@@ -3839,6 +4121,117 @@ app.get('/admin', requireAdmin, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.render('admin/dashboard', { userCount: 0, wordCount: 0, themeCount: 0 });
+  }
+});
+
+app.get('/admin/duplicates', requireAdmin, async (req, res) => {
+  try {
+    const themeWords = await all(
+      `SELECT w.id, w.hebrew, w.french, w.transliteration,
+              t.name AS theme_name,
+              l.name AS level_name
+         FROM words w
+         LEFT JOIN themes t ON t.id = w.theme_id
+         LEFT JOIN theme_levels l ON l.id = w.level_id
+        WHERE w.user_id IS NULL`
+    );
+
+    const listCards = await all(
+      `SELECT c.id, c.hebrew, c.french, c.transliteration,
+              s.name AS set_name,
+              u.display_name AS owner_name
+         FROM cards c
+         JOIN sets s ON s.id = c.set_id
+         JOIN users u ON u.id = s.user_id`
+    );
+
+    const themeMap = new Map();
+    const listMap = new Map();
+    const globalMap = new Map();
+
+    const addEntry = (map, key, item) => {
+      if (!key) return;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(item);
+    };
+
+    const addGlobal = (key, entry) => {
+      if (!key) return;
+      if (!globalMap.has(key)) globalMap.set(key, []);
+      globalMap.get(key).push(entry);
+    };
+
+    themeWords.forEach(w => {
+      const key = duplicateKey(w.hebrew, w.french);
+      const item = {
+        key,
+        id: w.id,
+        hebrew: w.hebrew,
+        french: w.french,
+        transliteration: w.transliteration || '',
+        theme: w.theme_name || 'Sans theme',
+        level: w.level_name || ''
+      };
+      addEntry(themeMap, key, item);
+      addGlobal(key, { ...item, source: 'theme' });
+    });
+
+    listCards.forEach(c => {
+      const key = duplicateKey(c.hebrew, c.french);
+      const item = {
+        key,
+        id: c.id,
+        hebrew: c.hebrew,
+        french: c.french,
+        transliteration: c.transliteration || '',
+        list: c.set_name || 'Sans liste',
+        owner: c.owner_name || 'Inconnu'
+      };
+      addEntry(listMap, key, item);
+      addGlobal(key, { ...item, source: 'list' });
+    });
+
+    const mapToDuplicates = (map) => {
+      return Array.from(map.entries())
+        .filter(([, arr]) => arr.length > 1)
+        .map(([key, arr]) => ({
+          key,
+          count: arr.length,
+          sample: arr[0],
+          items: arr
+        }))
+        .sort((a, b) => String(a.sample.french || '').localeCompare(String(b.sample.french || ''), 'fr', { sensitivity: 'base' }));
+    };
+
+    const themeDuplicates = mapToDuplicates(themeMap);
+    const listDuplicates = mapToDuplicates(listMap);
+
+    const crossDuplicates = Array.from(globalMap.entries())
+      .map(([key, entries]) => {
+        const sources = new Set(entries.map(e => e.source));
+        return { key, entries, sources, sample: entries[0] };
+      })
+      .filter(g => g.entries.length > 1 && g.sources.size > 1)
+      .sort((a, b) => String(a.sample.french || '').localeCompare(String(b.sample.french || ''), 'fr', { sensitivity: 'base' }));
+
+    res.render('admin/duplicates', {
+      themeDuplicates,
+      listDuplicates,
+      crossDuplicates,
+      stats: {
+        theme: themeDuplicates.length,
+        list: listDuplicates.length,
+        cross: crossDuplicates.length
+      }
+    });
+  } catch (e) {
+    console.error('Duplicate scan error:', e);
+    res.render('admin/duplicates', {
+      themeDuplicates: [],
+      listDuplicates: [],
+      crossDuplicates: [],
+      stats: { theme: 0, list: 0, cross: 0 }
+    });
   }
 });
 

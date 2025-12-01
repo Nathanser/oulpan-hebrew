@@ -1,0 +1,137 @@
+<section>
+  <div class="list-header">
+    <div>
+      <h1>Doublons</h1>
+      <p class="muted">Detection des mots identiques entre themes par defaut et listes.</p>
+    </div>
+    <div class="inline-actions">
+      <a class="btn ghost" href="/admin">Retour admin</a>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <p class="eyebrow">Entre themes et listes</p>
+      <h2><%= stats.cross %> doublon<%= stats.cross > 1 ? 's' : '' %></h2>
+    </div>
+    <div class="card">
+      <p class="eyebrow">Themes par defaut</p>
+      <h2><%= stats.theme %> doublon<%= stats.theme > 1 ? 's' : '' %></h2>
+    </div>
+    <div class="card">
+      <p class="eyebrow">Listes (toutes)</p>
+      <h2><%= stats.list %> doublon<%= stats.list > 1 ? 's' : '' %></h2>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1rem;">
+    <div class="list-header">
+      <h3>Doublons entre themes et listes</h3>
+    </div>
+    <% if (!crossDuplicates || crossDuplicates.length === 0) { %>
+      <p class="muted">Aucun doublon detecte entre themes et listes.</p>
+      <% } else { %>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Francais</th>
+                <th>Hebreu</th>
+                <th>Occurrences</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% crossDuplicates.forEach(g => { %>
+                <tr>
+                  <td><strong><%= g.sample.french %></strong></td>
+                  <td><%= g.sample.hebrew %></td>
+                  <td>
+                    <ul style="margin:0; padding-left:1.1rem;">
+                      <% g.entries.forEach(e => { %>
+                        <li>
+                          <%= e.source === 'theme' ? 'Theme' : 'Liste' %> :
+                          <%= e.source === 'theme' ? (e.theme + (e.level ? ' - ' + e.level : '')) : (e.list + ' (' + e.owner + ')') %>
+                        </li>
+                        <% }) %>
+                    </ul>
+                  </td>
+                </tr>
+                <% }) %>
+            </tbody>
+          </table>
+        </div>
+        <% } %>
+  </div>
+
+  <div class="card" style="margin-top:1rem;">
+    <div class="list-header">
+      <h3>Doublons dans les themes par defaut</h3>
+    </div>
+    <% if (!themeDuplicates || themeDuplicates.length === 0) { %>
+      <p class="muted">Aucun doublon trouve dans les themes.</p>
+      <% } else { %>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Francais</th>
+                <th>Hebreu</th>
+                <th>Occurrences</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% themeDuplicates.forEach(g => { %>
+                <tr>
+                  <td><strong><%= g.sample.french %></strong></td>
+                  <td><%= g.sample.hebrew %></td>
+                  <td>
+                    <ul style="margin:0; padding-left:1.1rem;">
+                      <% g.items.forEach(e => { %>
+                        <li><%= e.theme %><% if (e.level) { %> - <%= e.level %><% } %></li>
+                        <% }) %>
+                    </ul>
+                  </td>
+                </tr>
+                <% }) %>
+            </tbody>
+          </table>
+        </div>
+        <% } %>
+  </div>
+
+  <div class="card" style="margin-top:1rem;">
+    <div class="list-header">
+      <h3>Doublons dans les listes (toutes)</h3>
+    </div>
+    <% if (!listDuplicates || listDuplicates.length === 0) { %>
+      <p class="muted">Aucun doublon trouve dans les listes.</p>
+      <% } else { %>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Francais</th>
+                <th>Hebreu</th>
+                <th>Occurrences</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% listDuplicates.forEach(g => { %>
+                <tr>
+                  <td><strong><%= g.sample.french %></strong></td>
+                  <td><%= g.sample.hebrew %></td>
+                  <td>
+                    <ul style="margin:0; padding-left:1.1rem;">
+                      <% g.items.forEach(e => { %>
+                        <li><%= e.list %> (<%= e.owner %>)</li>
+                        <% }) %>
+                    </ul>
+                  </td>
+                </tr>
+                <% }) %>
+            </tbody>
+          </table>
+        </div>
+        <% } %>
+  </div>
+</section>
