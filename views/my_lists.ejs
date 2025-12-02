@@ -1,168 +1,153 @@
-<section>
-  <div class="list-header">
-    <div>
-      <h1>Mes listes</h1>
-    </div>
-    <div class="list-actions">
-      <a class="btn" href="/my/lists/new">Créer une liste</a>
-    </div>
+<% const memorizedCount=(cards || []).filter(c=> Number(c.memorized)).length; %>
+<% const pendingCount=(cards || []).length - memorizedCount; %>
+
+<section class="lists-hero">
+  <script>
+    // Désactive le zoom global sur cette page
+    document.addEventListener('DOMContentLoaded', () => {
+      const body = document.body;
+      if (body && body.classList.contains('app-scale')) body.classList.remove('app-scale');
+      const shell = document.querySelector('.layout-shell');
+      if (shell) {
+        shell.style.transform = 'none';
+        shell.style.width = '100%';
+        shell.style.margin = '0 auto';
+      }
+      const fixedBars = document.querySelectorAll('.fixed-actions');
+      fixedBars.forEach(el => {
+        el.style.transform = 'none';
+        el.style.left = '0';
+        el.style.right = '0';
+        el.style.width = '100%';
+      });
+    });
+  </script>
+
+  <div class="lists-hero-head">
+    <p class="eyebrow">Tableau de bord</p>
+    <h1>Mes listes</h1>
   </div>
 
-  <form class="form" action="/my/lists" method="get" style="max-width:340px;">
-    <label>Filtrer par
+  <form class="list-filter-row" action="/my/lists" method="get">
+    <label class="filter-label">
+      Filtrer par
       <select name="sort" onchange="this.form.submit()">
-        <option value="created_asc" <%=sort==='created_asc' ? 'selected' : '' %>>Date de création (plus anciennes)
-        </option>
-        <option value="created_desc" <%=sort==='created_desc' ? 'selected' : '' %>>Date de création (plus récentes)
-        </option>
-        <option value="alpha" <%=sort==='alpha' ? 'selected' : '' %>>Ordre alphabétique</option>
+        <option value="created_asc" <%=sort==='created_asc' ? 'selected' : '' %>>Date de crǸation (plus anciennes)</option>
+        <option value="created_desc" <%=sort==='created_desc' ? 'selected' : '' %>>Date de crǸation (plus rǸcentes)</option>
+        <option value="alpha" <%=sort==='alpha' ? 'selected' : '' %>>Ordre alphabǸtique</option>
       </select>
     </label>
+    <a class="btn cta" href="/my/lists/new">CrǸer une liste</a>
   </form>
 
-  <div class="tab-row" style="margin-top:0.5rem;">
-    <button type="button" class="tab-btn active" data-tab="personal">Liste personnelle</button>
-    <button type="button" class="tab-btn" data-tab="shared">Liste partagée</button>
+  <div class="list-tabs">
+    <button type="button" class="tab-pill active" data-tab="personal">Liste personnelle</button>
+    <button type="button" class="tab-pill" data-tab="shared">Liste partagǸe</button>
   </div>
-  <br><br>
 
   <div data-tab-content="personal">
     <% if (!sets || sets.length===0) { %>
       <div class="card set-list-empty">
         <p>Pas encore de listes.</p>
-        <a class="btn" href="/my/lists/new">Créer ma première liste</a>
+        <a class="btn" href="/my/lists/new">CrǸer ma premi��re liste</a>
       </div>
-      <% } else { %>
-        <div class="grid set-list-grid">
-          <% sets.forEach(set=> { %>
-            <div class="card set-list-card">
-              <div class="set-list-top">
-                <div>
-                  <h3>
-                    <%= set.name %>
-                  </h3>
-                  <p class="muted">
-                    <%= set.card_count %> carte<%= Number(set.card_count)> 1 ? 's' : '' %>
-                  </p>
-                  <% if (set.shared_with) { %>
-                    <p class="muted mini">Partage : <%= set.shared_with %>
-                    </p>
-                    <% } %>
-                      <% if (set.collaborators) { %>
-                        <p class="muted mini">Collaboration : <%= set.collaborators %>
-                        </p>
-                        <% } %>
-                          <p class="muted mini">Créée le <%= set.created_at ? new
-                              Date(set.created_at).toLocaleDateString('fr-FR') : '-' %>
-                          </p>
-                          <% if (Number(set.effective_active)===0) { %>
-                            <p class="pill muted mini">Inactif</p>
-                            <% } %>
-                </div>
-                <div class="set-list-actions inline-actions">
-                  <a class="btn ghost" href="/my/lists/<%= set.id %>">Ouvrir</a>
-                  <button type="button" class="icon-btn ghost dots-btn" data-menu-btn
-                    aria-label="Actions">&#8942;</button>
-                  <div class="card-menu" data-menu>
-                    <a class="menu-item" href="/my/lists/<%= set.id %>/edit">
-                      <span>Modifier</span>
-                      <span class="menu-icon">&#9998;</span>
-                    </a>
-                    <form action="/my/lists/<%= set.id %>/duplicate" method="post">
-                      <button type="submit" class="menu-item">
-                        <span>Dupliquer</span>
-                        <span class="menu-icon">&#128203;</span>
-                      </button>
-                    </form>
-                    <form action="/my/lists/<%= set.id %>/toggle-active" method="post">
-                      <button type="submit" class="menu-item">
-                        <span>
-                          <%= Number(set.effective_active)===0 ? 'Afficher' : 'Masquer' %>
-                        </span>
-                        <span class="menu-icon">&#128065;</span>
-                      </button>
-                    </form>
-                    <a class="menu-item" href="/my/lists/<%= set.id %>/share">
-                      <span>Partager / Collaborer</span>
-                      <span class="menu-icon">&#128100;</span>
-                    </a>
-                    <form action="/my/lists/<%= set.id %>?_method=DELETE" method="post"
-                      onsubmit="return confirm('Supprimer cette liste ?');">
-                      <button type="submit" class="menu-item danger">
-                        <span>Supprimer</span>
-                        <span class="menu-icon">&#128465;</span>
-                      </button>
-                    </form>
-                  </div>
+    <% } else { %>
+      <div class="set-list-grid mobile-single">
+        <% sets.forEach(set=> { %>
+          <div class="card set-list-card hero-card">
+            <div class="set-list-top hero-top">
+              <div class="set-list-title">
+                <h3><%= set.name %></h3>
+                <p class="muted big-meta"><%= set.card_count %> carte<%= Number(set.card_count)> 1 ? 's' : '' %></p>
+                <p class="muted big-meta">CrǸǸe le <%= set.created_at ? new Date(set.created_at).toLocaleDateString('fr-FR') : '-' %></p>
+                <% if (Number(set.effective_active)===0) { %><p class="pill muted mini">Inactif</p><% } %>
+              </div>
+              <div class="set-list-actions inline-actions">
+                <a class="btn ghost" href="/my/lists/<%= set.id %>">Ouvrir</a>
+                <button type="button" class="icon-btn ghost dots-btn" data-menu-btn aria-label="Actions">&#8942;</button>
+                <div class="card-menu" data-menu>
+                  <a class="menu-item" href="/my/lists/<%= set.id %>/edit">
+                    <span>Modifier</span>
+                    <span class="menu-icon">&#9998;</span>
+                  </a>
+                  <form action="/my/lists/<%= set.id %>/duplicate" method="post">
+                    <button type="submit" class="menu-item">
+                      <span>Dupliquer</span>
+                      <span class="menu-icon">&#128203;</span>
+                    </button>
+                  </form>
+                  <form action="/my/lists/<%= set.id %>/toggle-active" method="post">
+                    <button type="submit" class="menu-item">
+                      <span><%= Number(set.effective_active)===0 ? 'Afficher' : 'Masquer' %></span>
+                      <span class="menu-icon">&#128065;</span>
+                    </button>
+                  </form>
+                  <a class="menu-item" href="/my/lists/<%= set.id %>/share">
+                    <span>Partager / Collaborer</span>
+                    <span class="menu-icon">&#128100;</span>
+                  </a>
+                  <form action="/my/lists/<%= set.id %>?_method=DELETE" method="post" onsubmit="return confirm('Supprimer cette liste ?');">
+                    <button type="submit" class="menu-item danger">
+                      <span>Supprimer</span>
+                      <span class="menu-icon">&#128465;</span>
+                    </button>
+                  </form>
                 </div>
               </div>
             </div>
-            <% }) %>
-        </div>
-        <% } %>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
   </div>
 
   <div data-tab-content="shared" style="display:none;">
     <% if (!sharedSets || sharedSets.length===0) { %>
       <div class="card set-list-empty">
-        <p>Aucune liste partagée.</p>
+        <p>Aucune liste partagǸe.</p>
       </div>
-      <% } else { %>
-        <div class="grid set-list-grid">
-          <% sharedSets.forEach(set=> { %>
-            <div class="card set-list-card">
-              <div class="set-list-top">
-                <div>
-                  <h3>
-                    <%= set.name %>
-                  </h3>
-                  <p class="muted">
-                    <%= set.card_count %> carte<%= Number(set.card_count)> 1 ? 's' : '' %>
-                  </p>
-                  <p class="muted mini">Propriétaire : <%= set.owner_name %>
-                  </p>
-                  <p class="muted mini">Type : <%= Number(set.can_edit)===1 ? 'Collaboration' : 'Partage' %>
-                  </p>
-                  <p class="muted mini">Créée le <%= set.created_at ? new
-                      Date(set.created_at).toLocaleDateString('fr-FR') : '-' %>
-                  </p>
-                  <% if (Number(set.effective_active)===0) { %>
-                    <p class="pill muted mini">Inactif</p>
-                    <% } %>
-                </div>
-                <div class="set-list-actions inline-actions">
-                  <a class="btn ghost" href="/my/lists/<%= set.id %>">Ouvrir</a>
-                  <button type="button" class="icon-btn ghost dots-btn" data-menu-btn
-                    aria-label="Actions">&#8942;</button>
-                  <div class="card-menu" data-menu>
-                    <% if (Number(set.can_edit)===1) { %>
-                      <a class="menu-item" href="/my/lists/<%= set.id %>/edit">
-                        <span>Modifier</span>
-                        <span class="menu-icon">&#9998;</span>
-                      </a>
-                      <% } %>
-                        <form action="/my/lists/<%= set.id %>/toggle-active" method="post">
-                          <button type="submit" class="menu-item">
-                            <span>
-                              <%= Number(set.effective_active)===0 ? 'Afficher' : 'Masquer' %>
-                            </span>
-                            <span class="menu-icon">&#128065;</span>
-                          </button>
-                        </form>
-                        <form action="/my/lists/<%= set.id %>/leave" method="post"
-                          onsubmit="return confirm('Quitter cette liste partagée ?');">
-                          <button type="submit" class="menu-item danger">
-                            <span>Quitter le partage</span>
-                            <span class="menu-icon">&#10134;</span>
-                          </button>
-                        </form>
-                  </div>
+    <% } else { %>
+      <div class="set-list-grid mobile-single">
+        <% sharedSets.forEach(set=> { %>
+          <div class="card set-list-card hero-card">
+            <div class="set-list-top hero-top">
+              <div class="set-list-title">
+                <h3><%= set.name %></h3>
+                <p class="muted big-meta"><%= set.card_count %> carte<%= Number(set.card_count)> 1 ? 's' : '' %></p>
+                <p class="muted big-meta">PropriǸtaire : <%= set.owner_name %></p>
+                <p class="muted big-meta">Type : <%= Number(set.can_edit)===1 ? 'Collaboration' : 'Partage' %></p>
+                <p class="muted big-meta">CrǸǸe le <%= set.created_at ? new Date(set.created_at).toLocaleDateString('fr-FR') : '-' %></p>
+                <% if (Number(set.effective_active)===0) { %><p class="pill muted mini">Inactif</p><% } %>
+              </div>
+              <div class="set-list-actions inline-actions">
+                <a class="btn ghost" href="/my/lists/<%= set.id %>">Ouvrir</a>
+                <button type="button" class="icon-btn ghost dots-btn" data-menu-btn aria-label="Actions">&#8942;</button>
+                <div class="card-menu" data-menu>
+                  <% if (Number(set.can_edit)===1) { %>
+                    <a class="menu-item" href="/my/lists/<%= set.id %>/edit">
+                      <span>Modifier</span>
+                      <span class="menu-icon">&#9998;</span>
+                    </a>
+                  <% } %>
+                  <form action="/my/lists/<%= set.id %>/toggle-active" method="post">
+                    <button type="submit" class="menu-item">
+                      <span><%= Number(set.effective_active)===0 ? 'Afficher' : 'Masquer' %></span>
+                      <span class="menu-icon">&#128065;</span>
+                    </button>
+                  </form>
+                  <form action="/my/lists/<%= set.id %>/leave" method="post" onsubmit="return confirm('Quitter cette liste partagǸe ?');">
+                    <button type="submit" class="menu-item danger">
+                      <span>Quitter le partage</span>
+                      <span class="menu-icon">&#10134;</span>
+                    </button>
+                  </form>
                 </div>
               </div>
             </div>
-            <% }) %>
-        </div>
-        <% } %>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
   </div>
 </section>
 
@@ -185,7 +170,7 @@
       if (!e.target.closest('.inline-actions')) closeMenus();
     });
 
-    const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
+    const tabButtons = Array.from(document.querySelectorAll('.tab-pill'));
     const tabContents = Array.from(document.querySelectorAll('[data-tab-content]'));
     tabButtons.forEach(btn => {
       btn.addEventListener('click', () => {
