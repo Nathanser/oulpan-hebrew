@@ -5,12 +5,12 @@
     <div class="card">
       <h2>Progression globale</h2>
       <ul class="stats">
-        <li><strong>Mots/cartes vus :</strong> <%= stats && stats.total_seen || 0 %></li>
+        <li><strong>Mots vus :</strong> <%= stats && stats.total_seen || 0 %></li>
         <li><strong>Réussites :</strong> <%= stats && stats.total_success || 0 %></li>
         <li><strong>Échecs :</strong> <%= stats && stats.total_fail || 0 %></li>
         <li><strong>Maîtrise moyenne :</strong> <%= stats && stats.avg_strength ? stats.avg_strength : 0 %>%</li>
       </ul>
-      <a class="btn" href="/train/setup">Commencer une session d'entraînement</a>
+      <a class="btn" href="/train/setup" style="font-size: small; display: block; width: fit-content; margin: 0 auto;">Commencer une session de révision </a>
     </div>
 
     <div class="card">
@@ -38,9 +38,10 @@
           <% if (ongoing.sets && ongoing.sets.length > 0) { %>
             <p class="muted mini">Listes : <%= ongoing.sets.map(s => s.name).join(', ') %></p>
           <% } %>
+          <br>
           <div class="mode-switch" style="margin-top:0.5rem;">
-            <a class="btn" href="/train/resume?choice=resume">Reprendre la révision</a>
-            <a class="btn ghost" href="/train/resume?choice=restart">Recommencer</a>
+            <a class="btn" href="/train/resume?choice=resume" style="font-size: medium;">Reprendre</a>
+            <a class="btn ghost" href="/train/resume?choice=restart" style="font-size: medium;">Recommencer</a>
           </div>
         </div>
       <% } %>

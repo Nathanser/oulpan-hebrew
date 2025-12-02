@@ -15,9 +15,10 @@
   const isReverse = qMode === 'flashcards_reverse';
   const isWritten = qMode === 'written';
   const showPhonetic = !(filters && (filters.show_phonetic === 0 || filters.show_phonetic === '0' || String(filters.show_phonetic).toLowerCase() === 'false'));
-  const modeLabels = { flashcards: 'Flashcards classique', flashcards_reverse: 'Flashcards reverse', written: 'R?vision par ?crit' };
-  const baseLabel = selectedModes.length > 0 ? selectedModes.map(m => modeLabels[m] || 'R?vision').join(' + ') : (modeLabels[mode] || 'R?vision');
-  const questionLabel = modeLabels[qMode] || baseLabel;
+  const modeLabels = { flashcards: 'Flashcards classique', flashcards_reverse: 'Flashcards reverse', written: 'Révision par écrit' };
+  const chosenModes = selectedModes.length > 0 ? selectedModes : [qMode || mode];
+  const chosenLabels = chosenModes.map(m => modeLabels[m] || 'R?vision');
+  const questionLabel = chosenLabels.length > 1 ? chosenLabels.join('<br>') : chosenLabels[0];
 %>
 
   <section class="card session-card" data-current-id="<%= currentItemId || '' %>"
@@ -25,15 +26,18 @@
     <div class="session-top">
       <a class="icon-btn" href="/train/setup">&#8592;</a>
       <div class="session-progress">
-        <span>
+        <span class="session-progress-count">
           <%= currentStep %>/<%= totalLabel %>
-        </span>
-        <span class="pill">
-          <%= questionLabel %>
         </span>
       </div>
       <a class="icon-btn" href="/train/setup?current=1">&#9881;</a>
     </div>
+    <div class="session-mode-line">
+      <span class="pill session-mode-pill">
+        <%- questionLabel %>
+      </span>
+    </div>
+    <br>
 
     <% if (message) { %>
       <p>
@@ -62,6 +66,7 @@
                   <button type="submit">Valider</button>
                 </form>
           </div>
+        
           <% } %>
 
             <% if (word && isFlashcard) { %>
@@ -92,6 +97,7 @@
               <form method="post" action="/train/flashcards" class="flashcard-options">
                 <input type="hidden" name="word_id" value="<%= word.id %>" />
                 <input type="hidden" name="question_mode" value="<%= qMode %>" />
+                <br>
                 <div class="options-grid">
                   <% (options || []).forEach(opt=> { %>
                     <button type="submit" name="choice_word_id" value="<%= opt.id %>" class="option-btn">

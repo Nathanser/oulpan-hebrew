@@ -13,7 +13,7 @@
       <h2>
         <%= overall && overall.total_seen ? overall.total_seen : 0 %>
       </h2>
-      <p class="muted">Total distinct de mots et cartes vus.</p>
+      <p class="muted">Total distinct de mots vus.</p>
     </div>
     <div class="stat-card">
       <p class="eyebrow">Réussites</p>
@@ -34,7 +34,7 @@
       <h2>
         <%= overall && overall.avg_strength ? Math.round(overall.avg_strength) : 0 %>%
       </h2>
-      <p class="muted">Forces calculées via l'entraînement.</p>
+      <p class="muted">Taux de maîtrise en révision.</p>
     </div>
   </div>
 
@@ -68,7 +68,7 @@
               </div>
               <div class="progress-row">
                 <div class="progress-label">Mémorisé</div>
-                <div class="meter" aria-label="Pourcentage mémorisé">
+                <div class="meter" aria-label="Pourcentage mÃ©morisÃ©">
                   <div class="meter-fill success" style="width:<%= donePct %>%"></div>
                 </div>
                 <div class="progress-value">
@@ -84,7 +84,12 @@
                   <%= activePct %>%
                 </div>
               </div>
-              <p class="muted mini">Favoris : <%= fav %> | Mémorisées : <%= mem %> | Actives : <%= active %>
+              <p class="muted mini progress-meta">
+                <span class="meta-item">Favoris : <%= fav %></span>
+                <span class="meta-sep">|</span>
+                <span class="meta-item">Mémorisées : <%= mem %></span>
+                <span class="meta-sep">|</span>
+                <span class="meta-item">Actives : <%= active %></span>
               </p>
             </div>
             <% }) %>
@@ -100,7 +105,7 @@
       </div>
     </div>
     <% if (!themeStats || themeStats.length===0) { %>
-      <p class="muted">Pas de thèmes en ligne actifs.</p>
+      <p class="muted">Pas de thÃ¨mes en ligne actifs.</p>
       <% } else { %>
         <div class="progress-grid scrollable-progress">
           <% themeStats.forEach(t=> {
@@ -144,3 +149,5 @@
         <% } %>
   </div>
 </section>
+
+

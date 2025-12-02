@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Hebrew Learn - Express + SQLite
  */
 const express = require('express');
