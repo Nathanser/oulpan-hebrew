@@ -68,6 +68,7 @@ const MODE_FLASHCARDS = 'flashcards';
 const MODE_FLASHCARDS_REVERSE = 'flashcards_reverse';
 const MODE_WRITTEN = 'written';
 const ALLOWED_MODES = [MODE_FLASHCARDS, MODE_FLASHCARDS_REVERSE, MODE_WRITTEN];
+const TRAIN_FONT_SIZES = ['large', 'x-large', 'xx-large', 'xxx-large'];
 const DEFAULT_TRAIN_PARAMS = {
   modes: [MODE_FLASHCARDS],
   rev_mode: 'order',
@@ -77,7 +78,8 @@ const DEFAULT_TRAIN_PARAMS = {
   level_id: '',
   scope: 'all',
   remaining: 'all',
-  total: 'all'
+  total: 'all',
+  font_size: 'x-large'
 };
 
 function normalizeMode(raw) {
@@ -548,6 +550,8 @@ function normalizeTrainParams(raw = {}) {
   params.set_ids = normalizeIds(raw.set_ids || []);
   params.level_id = raw.level_id ? Number(raw.level_id) : '';
   params.scope = raw.scope || params.scope;
+  const rawFont = (raw.font_size || raw.fontSize || params.font_size || '').toLowerCase();
+  params.font_size = TRAIN_FONT_SIZES.includes(rawFont) ? rawFont : params.font_size;
 
   let remainingVal = raw.remaining === 'all' ? 'all' : Number(raw.remaining || params.remaining);
   if (remainingVal === 10) remainingVal = 'all'; // Legacy default migration
@@ -1249,7 +1253,9 @@ app.get('/profile', requireAuth, async (req, res) => {
       trainSets,
       trainSharedSets,
       prefMessage: req.query.pref || null,
-      prefError: req.query.preferr || null
+      prefError: req.query.preferr || null,
+      fontPrefMessage: req.query.fontpref || null,
+      fontPrefError: req.query.fontpreferr || null
     });
   } catch (e) {
     console.error(e);
@@ -1266,7 +1272,9 @@ app.get('/profile', requireAuth, async (req, res) => {
       trainSets: [],
       trainSharedSets: [],
       prefMessage: null,
-      prefError: 'Impossible de charger les preferences.'
+      prefError: 'Impossible de charger les preferences.',
+      fontPrefMessage: null,
+      fontPrefError: 'Impossible de charger les preferences.'
     });
   }
 });
@@ -1322,6 +1330,8 @@ app.post('/profile/theme', requireAuth, async (req, res) => {
 app.post('/profile/revision-defaults', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   const { rev_mode, level_id, remaining, total, show_phonetic } = req.body;
+  const storedDefaults = await getUserTrainDefaults(userId);
+  const defaultFontSize = storedDefaults && storedDefaults.font_size ? storedDefaults.font_size : DEFAULT_TRAIN_PARAMS.font_size;
   const rawModes = req.body.modes || req.body['modes[]'] || req.body.mode;
   const modeList = normalizeModes(rawModes);
   const themeRaw = Array.isArray(req.body.theme_ids) ? req.body.theme_ids.filter(Boolean) : req.body.theme_ids ? [req.body.theme_ids] : [];
@@ -1343,7 +1353,8 @@ app.post('/profile/revision-defaults', requireAuth, async (req, res) => {
     level_id: level_id || '',
     remaining: remaining,
     total: total,
-    show_phonetic
+    show_phonetic,
+    font_size: defaultFontSize
   };
 
   try {
@@ -1364,6 +1375,21 @@ app.post('/profile/revision-defaults/reset', requireAuth, async (req, res) => {
   } catch (e) {
     console.error(e);
     return res.redirect('/profile?preferr=' + encodeURIComponent('Impossible de reinitialiser'));
+  }
+});
+
+app.post('/profile/train-font', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const choice = String(req.body.font_size || '').toLowerCase();
+  const fontSize = TRAIN_FONT_SIZES.includes(choice) ? choice : DEFAULT_TRAIN_PARAMS.font_size;
+  try {
+    const current = (await getUserTrainDefaults(userId)) || DEFAULT_TRAIN_PARAMS;
+    const merged = { ...current, font_size: fontSize };
+    await saveUserTrainDefaults(userId, merged);
+    return res.redirect('/profile?fontpref=' + encodeURIComponent('Taille de police enregistrée'));
+  } catch (e) {
+    console.error(e);
+    return res.redirect('/profile?fontpreferr=' + encodeURIComponent('Impossible de sauver la taille de police'));
   }
 });
 
@@ -1692,6 +1718,8 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
 
   const modeList = normalizeModes(state.modes || state.mode);
   state.modes = modeList;
+  const sizeVal = String(state.font_size || '').toLowerCase();
+  state.font_size = TRAIN_FONT_SIZES.includes(sizeVal) ? sizeVal : DEFAULT_TRAIN_PARAMS.font_size;
   const activeMode = normalizeMode(question_mode || state.currentMode || modeList[0]);
   const allowedThemeIds = new Set(await getActiveThemeIdsForUser(userId));
   const filteredThemeIds = (state.theme_ids || []).filter(id => allowedThemeIds.has(Number(id)));
@@ -1703,6 +1731,7 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
     theme_ids: filteredThemeIds,
     level_id: state.level_id || null,
     show_phonetic: typeof state.show_phonetic === 'undefined' ? 1 : state.show_phonetic,
+    font_size: state.font_size || DEFAULT_TRAIN_PARAMS.font_size,
     rev_mode: state.rev_mode || 'random',
     scope: state.scope || 'all',
     scope_list: [],
@@ -1762,6 +1791,7 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
         filters,
         options: null,
         themes,
+        fontSize: state.font_size || DEFAULT_TRAIN_PARAMS.font_size,
         remaining: remainingCount,
         total: totalCount,
         answered: answeredCount,
@@ -1799,6 +1829,7 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
         modes: modeList,
         questionMode: activeMode,
         filters,
+        fontSize: state.font_size || DEFAULT_TRAIN_PARAMS.font_size,
         options: null,
         themes,
         remaining: remainingCount,
@@ -1813,6 +1844,7 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
     res.render('train', {
       currentItemId,
       currentFavorite,
+      fontSize: state.font_size || DEFAULT_TRAIN_PARAMS.font_size,
       word: null,
       message: 'Erreur serveur.',
       result: null,
@@ -3323,9 +3355,11 @@ app.get('/train/setup', requireAuth, async (req, res) => {
       level_id: state.level_id || '',
       scope: state.scope || baseParams.scope,
       remaining: remainingVal,
-      total: totalVal
+      total: totalVal,
+      font_size: state.font_size || baseParams.font_size || DEFAULT_TRAIN_PARAMS.font_size
     };
   }
+  params.font_size = params.font_size || baseParams.font_size || DEFAULT_TRAIN_PARAMS.font_size;
 
   res.render('train_setup', {
     themes: rootThemes,
@@ -3337,16 +3371,23 @@ app.get('/train/setup', requireAuth, async (req, res) => {
 });
 
 app.post('/train/session', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const storedDefaults = await getUserTrainDefaults(userId);
+  const defaultParams = await filterTrainParamsForUser(userId, storedDefaults || DEFAULT_TRAIN_PARAMS);
   const { modes, mode, theme_ids, set_ids, level_id, rev_mode, remaining, show_phonetic, total } = req.body;
   const rawModes = modes || req.body['modes[]'] || mode;
   const modeList = normalizeModes(rawModes);
+  const fontSizeChoice = String(req.body.font_size || defaultParams.font_size || DEFAULT_TRAIN_PARAMS.font_size).toLowerCase();
+  const fontSize = TRAIN_FONT_SIZES.includes(fontSizeChoice)
+    ? fontSizeChoice
+    : defaultParams.font_size || DEFAULT_TRAIN_PARAMS.font_size;
   const themeRaw = Array.isArray(theme_ids) ? theme_ids.filter(Boolean) : theme_ids ? [theme_ids] : [];
   const setRaw = Array.isArray(set_ids) ? set_ids.filter(Boolean) : set_ids ? [set_ids] : [];
   const themeIdsRaw = themeRaw.flatMap(t => String(t).split(',')).filter(Boolean).map(id => Number(id)).filter(Boolean);
   const setListRaw = setRaw.flatMap(s => String(s).split(',')).filter(Boolean).map(Number).filter(Boolean);
-  const allowedSetIds = await getAccessibleSetIds(req.session.user.id);
+  const allowedSetIds = await getAccessibleSetIds(userId);
   const allowedSetSet = new Set(allowedSetIds);
-  const allowedThemeIds = new Set(await getActiveThemeIdsForUser(req.session.user.id));
+  const allowedThemeIds = new Set(await getActiveThemeIdsForUser(userId));
   const themeList = themeIdsRaw.filter(id => allowedThemeIds.has(id));
   const setList = setListRaw.filter(id => allowedSetSet.has(id));
   const hasThemes = themeList.length > 0;
@@ -3394,7 +3435,8 @@ app.post('/train/session', requireAuth, async (req, res) => {
         scope: 'all',
         remaining: requestedRemaining,
         total: requestedTotal,
-        show_phonetic: showPhonetic
+        show_phonetic: showPhonetic,
+        font_size: fontSize
       }
     });
   }
@@ -3549,7 +3591,8 @@ app.post('/train/session', requireAuth, async (req, res) => {
         scope: 'all',
         remaining: requestedRemaining,
         total: requestedTotal,
-        show_phonetic: showPhonetic
+        show_phonetic: showPhonetic,
+        font_size: fontSize
       }
     });
   }
@@ -3565,6 +3608,7 @@ app.post('/train/session', requireAuth, async (req, res) => {
     remaining: remain,
     total: remain,
     show_phonetic: showPhonetic,
+    font_size: fontSize,
     answered: 0,
     correct: 0,
     usedWordIds: [],
@@ -3585,6 +3629,8 @@ app.get('/train', requireAuth, async (req, res) => {
   if (!state) return res.redirect('/train/setup');
   const modeList = normalizeModes(state.modes || state.mode);
   state.modes = modeList;
+  const sizeVal = String(state.font_size || '').toLowerCase();
+  state.font_size = TRAIN_FONT_SIZES.includes(sizeVal) ? sizeVal : DEFAULT_TRAIN_PARAMS.font_size;
   state.usedWordIds = Array.isArray(state.usedWordIds)
     ? state.usedWordIds.map(id => Number(id)).filter(id => !Number.isNaN(id))
     : [];
@@ -3616,10 +3662,12 @@ app.get('/train', requireAuth, async (req, res) => {
   const correctCount = Number(state.correct || 0);
   let currentItemId = '';
   let currentFavorite = 0;
+  const fontSize = state.font_size || DEFAULT_TRAIN_PARAMS.font_size;
   const renderTrain = (payload) =>
     res.render('train', {
       currentItemId,
       currentFavorite,
+      fontSize,
       ...payload
     });
   const allowedThemeIds = new Set(await getActiveThemeIdsForUser(userId));
@@ -3643,6 +3691,7 @@ app.get('/train', requireAuth, async (req, res) => {
     theme_ids: themeList,
     level_id: state.level_id || null,
     show_phonetic: typeof state.show_phonetic === 'undefined' ? 1 : state.show_phonetic,
+    font_size: state.font_size || DEFAULT_TRAIN_PARAMS.font_size,
     rev_mode: state.rev_mode || 'random',
     scope: 'all',
     scope_list: [],
@@ -4193,6 +4242,8 @@ app.post('/train/answer', requireAuth, async (req, res) => {
 
   const modeList = normalizeModes(state.modes || state.mode);
   state.modes = modeList;
+  const sizeVal = String(state.font_size || '').toLowerCase();
+  state.font_size = TRAIN_FONT_SIZES.includes(sizeVal) ? sizeVal : DEFAULT_TRAIN_PARAMS.font_size;
   const activeMode = normalizeMode(question_mode || state.currentMode || modeList[0]);
   const selectedSetIds = state.set_ids || [];
   const source = state.source || (selectedSetIds.length > 0 ? 'cards' : 'words');
@@ -4201,6 +4252,7 @@ app.post('/train/answer', requireAuth, async (req, res) => {
     theme_ids: state.theme_ids || [],
     level_id: state.level_id || null,
     show_phonetic: typeof state.show_phonetic === 'undefined' ? 1 : state.show_phonetic,
+    font_size: state.font_size || DEFAULT_TRAIN_PARAMS.font_size,
     rev_mode: state.rev_mode || 'random',
     scope: state.scope || 'all',
     scope_list: [],
@@ -4225,6 +4277,7 @@ app.post('/train/answer', requireAuth, async (req, res) => {
     res.render('train', {
       currentItemId,
       currentFavorite,
+      fontSize: state.font_size || DEFAULT_TRAIN_PARAMS.font_size,
       ...payload
     });
 

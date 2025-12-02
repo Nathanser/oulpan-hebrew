@@ -288,6 +288,37 @@
 </section>
 
 <section class="card">
+  <h2>Taille de police pour les sessions de r&eacute;vision</h2>
+  <% if (fontPrefMessage) { %>
+    <div class="alert alert-success">
+      <%= fontPrefMessage %>
+    </div>
+  <% } %>
+  <% if (fontPrefError) { %>
+    <div class="alert alert-error">
+      <%= fontPrefError %>
+    </div>
+  <% } %>
+  <% const selectedFontSize = (defaultParams && defaultParams.font_size) ? defaultParams.font_size : 'x-large'; %>
+  <form method="post" action="/profile/train-font" class="form">
+    <div class="mode-grid">
+      <label class="check-row">
+        <input type="radio" name="font_size" value="large" <%= selectedFontSize==='large' ? 'checked' : '' %>>
+        <span>Normale</span>
+      </label>
+      <label class="check-row">
+        <input type="radio" name="font_size" value="x-large" <%= selectedFontSize==='x-large' ? 'checked' : '' %>>
+        <span>Grande</span>
+      </label>
+      <label class="check-row">
+        <input type="radio" name="font_size" value="xx-large" <%= selectedFontSize==='xx-large' ? 'checked' : '' %>>
+        <span>Tr&egrave;s grande</span>
+      </label>
+    </div>
+    <button type="submit" class="btn ghost" style="margin-top:0.5rem;">Enregistrer</button>
+  </form>
+</section>
+<section class="card">
   <h2>Sécurité</h2>
   <form method="post" action="/profile/password" class="form">
     <label>Mot de passe actuel
