@@ -3,38 +3,30 @@
     <div>
       <p class="eyebrow">Tableau de bord</p>
       <h1>Mon espace</h1>
-      <p class="muted">Vue rapide sur ta progression par listes perso et thèmes en ligne.</p>
+      <p class="muted">Vue rapide sur ta progression par listes perso et themes en ligne.</p>
     </div>
   </div>
 
   <div class="stat-cards">
     <div class="stat-card">
       <p class="eyebrow">Mots/cartes vus</p>
-      <h2>
-        <%= overall && overall.total_seen ? overall.total_seen : 0 %>
-      </h2>
-      <p style="font " class="muted">Total de mots vus.</p>
+      <h2><%= overall && overall.total_seen ? overall.total_seen : 0 %></h2>
+      <p class="muted">Total de contenus consultes.</p>
     </div>
     <div class="stat-card">
-      <p class="eyebrow">Réussites</p>
-      <h2>
-        <%= overall && overall.total_success ? overall.total_success : 0 %>
-      </h2>
-      <p class="muted">Réponses correctes.</p>
+      <p class="eyebrow">Reussites</p>
+      <h2><%= overall && overall.total_success ? overall.total_success : 0 %></h2>
+      <p class="muted">Reponses correctes.</p>
     </div>
     <div class="stat-card">
-      <p class="eyebrow">Échecs</p>
-      <h2>
-        <%= overall && overall.total_fail ? overall.total_fail : 0 %>
-      </h2>
-      <p class="muted">Mots à retravailler.</p>
+      <p class="eyebrow">Erreurs</p>
+      <h2><%= overall && overall.total_fail ? overall.total_fail : 0 %></h2>
+      <p class="muted">Points a retravailler.</p>
     </div>
     <div class="stat-card">
-      <p class="eyebrow">Taux de maîtrise</p>
-      <h2>
-        <%= overall && overall.avg_strength ? Math.round(overall.avg_strength) : 0 %>%
-      </h2>
-      <p class="muted">Taux de maîtrise en révision.</p>
+      <p class="eyebrow">Taux de maitrise</p>
+      <h2><%= overall && overall.avg_strength ? Math.round(overall.avg_strength) : 0 %>%</h2>
+      <p class="muted">Basé sur tes reponses.</p>
     </div>
   </div>
 
@@ -45,109 +37,146 @@
         <h2>Progression par liste</h2>
       </div>
     </div>
+    <div class="switch-filter" data-group="sets">
+      <button class="switch-btn" data-group="sets" data-filter="all">Tous</button>
+      <button class="switch-btn active" data-group="sets" data-filter="started">En cours</button>
+      <button class="switch-btn" data-group="sets" data-filter="todo">A faire</button>
+    </div>
     <% if (!setStats || setStats.length===0) { %>
-      <p class="muted">Crée une liste pour suivre ta progression.</p>
-      <% } else { %>
-        <div class="progress-grid scrollable-progress">
-          <% setStats.forEach(s=> {
-            const total = Number(s.total_cards) || 0;
-            const mem = Number(s.memorized_cards) || 0;
-            const active = Number(s.active_cards) || 0;
-            const fav = Number(s.favorite_cards) || 0;
-            const donePct = total ? Math.round((mem / total) * 100) : 0;
-            const activePct = total ? Math.round((active / total) * 100) : 0;
-            %>
-            <div class="progress-card">
-              <div class="progress-top">
-                <h3>
-                  <%= s.name %>
-                </h3>
-                <span class="pill">
-                  <%= total %> cartes
-                </span>
-              </div>
-              <div class="progress-row">
-                <div class="progress-label">Mémorisé</div>
-                <div class="meter" aria-label="Pourcentage mÃ©morisÃ©">
-                  <div class="meter-fill success" style="width:<%= donePct %>%"></div>
-                </div>
-                <div class="progress-value">
-                  <%= donePct %>%
-                </div>
-              </div>
-              <div class="progress-row">
-                <div class="progress-label">Actives</div>
-                <div class="meter">
-                  <div class="meter-fill" style="width:<%= activePct %>%"></div>
-                </div>
-                <div class="progress-value">
-                  <%= activePct %>%
-                </div>
-              </div>
-              <p class="muted mini progress-meta">
-                <span class="meta-item">Favoris : <%= fav %></span>
-                <span class="meta-sep">|</span>
-                <span class="meta-item">Mémorisées : <%= mem %></span>
-                <span class="meta-sep">|</span>
-                <span class="meta-item">Actives : <%= active %></span>
-              </p>
+      <p class="muted">Cree une liste pour suivre ta progression.</p>
+    <% } else { %>
+      <div class="progress-grid scrollable-progress">
+        <% setStats.forEach(s=> {
+          const total = Number(s.total_cards) || 0;
+          const mem = Number(s.memorized) || 0;
+          const learning = Number(s.learning) || 0;
+          const struggling = Number(s.struggling) || 0;
+          const seen = Number(s.seen_cards) || 0;
+          const memPct = total ? Math.round((mem / total) * 100) : 0;
+          const seenPct = total ? Math.round((seen / total) * 100) : 0;
+          const state = seen > 0 ? 'started' : 'todo';
+        %>
+        <div class="progress-card" data-group="sets" data-state="<%= state %>">
+          <div class="progress-top">
+            <h3><%= s.name %></h3>
+            <span class="pill"><%= total %> cartes</span>
+          </div>
+          <div class="progress-row">
+            <div class="progress-label">Vues</div>
+            <div class="meter" aria-label="Pourcentage cartes vues">
+              <div class="meter-fill" style="width:<%= seenPct %>%"></div>
             </div>
-            <% }) %>
+            <div class="progress-value"><%= seenPct %>%</div>
+          </div>
+          <div class="progress-row">
+            <div class="progress-label">Memorisees</div>
+            <div class="meter">
+              <div class="meter-fill success" style="width:<%= memPct %>%"></div>
+            </div>
+            <div class="progress-value"><%= memPct %>%</div>
+          </div>
+          <p class="muted mini progress-meta">
+            <span class="meta-item">Memorisees : <%= mem %></span>
+            <span class="meta-sep">|</span>
+            <span class="meta-item">En cours : <%= learning %></span>
+            <span class="meta-sep">|</span>
+            <span class="meta-item">A revoir : <%= struggling %></span>
+          </p>
+          
+          <div class="progress-card-actions">
+            <a class="detail-btn" href="/space/list-<%= s.id %>">Details</a>
+          </div>
         </div>
-        <% } %>
+        <% }) %>
+      </div>
+    <% } %>
   </div>
 
   <div class="card space-section">
     <div class="section-head">
       <div>
-        <p class="eyebrow">Thèmes en ligne</p>
-        <h2>Suivi par thème</h2>
+        <p class="eyebrow">Themes en ligne</p>
+        <h2>Suivi par theme</h2>
       </div>
     </div>
+    <div class="switch-filter" data-group="themes">
+      <button class="switch-btn" data-group="themes" data-filter="all">Tous</button>
+      <button class="switch-btn active" data-group="themes" data-filter="started">En cours</button>
+      <button class="switch-btn" data-group="themes" data-filter="todo">A faire</button>
+    </div>
     <% if (!themeStats || themeStats.length===0) { %>
-      <p class="muted">Pas de thÃ¨mes en ligne actifs.</p>
-      <% } else { %>
-        <div class="progress-grid scrollable-progress">
-          <% themeStats.forEach(t=> {
-            const total = Number(t.total_words) || 0;
-            const seen = Number(t.seen_words) || 0;
-            const seenPct = total ? Math.round((seen / total) * 100) : 0;
-            const strength = t.avg_strength ? Math.round(t.avg_strength) : 0;
-            %>
-            <div class="progress-card">
-              <div class="progress-top">
-                <h3>
-                  <%= t.name %>
-                </h3>
-                <span class="pill">
-                  <%= total %> mots
-                </span>
-              </div>
-              <div class="progress-row">
-                <div class="progress-label">Vus</div>
-                <div class="meter">
-                  <div class="meter-fill" style="width:<%= seenPct %>%"></div>
-                </div>
-                <div class="progress-value">
-                  <%= seenPct %>%
-                </div>
-              </div>
-              <div class="progress-row">
-                <div class="progress-label">Score moy.</div>
-                <div class="meter">
-                  <div class="meter-fill accent" style="width:<%= strength %>%"></div>
-                </div>
-                <div class="progress-value">
-                  <%= strength %>%
-                </div>
-              </div>
-              <p class="muted mini">Mots vus : <%= seen %> / <%= total %>
-              </p>
+      <p class="muted">Pas de themes en ligne actifs.</p>
+    <% } else { %>
+      <div class="progress-grid scrollable-progress">
+        <% themeStats.forEach(t=> {
+          const total = Number(t.total_words) || 0;
+          const seen = Number(t.seen_words) || 0;
+          const memorized = Number(t.memorized) || 0;
+          const struggling = Number(t.struggling) || 0;
+          const learning = Number(t.learning) || 0;
+          const seenPct = total ? Math.round((seen / total) * 100) : 0;
+          const memPct = total ? Math.round((memorized / total) * 100) : 0;
+          const state = seen > 0 ? 'started' : 'todo';
+        %>
+        <div class="progress-card" data-group="themes" data-state="<%= state %>">
+          <div class="progress-top">
+            <h3><%= t.name %></h3>
+            <span class="pill"><%= total %> mots</span>
+          </div>
+          <div class="progress-row">
+            <div class="progress-label">Vus</div>
+            <div class="meter">
+              <div class="meter-fill" style="width:<%= seenPct %>%"></div>
             </div>
-            <% }) %>
+            <div class="progress-value"><%= seenPct %>%</div>
+          </div>
+          <div class="progress-row">
+            <div class="progress-label">Memorises</div>
+            <div class="meter">
+              <div class="meter-fill success" style="width:<%= memPct %>%"></div>
+            </div>
+            <div class="progress-value"><%= memPct %>%</div>
+          </div>
+          <p class="muted mini">Memorises : <%= memorized %> | En cours : <%= learning %> | A revoir : <%= struggling %></p>
+          
+          <div class="progress-card-actions">
+            <a class="detail-btn" href="/space/theme-<%= t.id %>">Details</a>
+          </div>
         </div>
-        <% } %>
+        <% }) %>
+      </div>
+    <% } %>
   </div>
 </section>
 
+<script>
+  (() => {
+    const filters = document.querySelectorAll('.switch-btn');
+    const applyFilter = (group, filter) => {
+      const cards = document.querySelectorAll(`.progress-card[data-group="${group}"]`);
+      cards.forEach(card => {
+        const state = card.dataset.state || 'todo';
+        const show = filter === 'all' || state === filter;
+        card.style.display = show ? '' : 'none';
+      });
+    };
 
+    filters.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const group = btn.dataset.group;
+        const filter = btn.dataset.filter;
+        document.querySelectorAll(`.switch-btn[data-group="${group}"]`).forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        applyFilter(group, filter);
+      });
+    });
+
+    const groups = new Set(Array.from(filters).map(b => b.dataset.group));
+    groups.forEach(group => {
+      const active = document.querySelector(`.switch-btn.active[data-group="${group}"]`);
+      if (active) {
+        applyFilter(group, active.dataset.filter);
+      }
+    });
+  })();
+</script>

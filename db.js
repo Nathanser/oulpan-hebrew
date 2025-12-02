@@ -133,6 +133,20 @@ safeAlter('ALTER TABLE users ADD COLUMN theme TEXT DEFAULT "dark"');
 safeAlter('ALTER TABLE themes ADD COLUMN parent_id INTEGER');
 safeAlter('CREATE TABLE IF NOT EXISTS user_revision_defaults (user_id INTEGER PRIMARY KEY, prefs_json TEXT)');
 safeAlter('CREATE TABLE IF NOT EXISTS duplicate_ignores (user_id INTEGER NOT NULL, dup_key TEXT NOT NULL, PRIMARY KEY(user_id, dup_key))');
+safeAlter('ALTER TABLE progress ADD COLUMN good_total INTEGER DEFAULT 0');
+safeAlter('ALTER TABLE progress ADD COLUMN bad_total INTEGER DEFAULT 0');
+safeAlter('ALTER TABLE progress ADD COLUMN streak INTEGER DEFAULT 0');
+safeAlter('ALTER TABLE progress ADD COLUMN last_seen_at DATETIME');
+safeAlter('ALTER TABLE progress ADD COLUMN last_wrong_at DATETIME');
+safeAlter('ALTER TABLE progress ADD COLUMN status TEXT');
+safeAlter('ALTER TABLE progress ADD COLUMN history_json TEXT');
+safeAlter('ALTER TABLE card_progress ADD COLUMN good_total INTEGER DEFAULT 0');
+safeAlter('ALTER TABLE card_progress ADD COLUMN bad_total INTEGER DEFAULT 0');
+safeAlter('ALTER TABLE card_progress ADD COLUMN streak INTEGER DEFAULT 0');
+safeAlter('ALTER TABLE card_progress ADD COLUMN last_seen_at DATETIME');
+safeAlter('ALTER TABLE card_progress ADD COLUMN last_wrong_at DATETIME');
+safeAlter('ALTER TABLE card_progress ADD COLUMN status TEXT');
+safeAlter('ALTER TABLE card_progress ADD COLUMN history_json TEXT');
 db.run('UPDATE themes SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL', err => {
   if (err && !/no such column/i.test(err.message)) {
     console.error('Alter fill error:', err.message);

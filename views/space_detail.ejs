@@ -1,0 +1,138 @@
+<section class="space-detail">
+  <div class="list-header">
+    <div>
+      <p class="eyebrow"><%= type === 'set' ? 'Liste perso' : 'Theme' %></p>
+      <h1><%= type === 'set' && set ? set.name : (theme ? theme.name : '') %></h1>
+      <p class="muted">Suivi detaille avec etats memorise / en cours / a retravailler.</p>
+    </div>
+    <div class="action-row">
+      <a href="/space" class="btn ghost">&#8592; Retour</a>
+    </div>
+  </div>
+
+  <div class="stat-cards">
+    <div class="stat-card">
+      <p class="eyebrow">Total</p>
+      <h2><%= stats.total || 0 %></h2>
+      <p class="muted">Elements dans ce <%= type === 'set' ? 'ensemble' : 'theme' %>.</p>
+    </div>
+    <div class="stat-card">
+      <p class="eyebrow">Memorises</p>
+      <h2><%= stats.memorized || 0 %></h2>
+      <p class="muted">Passent en rappel leger.</p>
+    </div>
+    <div class="stat-card">
+      <p class="eyebrow">En cours</p>
+      <h2><%= stats.learning || 0 %></h2>
+      <p class="muted">Encore a consolider.</p>
+    </div>
+    <div class="stat-card">
+      <p class="eyebrow">A retravailler</p>
+      <h2><%= stats.struggling || 0 %></h2>
+      <p class="muted">Priorite revision.</p>
+    </div>
+  </div>
+
+  <br>
+
+  <div class="card detail-visuals">
+    <div class="visual-left">
+      <p class="eyebrow">Progression</p>
+      <h3><%= stats.progress_pct || 0 %>% vu</h3>
+      <div class="meter big">
+        <div class="meter-fill accent" style="width:<%= stats.progress_pct || 0 %>%"></div>
+      </div>
+      <p class="muted mini"><%= stats.seen || 0 %> sur <%= stats.total || 0 %> deja revus.</p>
+    </div>
+    <div class="visual-right">
+      <% const learnPct = stats.total ? Math.round((stats.learning / stats.total) * 100) : 0; %>
+      <% const strugglePct = stats.total ? Math.round((stats.struggling / stats.total) * 100) : 0; %>
+      <div class="donut" style="--mem:<%= stats.memorized_pct || 0 %>%; --learn:<%= learnPct %>%; --struggle:<%= strugglePct %>%;">
+        <div class="donut-inner">
+          <p class="eyebrow mini">Memorise</p>
+          <strong><%= stats.memorized_pct || 0 %>%</strong>
+        </div>
+      </div>
+      <div class="donut-legend">
+        <span class="legend bullet mem"></span> Memorise
+        <span class="legend bullet learn"></span> En cours
+        <span class="legend bullet struggle"></span> A retravailler
+      </div>
+    </div>
+  </div>
+
+  <div class="card detail-highlights">
+    <div class="highlight">
+      <p class="eyebrow">Element le plus faible</p>
+      <h4><%= weakest ? (weakest.hebrew || weakest.french) : '–' %></h4>
+      <p class="muted mini">Erreurs : <%= weakest ? weakest.bad_total : 0 %> | Streak : <%= weakest ? weakest.streak : 0 %></p>
+    </div>
+    <div class="highlight">
+      <p class="eyebrow">Derniere erreur</p>
+      <h4><%= lastError ? (lastError.hebrew || lastError.french) : '–' %></h4>
+      <p class="muted mini"><%= lastError ? lastError.last_wrong_label : 'Aucune erreur recente' %></p>
+    </div>
+    <div class="highlight">
+      <p class="eyebrow">Prochaine revision</p>
+      <h4><%= nextReviewLabel || '–' %></h4>
+      <p class="muted mini">Estime sur le dernier passage.</p>
+    </div>
+  </div>
+
+  <div class="card detail-list">
+    <div class="section-head status-head">
+      <div class="status-headings">
+        <h1 class="status-title">Par statut</h1>
+        <p class="status-subtitle">Liste detaillee</p>
+      </div>
+      <div class="status-filter">
+        <button data-filter="all" class="active">Tous</button>
+        <button data-filter="learning">En cours</button>
+        <button data-filter="struggling">À retravailler</button>
+        <button data-filter="memorized">Memorisés</button>
+      </div>
+    </div>
+    <div class="detail-items">
+      <% if (!items || items.length === 0) { %>
+        <p class="muted">Pas encore de donnees.</p>
+      <% } %>
+      <% items.forEach(item => { %>
+        <div class="detail-item" data-status="<%= item.status %>">
+          <div class="item-word">
+            <p class="eyebrow mini"><%= item.status_label %></p>
+            <h3><%= item.hebrew %></h3>
+            <% if (item.transliteration) { %><p class="mini muted"><%= item.transliteration %></p><% } %>
+            <p class="muted"><%= item.french %></p>
+          </div>
+          <div class="item-stats">
+            <span class="pill mini">+<%= item.good_total %> / -<%= item.bad_total %></span>
+            <span class="pill mini">Streak <%= item.streak %></span>
+            <p class="mini muted">Vu : <%= item.last_seen_label %></p>
+            <p class="mini muted">Derniere erreur : <%= item.last_wrong_label %></p>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+</section>
+
+<script>
+  (() => {
+    const buttons = document.querySelectorAll('.status-filter button');
+    const items = document.querySelectorAll('.detail-item');
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        buttons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const filter = btn.dataset.filter;
+        items.forEach(item => {
+          if (filter === 'all' || item.dataset.status === filter) {
+            item.classList.remove('hidden');
+          } else {
+            item.classList.add('hidden');
+          }
+        });
+      });
+    });
+  })();
+</script>

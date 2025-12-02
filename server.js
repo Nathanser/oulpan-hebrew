@@ -69,6 +69,13 @@ const MODE_FLASHCARDS_REVERSE = 'flashcards_reverse';
 const MODE_WRITTEN = 'written';
 const ALLOWED_MODES = [MODE_FLASHCARDS, MODE_FLASHCARDS_REVERSE, MODE_WRITTEN];
 const TRAIN_FONT_SIZES = ['large', 'x-large', 'xx-large', 'xxx-large'];
+const WORD_STATUS_MEMORIZED = 'memorized';
+const WORD_STATUS_LEARNING = 'learning';
+const WORD_STATUS_STRUGGLING = 'struggling';
+const HISTORY_LIMIT = 50;
+const RECENT_ERROR_MS = 1000 * 60 * 60 * 24 * 3; // 72h to consider an error "recent"
+const REVIEW_DELAY_MEMORIZED_H = 48;
+const REVIEW_DELAY_DEFAULT_H = 24;
 const DEFAULT_TRAIN_PARAMS = {
   modes: [MODE_FLASHCARDS],
   rev_mode: 'order',
@@ -81,6 +88,137 @@ const DEFAULT_TRAIN_PARAMS = {
   total: 'all',
   font_size: 'x-large'
 };
+
+function safeParseHistory(raw) {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map(item => ({
+          date: item.date,
+          success: !!item.success
+        }))
+        .filter(item => item.date);
+    }
+    return [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function computeWordStatus({ good_total = 0, bad_total = 0, streak = 0, last_wrong_at = null, history = [] }) {
+  const total = good_total + bad_total;
+  const lastFive = history.slice(-5);
+  const hasErrorInLastFive = lastFive.some(h => h && h.success === false);
+  const lastWrongRecent =
+    last_wrong_at && !Number.isNaN(new Date(last_wrong_at).getTime())
+      ? Date.now() - new Date(last_wrong_at).getTime() < RECENT_ERROR_MS
+      : false;
+  const errorRate = total > 0 ? bad_total / total : 0;
+
+  if (good_total >= 5 && streak >= 3 && !hasErrorInLastFive && !lastWrongRecent) {
+    return WORD_STATUS_MEMORIZED;
+  }
+  if (streak === 0 || lastWrongRecent || errorRate >= 0.3) {
+    return WORD_STATUS_STRUGGLING;
+  }
+  return WORD_STATUS_LEARNING;
+}
+
+function statusPriority(status) {
+  switch (status) {
+    case WORD_STATUS_STRUGGLING:
+      return 0;
+    case WORD_STATUS_LEARNING:
+      return 1;
+    case WORD_STATUS_MEMORIZED:
+      return 2;
+    default:
+      return 1;
+  }
+}
+
+function computeNextReviewAt(last_seen_at, status = WORD_STATUS_LEARNING) {
+  if (!last_seen_at) return null;
+  const baseDate = new Date(last_seen_at);
+  if (Number.isNaN(baseDate.getTime())) return null;
+  const hours = status === WORD_STATUS_MEMORIZED ? REVIEW_DELAY_MEMORIZED_H : REVIEW_DELAY_DEFAULT_H;
+  return new Date(baseDate.getTime() + hours * 60 * 60 * 1000);
+}
+
+function normalizeProgressSnapshot(row = {}) {
+  const good_total = Number.isFinite(Number(row.good_total)) ? Number(row.good_total) : Number(row.success_count || 0) || 0;
+  const bad_total = Number.isFinite(Number(row.bad_total)) ? Number(row.bad_total) : Number(row.fail_count || 0) || 0;
+  const streak = Number.isFinite(Number(row.streak)) ? Number(row.streak) : 0;
+  const last_seen_at = row.last_seen_at || row.last_seen || null;
+  const last_wrong_at = row.last_wrong_at || null;
+  const history = safeParseHistory(row.history_json);
+  const status = computeWordStatus({ good_total, bad_total, streak, last_wrong_at, history });
+  const seen = good_total + bad_total > 0;
+  const nextReview = computeNextReviewAt(last_seen_at, status);
+  return {
+    good_total,
+    bad_total,
+    streak,
+    last_seen_at,
+    last_wrong_at,
+    history,
+    status,
+    seen,
+    nextReview
+  };
+}
+
+function formatDateLabel(value) {
+  if (!value) return '–';
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '–';
+  return d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function statusLabel(status) {
+  switch (status) {
+    case WORD_STATUS_MEMORIZED:
+      return 'm\u00e9moris\u00e9';
+    case WORD_STATUS_STRUGGLING:
+      return 'en difficult\u00e9';
+    default:
+      return 'en cours';
+  }
+}
+
+function parseSpaceSlug(slug) {
+  if (!slug) return null;
+  if (slug.startsWith('theme-')) return { type: 'theme', id: Number(slug.replace('theme-', '')) };
+  if (slug.startsWith('list-') || slug.startsWith('set-')) return { type: 'set', id: Number(slug.replace(/^(list|set)-/, '')) };
+  const numeric = Number(slug);
+  if (Number.isNaN(numeric)) return null;
+  return { type: 'theme', id: numeric };
+}
+
+function pickWeakestItem(items = []) {
+  return items.reduce((worst, item) => {
+    if (!item) return worst;
+    const total = item.good_total + item.bad_total;
+    const rate = total > 0 ? item.bad_total / total : 0;
+    if (!worst) return item;
+    const worstTotal = worst.good_total + worst.bad_total;
+    const worstRate = worstTotal > 0 ? worst.bad_total / worstTotal : 0;
+    if (rate !== worstRate) return rate > worstRate ? item : worst;
+    if (item.bad_total !== worst.bad_total) return item.bad_total > worst.bad_total ? item : worst;
+    if (item.streak !== worst.streak) return item.streak < worst.streak ? item : worst;
+    return worst;
+  }, null);
+}
+
+function pickLastError(items = []) {
+  return items.reduce((latest, item) => {
+    if (!item || !item.last_wrong_at) return latest;
+    if (!latest) return item;
+    return new Date(item.last_wrong_at) > new Date(latest.last_wrong_at) ? item : latest;
+  }, null);
+}
 
 function normalizeMode(raw) {
   const value = (raw || '').toLowerCase();
@@ -174,6 +312,9 @@ async function fetchNextOrderedWord(userId, filters = {}) {
     sql += ` AND (w.user_id = ? OR w.theme_id IN (${placeholders}))`;
     params.push(null, ...filters.global_theme_ids);
   }
+
+  sql += ` AND NOT (p.status = ? AND IFNULL(p.last_seen_at, p.last_seen) IS NOT NULL AND IFNULL(p.last_seen_at, p.last_seen) > DATETIME('now', ?))`;
+  params.push(WORD_STATUS_MEMORIZED, `-${REVIEW_DELAY_MEMORIZED_H} hour`);
 
   if (excludedIds.length > 0) {
     const placeholders = excludedIds.map(() => '?').join(',');
@@ -324,14 +465,16 @@ async function fetchNextWord(userId, filters = {}) {
     params.push(...excludedIds);
   }
 
+  const statusOrderExpr = `CASE COALESCE(p.status, '') WHEN '${WORD_STATUS_STRUGGLING}' THEN 0 WHEN '${WORD_STATUS_LEARNING}' THEN 1 WHEN '${WORD_STATUS_MEMORIZED}' THEN 2 ELSE 1 END`;
+
   if (mode === 'random' || mode === 'favorites' || mode === 'favorite') {
-    sql += ' ORDER BY RANDOM() LIMIT 1';
+    sql += ` ORDER BY ${statusOrderExpr} ASC, RANDOM() LIMIT 1`;
   } else if (mode === 'new') {
     sql += ' ORDER BY w.created_at DESC LIMIT 1';
   } else if (mode === 'order') {
     sql += ' ORDER BY w.position ASC, w.id ASC LIMIT 1';
   } else {
-    sql += ' ORDER BY strength ASC, IFNULL(p.last_seen, 0) ASC LIMIT 1';
+    sql += ` ORDER BY ${statusOrderExpr} ASC, IFNULL(p.last_seen_at, IFNULL(p.last_seen, 0)) ASC, strength ASC LIMIT 1`;
   }
 
   return get(sql, params);
@@ -349,30 +492,78 @@ async function upsertProgress(userId, wordId, isCorrect) {
   let strength = existing ? existing.strength : 0;
   let success_count = existing ? existing.success_count : 0;
   let fail_count = existing ? existing.fail_count : 0;
+  let good_total = existing ? (typeof existing.good_total === 'number' ? existing.good_total : success_count) : 0;
+  let bad_total = existing ? (typeof existing.bad_total === 'number' ? existing.bad_total : fail_count) : 0;
+  let streak = existing && typeof existing.streak === 'number' ? existing.streak : 0;
+  let last_wrong_at = existing ? existing.last_wrong_at : null;
+  let history = existing && existing.history_json ? safeParseHistory(existing.history_json) : [];
+  const nowIso = new Date().toISOString();
 
   if (isCorrect) {
     strength = Math.min(100, strength + 10);
     success_count++;
+    good_total++;
+    streak++;
   } else {
     strength = Math.max(0, strength - 10);
     fail_count++;
+    bad_total++;
+    streak = 0;
+    last_wrong_at = nowIso;
   }
+
+  history = [...history, { date: nowIso, success: !!isCorrect }];
+  if (history.length > HISTORY_LIMIT) {
+    history = history.slice(history.length - HISTORY_LIMIT);
+  }
+  const status = computeWordStatus({ good_total, bad_total, streak, last_wrong_at, history });
 
   if (existing) {
     await run(
       `UPDATE progress
-       SET strength = ?, success_count = ?, fail_count = ?, last_seen = CURRENT_TIMESTAMP
+       SET strength = ?, success_count = ?, fail_count = ?,
+           last_seen = CURRENT_TIMESTAMP,
+           last_seen_at = ?,
+           good_total = ?, bad_total = ?, streak = ?,
+           last_wrong_at = ?,
+           status = ?,
+           history_json = ?
        WHERE id = ?`,
-      [strength, success_count, fail_count, existing.id]
+      [
+        strength,
+        success_count,
+        fail_count,
+        nowIso,
+        good_total,
+        bad_total,
+        streak,
+        last_wrong_at,
+        status,
+        JSON.stringify(history),
+        existing.id
+      ]
     );
   } else {
     await run(
-      `INSERT INTO progress (user_id, word_id, strength, success_count, fail_count, last_seen)
-       VALUES (?,?,?,?,?, CURRENT_TIMESTAMP)`,
-      [userId, wordId, strength, success_count, fail_count]
+      `INSERT INTO progress (user_id, word_id, strength, success_count, fail_count, last_seen, last_seen_at, good_total, bad_total, streak, last_wrong_at, status, history_json)
+       VALUES (?,?,?,?,?, CURRENT_TIMESTAMP, ?,?,?,?,?,?,?)`,
+      [
+        userId,
+        wordId,
+        strength,
+        success_count,
+        fail_count,
+        nowIso,
+        good_total,
+        bad_total,
+        streak,
+        last_wrong_at,
+        status,
+        JSON.stringify(history)
+      ]
     );
   }
-  return { word, strength };
+  return { word, strength, status, good_total, bad_total, streak };
 }
 
 async function upsertCardProgress(userId, cardId, isCorrect) {
@@ -384,23 +575,48 @@ async function upsertCardProgress(userId, cardId, isCorrect) {
   );
   let success = existing ? existing.success_count : 0;
   let fail = existing ? existing.fail_count : 0;
-  if (isCorrect) success++;
-  else fail++;
+  let good_total = existing ? (typeof existing.good_total === 'number' ? existing.good_total : success) : 0;
+  let bad_total = existing ? (typeof existing.bad_total === 'number' ? existing.bad_total : fail) : 0;
+  let streak = existing && typeof existing.streak === 'number' ? existing.streak : 0;
+  let last_wrong_at = existing ? existing.last_wrong_at : null;
+  let history = existing && existing.history_json ? safeParseHistory(existing.history_json) : [];
+  const nowIso = new Date().toISOString();
+  if (isCorrect) {
+    success++;
+    good_total++;
+    streak++;
+  } else {
+    fail++;
+    bad_total++;
+    streak = 0;
+    last_wrong_at = nowIso;
+  }
+  history = [...history, { date: nowIso, success: !!isCorrect }];
+  if (history.length > HISTORY_LIMIT) {
+    history = history.slice(history.length - HISTORY_LIMIT);
+  }
+  const status = computeWordStatus({ good_total, bad_total, streak, last_wrong_at, history });
+
   if (existing) {
     await run(
       `UPDATE card_progress
-       SET success_count = ?, fail_count = ?, last_seen = CURRENT_TIMESTAMP
+       SET success_count = ?, fail_count = ?, last_seen = CURRENT_TIMESTAMP,
+           last_seen_at = ?,
+           good_total = ?, bad_total = ?, streak = ?,
+           last_wrong_at = ?,
+           status = ?,
+           history_json = ?
        WHERE id = ?`,
-      [success, fail, existing.id]
+      [success, fail, nowIso, good_total, bad_total, streak, last_wrong_at, status, JSON.stringify(history), existing.id]
     );
   } else {
     await run(
-      `INSERT INTO card_progress (user_id, card_id, success_count, fail_count, last_seen)
-       VALUES (?,?,?,?, CURRENT_TIMESTAMP)`,
-      [userId, cardId, success, fail]
+      `INSERT INTO card_progress (user_id, card_id, success_count, fail_count, last_seen, last_seen_at, good_total, bad_total, streak, last_wrong_at, status, history_json)
+       VALUES (?,?,?,?, CURRENT_TIMESTAMP, ?,?,?,?,?,?,?)`,
+      [userId, cardId, success, fail, nowIso, good_total, bad_total, streak, last_wrong_at, status, JSON.stringify(history)]
     );
   }
-  return { card, success, fail };
+  return { card, success, fail, status, good_total, bad_total, streak };
 }
 
 async function getFlashcardOptions(userId, currentWord, filters = {}, reverse = false) {
@@ -2150,28 +2366,10 @@ app.get('/space', requireAuth, async (req, res) => {
       overall.avg_strength = Math.round((overall.total_success / allAttempts) * 100);
     }
 
-    const setStats = await all(
-      `SELECT s.id, s.name, owner.display_name AS owner_name,
-              COUNT(c.id) AS total_cards,
-              SUM(CASE WHEN c.active = 1 THEN 1 ELSE 0 END) AS active_cards,
-              SUM(CASE WHEN c.memorized = 1 THEN 1 ELSE 0 END) AS memorized_cards,
-              SUM(CASE WHEN c.favorite = 1 THEN 1 ELSE 0 END) AS favorite_cards
-       FROM sets s
-       JOIN users owner ON owner.id = s.user_id
-       LEFT JOIN cards c ON c.set_id = s.id
-       LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
-       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
-       WHERE s.active = 1 AND COALESCE(uso.active, s.active) = 1 AND (s.user_id = ? OR sh.id IS NOT NULL)
-       GROUP BY s.id
-       ORDER BY s.created_at DESC`,
-      [userId, userId, userId]
-    );
-
-    const themeStats = await all(
-      `SELECT t.id, t.name,
-              COUNT(w.id) AS total_words,
-              SUM(CASE WHEN p.id IS NOT NULL THEN 1 ELSE 0 END) AS seen_words,
-              AVG(p.strength) AS avg_strength
+    const themeRows = await all(
+      `SELECT t.id AS theme_id, t.name,
+              w.id AS word_id, w.hebrew, w.french, w.transliteration,
+              p.good_total, p.bad_total, p.streak, p.last_seen_at, p.last_seen, p.last_wrong_at, p.history_json, p.status
        FROM themes t
        LEFT JOIN words w ON w.theme_id = t.id AND w.active = 1
        LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = ?
@@ -2183,10 +2381,77 @@ app.get('/space', requireAuth, async (req, res) => {
            SELECT 1 FROM themes child
            WHERE child.parent_id = t.id AND child.active = 1
          )
-       GROUP BY t.id
-       ORDER BY t.id ASC`,
+       ORDER BY t.id ASC, w.id ASC`,
       [userId, userId]
     );
+    const themeMap = new Map();
+    for (const row of themeRows) {
+      if (!themeMap.has(row.theme_id)) {
+        themeMap.set(row.theme_id, {
+          id: row.theme_id,
+          name: row.name,
+          total_words: 0,
+          seen_words: 0,
+          memorized: 0,
+          learning: 0,
+          struggling: 0
+        });
+      }
+      if (row.word_id) {
+        const snap = normalizeProgressSnapshot(row);
+        const entry = themeMap.get(row.theme_id);
+        entry.total_words += 1;
+        if (snap.seen) entry.seen_words += 1;
+        if (snap.status === WORD_STATUS_MEMORIZED) entry.memorized += 1;
+        else if (snap.status === WORD_STATUS_STRUGGLING) entry.struggling += 1;
+        else entry.learning += 1;
+      }
+    }
+    const themeStats = Array.from(themeMap.values());
+
+    const setRows = await all(
+      `SELECT s.id AS set_id, s.name, owner.display_name AS owner_name,
+              c.id AS card_id, c.hebrew, c.french, c.transliteration,
+              cp.good_total, cp.bad_total, cp.streak, cp.last_seen_at, cp.last_seen, cp.last_wrong_at, cp.history_json, cp.status
+       FROM sets s
+       JOIN users owner ON owner.id = s.user_id
+       LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+       LEFT JOIN cards c ON c.set_id = s.id AND c.active = 1
+       LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+       LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = ?
+       WHERE s.active = 1
+         AND COALESCE(uso.active, s.active) = 1
+         AND (s.user_id = ? OR sh.id IS NOT NULL)
+         AND (c.id IS NULL OR COALESCE(co.active, c.active) = 1)
+       ORDER BY s.id ASC, c.position ASC, c.id ASC`,
+      [userId, userId, userId, userId, userId]
+    );
+    const setMap = new Map();
+    for (const row of setRows) {
+      if (!setMap.has(row.set_id)) {
+        setMap.set(row.set_id, {
+          id: row.set_id,
+          name: row.name,
+          owner_name: row.owner_name,
+          total_cards: 0,
+          seen_cards: 0,
+          memorized: 0,
+          learning: 0,
+          struggling: 0
+        });
+      }
+      if (row.card_id) {
+        const snap = normalizeProgressSnapshot(row);
+        const entry = setMap.get(row.set_id);
+        entry.total_cards += 1;
+        if (snap.seen) entry.seen_cards += 1;
+        if (snap.status === WORD_STATUS_MEMORIZED) entry.memorized += 1;
+        else if (snap.status === WORD_STATUS_STRUGGLING) entry.struggling += 1;
+        else entry.learning += 1;
+      }
+    }
+    const setStats = Array.from(setMap.values());
 
     res.render('space', {
       overall,
@@ -2202,6 +2467,149 @@ app.get('/space', requireAuth, async (req, res) => {
       themeStats: [],
       pageClass: 'page-compact'
     });
+  }
+});
+
+app.get('/space/:slug', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const parsed = parseSpaceSlug(req.params.slug);
+  if (!parsed || !parsed.id) return res.redirect('/space');
+
+  try {
+    if (parsed.type === 'set') {
+      const set = await get(
+        `SELECT s.*, owner.display_name AS owner_name,
+                COALESCE(uso.active, s.active) AS effective_active,
+                sh.id AS shared_id
+         FROM sets s
+         JOIN users owner ON owner.id = s.user_id
+         LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
+         LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+         WHERE s.id = ?`,
+        [userId, userId, parsed.id]
+      );
+      const isOwner = set && set.user_id === userId;
+      const isShared = set && set.shared_id;
+      const active = set && Number(set.effective_active) === 1 && Number(set.active) === 1;
+      if (!set || (!isOwner && !isShared) || !active) {
+        return res.redirect('/space');
+      }
+      const cardsRaw = await all(
+        `SELECT c.*, co.active AS override_active,
+                cp.good_total, cp.bad_total, cp.streak, cp.last_seen_at, cp.last_seen, cp.last_wrong_at, cp.history_json, cp.status
+         FROM cards c
+         LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+         LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = ?
+         WHERE c.set_id = ? AND COALESCE(co.active, c.active) = 1
+         ORDER BY c.position ASC, c.id ASC`,
+        [userId, userId, set.id]
+      );
+      const cards = cardsRaw.map(c => {
+        const snap = normalizeProgressSnapshot(c);
+        return {
+          ...c,
+          ...snap,
+          status_label: statusLabel(snap.status),
+          last_seen_label: formatDateLabel(snap.last_seen_at),
+          last_wrong_label: formatDateLabel(snap.last_wrong_at)
+        };
+      });
+      const stats = {
+        total: cards.length,
+        seen: cards.filter(c => c.seen).length,
+        memorized: cards.filter(c => c.status === WORD_STATUS_MEMORIZED).length,
+        learning: cards.filter(c => c.status === WORD_STATUS_LEARNING).length,
+        struggling: cards.filter(c => c.status === WORD_STATUS_STRUGGLING).length
+      };
+      stats.progress_pct = stats.total ? Math.round((stats.seen / stats.total) * 100) : 0;
+      stats.memorized_pct = stats.total ? Math.round((stats.memorized / stats.total) * 100) : 0;
+      const weakest = pickWeakestItem(cards);
+      const lastError = pickLastError(cards);
+      const nextReviewDate =
+        cards
+          .map(c => c.nextReview)
+          .filter(Boolean)
+          .sort((a, b) => new Date(a) - new Date(b))[0] || null;
+      const nextReviewLabel = formatDateLabel(nextReviewDate);
+
+      return res.render('space_detail', {
+        type: 'set',
+        theme: null,
+        set,
+        stats,
+        items: cards,
+        weakest,
+        lastError,
+        nextReviewLabel,
+        pageClass: 'page-compact'
+      });
+    }
+
+    const theme = await get(
+      `SELECT t.*, COALESCE(uto.active, t.active) AS effective_active
+       FROM themes t
+       LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
+       WHERE t.id = ?`,
+      [userId, parsed.id]
+    );
+    const allowed =
+      theme &&
+      Number(theme.active) === 1 &&
+      Number(theme.effective_active ?? 1) === 1 &&
+      (!theme.user_id || theme.user_id === userId);
+    if (!allowed) return res.redirect('/space');
+
+    const wordsRaw = await all(
+      `SELECT w.id, w.hebrew, w.transliteration, w.french,
+              p.good_total, p.bad_total, p.streak, p.last_seen_at, p.last_seen, p.last_wrong_at, p.history_json, p.status
+       FROM words w
+       LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = ?
+       WHERE w.theme_id = ? AND w.active = 1 AND (w.user_id IS NULL OR w.user_id = ?)
+       ORDER BY w.id ASC`,
+      [userId, theme.id, userId]
+    );
+    const words = wordsRaw.map(w => {
+      const snap = normalizeProgressSnapshot(w);
+      return {
+        ...w,
+        ...snap,
+        status_label: statusLabel(snap.status),
+        last_seen_label: formatDateLabel(snap.last_seen_at),
+        last_wrong_label: formatDateLabel(snap.last_wrong_at)
+      };
+    });
+    const stats = {
+      total: words.length,
+      seen: words.filter(w => w.seen).length,
+      memorized: words.filter(w => w.status === WORD_STATUS_MEMORIZED).length,
+      learning: words.filter(w => w.status === WORD_STATUS_LEARNING).length,
+      struggling: words.filter(w => w.status === WORD_STATUS_STRUGGLING).length
+    };
+    stats.progress_pct = stats.total ? Math.round((stats.seen / stats.total) * 100) : 0;
+    stats.memorized_pct = stats.total ? Math.round((stats.memorized / stats.total) * 100) : 0;
+    const weakest = pickWeakestItem(words);
+    const lastError = pickLastError(words);
+    const nextReviewDate =
+      words
+        .map(w => w.nextReview)
+        .filter(Boolean)
+        .sort((a, b) => new Date(a) - new Date(b))[0] || null;
+    const nextReviewLabel = formatDateLabel(nextReviewDate);
+
+    return res.render('space_detail', {
+      type: 'theme',
+      theme,
+      set: null,
+      stats,
+      items: words,
+      weakest,
+      lastError,
+      nextReviewLabel,
+      pageClass: 'page-compact'
+    });
+  } catch (e) {
+    console.error('Space detail error', e);
+    return res.redirect('/space');
   }
 });
 
