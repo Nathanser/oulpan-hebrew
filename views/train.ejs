@@ -21,6 +21,8 @@
   const modeLabels = { flashcards: 'Flashcards classique', flashcards_reverse: 'Flashcards reverse', written: 'Révision par écrit' };
   const chosenModes = selectedModes.length > 0 ? selectedModes : [qMode || mode];
   const chosenLabels = chosenModes.map(m => modeLabels[m] || 'R?vision');
+  const uiFontSize = (typeof fontSize !== 'undefined' && fontSize) ? fontSize
+    : (filters && filters.font_size ? filters.font_size : 'x-large');
 %>
 
   <section class="card session-card" data-current-id="<%= currentItemId || '' %>"
@@ -45,10 +47,10 @@
     <br>
 
     <% if (message) { %>
-      <p>
+      <div class="result error">
         <%= message %>
-      </p>
-      <% } %>
+      </div>
+    <% } %>
 
         <% if (word && isWritten) { %>
           <div class="quiz">
@@ -105,7 +107,7 @@
                 <br>
                 <div class="options-grid">
                   <% (options || []).forEach(opt=> { const label = opt.label || opt.french || opt.hebrew; const isHeb = /[\u0590-\u05FF]/.test(label || ''); %>
-                    <button style="font-size:x-large;" type="submit" name="choice_word_id" value="<%= opt.id %>" class="option-btn <%= isHeb ? 'heb-label' : '' %>">
+                    <button style="font-size:<%= uiFontSize %>;" type="submit" name="choice_word_id" value="<%= opt.id %>" class="option-btn <%= isHeb ? 'heb-label' : '' %>">
                       <%= label %>
                     </button>
                   <% }) %>
@@ -114,7 +116,7 @@
               <% } %>
 
                 <% if (result) { %>
-                  <div style="font-size:x-large;" class="result <%= result.isCorrect ? 'success' : 'error' %>">
+                  <div style="font-size:<%= uiFontSize %>;" class="result <%= result.isCorrect ? 'success' : 'error' %>">
                     <% if (result.isCorrect) { %>
                       <p>Bonne réponse !</p>
                       <% } else { %>
@@ -148,15 +150,15 @@
                         <p>Session terminée.</p>
                         <p>Score : <strong>
                             <%= correctCount %>/<%= totalLabel %>
-                          </strong></p>
-                        <div class="session-actions" style="justify-content: center; gap: 0.6rem;">
-                          <a class="btn ghost" href="/train/resume?choice=restart" style="font-size: medium;">Recommencer</a>
+                          </strong></p>                        
+                      </div>
+                      <div class="session-actions" style="justify-content: center; gap: 0.6rem;">
+                          <a class="btn ghost" href="/train/resume?choice=restart" style="font-size: large;">Recommencer</a>
                           <form method="post" action="/train/session/clear" style="margin: 0; padding: 0;">
                             <input type="hidden" name="redirectTo" value="/train/setup">
-                            <button type="submit" class="btn danger" style="font-size: medium;">Quitter</button>
+                            <button type="submit" class="btn danger" style="font-size: large;">Quitter</button>
                           </form>
                         </div>
-                      </div>
                       <% } %>
                   <% } %>
 
