@@ -13,24 +13,24 @@
       <h2>
         <%= overall && overall.total_seen ? overall.total_seen : 0 %>
       </h2>
-      <p class="muted">Total distinct de mots vus.</p>
+      <p style="font " class="muted">Total de mots vus.</p>
     </div>
     <div class="stat-card">
       <p class="eyebrow">Réussites</p>
       <h2>
         <%= overall && overall.total_success ? overall.total_success : 0 %>
       </h2>
-      <p class="muted">Réponses correctes cumulées.</p>
+      <p class="muted">Réponses correctes.</p>
     </div>
     <div class="stat-card">
       <p class="eyebrow">Échecs</p>
       <h2>
         <%= overall && overall.total_fail ? overall.total_fail : 0 %>
       </h2>
-      <p class="muted">Tentatives à retravailler.</p>
+      <p class="muted">Mots à retravailler.</p>
     </div>
     <div class="stat-card">
-      <p class="eyebrow">Maîtrise moyenne</p>
+      <p class="eyebrow">Taux de maîtrise</p>
       <h2>
         <%= overall && overall.avg_strength ? Math.round(overall.avg_strength) : 0 %>%
       </h2>
@@ -133,7 +133,7 @@
                 </div>
               </div>
               <div class="progress-row">
-                <div class="progress-label">Force moy.</div>
+                <div class="progress-label">Score moy.</div>
                 <div class="meter">
                   <div class="meter-fill accent" style="width:<%= strength %>%"></div>
                 </div>

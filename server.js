@@ -1741,11 +1741,8 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
       const isCorrect = String(chosenId) === String(cardId);
       if (isCorrect) correctCount += 1;
       await upsertCardProgress(userId, cardId, isCorrect);
-      if (remainingCount > 0) {
-        req.session.trainState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount, modes: modeList, replay: null };
-      } else {
-        delete req.session.trainState;
-      }
+      const updatedState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount, modes: modeList, replay: null };
+      req.session.trainState = updatedState;
       const result = {
         isCorrect,
         hebrew: card.hebrew,
@@ -1780,11 +1777,8 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
       const isCorrect = String(choice_word_id) === String(word_id);
       if (isCorrect) correctCount += 1;
       await upsertProgress(userId, word_id, isCorrect);
-      if (remainingCount > 0) {
-        req.session.trainState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount, modes: modeList, replay: null };
-      } else {
-        delete req.session.trainState;
-      }
+      const updatedState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount, modes: modeList, replay: null };
+      req.session.trainState = updatedState;
 
       const result = {
         isCorrect,
@@ -3661,7 +3655,10 @@ app.get('/train', requireAuth, async (req, res) => {
   const themes = await getActiveThemesForUser(userId);
 
   if (remainingCount <= 0) {
-    delete req.session.trainState;
+    state.remaining = 0;
+    state.answered = totalCount;
+    state.correct = correctCount;
+    req.session.trainState = state;
   } else {
     req.session.trainState = state;
   }
@@ -3739,6 +3736,8 @@ app.get('/train', requireAuth, async (req, res) => {
                 state.usedWordIds.push(Number(nextId));
               }
             }
+          } else {
+            state.wordQueueIndex = 0;
           }
         } else {
           const fetcher = fetchNextWord;
@@ -4023,6 +4022,7 @@ app.get('/train', requireAuth, async (req, res) => {
           pick = cardsPool.find(c => Number(c.id) === Number(nextId));
           state.cardQueueIndex += 1;
         } else {
+          state.cardQueueIndex = 0;
           pick = null;
         }
       } else {
@@ -4424,6 +4424,8 @@ app.get('/train/resume', requireAuth, (req, res) => {
     state.remaining = total;
     state.usedWordIds = [];
     state.usedCardIds = [];
+    state.wordQueueIndex = 0;
+    state.cardQueueIndex = 0;
     state.replay = null;
   }
   if (choice === 'resume') {
@@ -4442,36 +4444,15 @@ app.get('/train/resume', requireAuth, (req, res) => {
   return res.redirect(`/train`);
 });
 
-// Supprimer la session en cours et nettoyer les stats associées
+// Supprimer la session en cours (sans toucher aux stats)
 app.post('/train/session/clear', requireAuth, async (req, res) => {
   const state = req.session.trainState;
   const userId = req.session.user.id;
+  const redirectTo = req.body.redirectTo || req.query.redirectTo || '/app';
   if (state) {
-    try {
-      if (state.theme_ids && state.theme_ids.length > 0) {
-        const ph = state.theme_ids.map(() => '?').join(',');
-        const wordIds = await all(`SELECT id FROM words WHERE theme_id IN (${ph})`, state.theme_ids);
-        const ids = wordIds.map(w => w.id);
-        if (ids.length > 0) {
-          const phw = ids.map(() => '?').join(',');
-          await run(`DELETE FROM progress WHERE user_id = ? AND word_id IN (${phw})`, [userId, ...ids]);
-        }
-      }
-      if (state.set_ids && state.set_ids.length > 0) {
-        const ph = state.set_ids.map(() => '?').join(',');
-        const cardIds = await all(`SELECT id FROM cards WHERE set_id IN (${ph})`, state.set_ids);
-        const cids = cardIds.map(c => c.id);
-        if (cids.length > 0) {
-          const phc = cids.map(() => '?').join(',');
-          await run(`DELETE FROM card_progress WHERE user_id = ? AND card_id IN (${phc})`, [userId, ...cids]);
-        }
-      }
-    } catch (e) {
-      console.error('clear session error', e);
-    }
     delete req.session.trainState;
   }
-  res.redirect('/app');
+  res.redirect(redirectTo);
 });
 
 // Toggle a word globally (admin or owner)

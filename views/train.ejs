@@ -18,7 +18,6 @@
   const modeLabels = { flashcards: 'Flashcards classique', flashcards_reverse: 'Flashcards reverse', written: 'Révision par écrit' };
   const chosenModes = selectedModes.length > 0 ? selectedModes : [qMode || mode];
   const chosenLabels = chosenModes.map(m => modeLabels[m] || 'R?vision');
-  const questionLabel = chosenLabels.length > 1 ? chosenLabels.join('<br>') : chosenLabels[0];
 %>
 
   <section class="card session-card" data-current-id="<%= currentItemId || '' %>"
@@ -33,10 +32,12 @@
       <a class="icon-btn" href="/train/setup?current=1">&#9881;</a>
     </div>
     <br>
-    <div class="session-mode-line">
-      <span class="pill session-mode-pill">
-        <%- questionLabel %>
-      </span>
+    <div class="session-mode-line session-mode-rows">
+      <% chosenLabels.forEach(lbl => { %>
+        <div class="session-mode-pills single-pill-row">
+          <span class="pill session-mode-pill"><%= lbl %></span>
+        </div>
+      <% }) %>
     </div>
     <br>
 
@@ -100,11 +101,11 @@
                 <input type="hidden" name="question_mode" value="<%= qMode %>" />
                 <br>
                 <div class="options-grid">
-                  <% (options || []).forEach(opt=> { %>
-                    <button type="submit" name="choice_word_id" value="<%= opt.id %>" class="option-btn">
-                      <%= opt.label || opt.french || opt.hebrew %>
+                  <% (options || []).forEach(opt=> { const label = opt.label || opt.french || opt.hebrew; const isHeb = /[\u0590-\u05FF]/.test(label || ''); %>
+                    <button type="submit" name="choice_word_id" value="<%= opt.id %>" class="option-btn <%= isHeb ? 'heb-label' : '' %>">
+                      <%= label %>
                     </button>
-                    <% }) %>
+                  <% }) %>
                 </div>
               </form>
               <% } %>
@@ -145,17 +146,16 @@
                         <p>Score : <strong>
                             <%= correctCount %>/<%= totalLabel %>
                           </strong></p>
-                      </div>
-                      <% if (currentItemId) { %>
-                        <div class="session-actions">
-                          <span class="pill accent fav-pill-inline"
-                            style="display:<%= currentFavorite ? 'inline-flex' : 'none' %>;">Favori</span>
-                          <button type="button" class="icon-btn heart fav-toggle <%= currentFavorite ? 'active' : '' %>"
-                            aria-label="Basculer favori">&#10084;</button>
+                        <div class="session-actions" style="justify-content: center; gap: 0.6rem;">
+                          <a class="btn ghost" href="/train/resume?choice=restart" style="font-size: medium;">Recommencer</a>
+                          <form method="post" action="/train/session/clear" style="margin: 0; padding: 0;">
+                            <input type="hidden" name="redirectTo" value="/train/setup">
+                            <button type="submit" class="btn danger" style="font-size: medium;">Quitter</button>
+                          </form>
                         </div>
-                        <% } %>
-                          <% } %>
-                            <% } %>
+                      </div>
+                      <% } %>
+                  <% } %>
 
                               <% if (!word && !result && !message) { %>
                                 <p>Aucun mot à réviser avec ces paramètres.</p>

@@ -300,6 +300,10 @@ main.container {
   box-shadow: var(--shadow-sm);
 }
 
+.stat-card h2 {
+  text-align: center;
+}
+
 .section-head {
   display: flex;
   align-items: flex-start;
@@ -772,6 +776,14 @@ button.ghost {
   background: var(--bg-hover);
   border: 1px solid var(--border-main);
   color: var(--text-main);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.option-btn.heb-label {
+  font-size: 1.1rem;
+  font-family: "Noto Sans Hebrew", "Alef", "Rubik", "Arial Hebrew", "Segoe UI Historic", sans-serif;
 }
 
 .option-btn:hover {
@@ -839,8 +851,27 @@ button.ghost {
 
 .session-mode-line {
   display: flex;
+  flex-direction: column;
   justify-content: center;
+  align-items: center;
   margin: 0.15rem 0 0.4rem;
+  gap: 0.25rem;
+}
+
+.session-mode-rows {
+  gap: 0.3rem;
+}
+
+.session-mode-pills {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.single-pill-row {
+  width: 100%;
+  justify-content: center;
 }
 
 .session-mode-pill {
@@ -1153,6 +1184,16 @@ details.advanced summary {
 
   .card {
     padding: 1rem;
+  }
+
+  .stat-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .stat-card {
+    aspect-ratio: 1 / 1;
+    justify-content: space-between;
   }
 
   .options-grid {
