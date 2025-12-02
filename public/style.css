@@ -908,6 +908,111 @@ details.advanced summary {
   background: var(--bg-hover);
 }
 
+.themes-page .themes-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.themes-page .theme-item {
+  border: 1px solid var(--border-main);
+  background: var(--bg-hover);
+  border-radius: 0.85rem;
+  padding: 0.55rem 0.7rem;
+}
+
+.themes-page .themes-list .theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.themes-page .themes-list .theme-row .inline-actions {
+  flex-shrink: 0;
+  gap: 0.35rem;
+}
+
+.themes-page .theme-main {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.themes-page .theme-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  font-size: 1rem;
+}
+
+.themes-page .theme-item.has-children .theme-title {
+  cursor: pointer;
+}
+
+.themes-page .theme-title strong {
+  font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.themes-page .theme-pill {
+  padding: 0.12rem 0.6rem;
+  border-color: var(--border-main);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.themes-page .themes-list .theme-children {
+  list-style: none;
+  margin: 0.4rem 0 0.1rem;
+  padding-left: 1.5rem;
+  border-left: 2px solid var(--border-main);
+  display: none;
+}
+
+.themes-page .themes-list .theme-row.child-row {
+  padding: 0.35rem 0;
+}
+
+.themes-page .themes-list .theme-children .theme-title strong {
+  font-weight: 700;
+}
+
+.themes-page .status-pill {
+  padding: 0.12rem 0.45rem;
+}
+
+.themes-page .toggle-children-btn {
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 0.55rem;
+  border: 1px solid var(--border-main);
+  background: var(--bg-card);
+  color: var(--text-main);
+}
+
+.themes-page .toggle-children-btn:hover {
+  border-color: var(--accent-primary);
+}
+
+.themes-page .theme-item.is-open .toggle-children-btn {
+  background: var(--bg-active);
+}
+
+.themes-page .theme-item.is-open .theme-children {
+  display: block;
+}
+
 .mobile-header {
   display: none;
   align-items: center;

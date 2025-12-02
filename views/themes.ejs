@@ -1,4 +1,4 @@
-<section>
+<section class="themes-page">
   <div class="list-header">
     <h1>Thèmes</h1>
     <div class="mode-switch">
@@ -13,31 +13,26 @@
       <% if (!activeThemes || activeThemes.length===0) { %>
         <p>Pas encore de thèmes publics.</p>
         <% } else { %>
-          <ul class="list">
+          <ul class="themes-list">
             <% activeThemes.forEach(t=> { %>
               <% if (t.children && t.children.length> 0) { %>
                 <!-- Parent Theme with Children -->
-                <br>
-                <li class="theme-group" style="display:block; padding:0;">
-                  <div class="theme-row parent-row"
-                    style="display:flex; align-items:center; justify-content:space-between; padding:0.4rem 0;">
-                    <div style="display:flex; align-items:center; gap:0.5rem; flex:1; min-width:0;">
+                <li class="theme-item has-children">
+                  <div class="theme-row parent-row">
+                    <div class="theme-main">
                       <button type="button" class="icon-btn ghost toggle-children-btn"
                         data-toggle-target="children-<%= t.id %>" aria-label="Voir les sous-thèmes"
-                        style="flex-shrink:0;">
+                        aria-expanded="false">
                         <span class="chevron-icon">&#9654;</span>
                       </button>
-                      <strong style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                        <%= t.name %>
-                      </strong>
-                      <span class="pill muted mini" style="white-space:nowrap; flex-shrink:0;">
-                        <%= t.children.length %> sous-thèmes
-                      </span>
+                      <div class="theme-title">
+                        <strong><%= t.name %></strong>
+                        <span class="pill muted mini theme-pill"><%= t.children.length %> sous-thèmes</span>
+                      </div>
                     </div>
-                    <div class="inline-actions" style="flex-shrink:0;padding-right: 0.3rem;">
+                    <div class="inline-actions">
                       <!-- Parent actions if needed, maybe just visibility toggle -->
-                      <button type="button" class="icon-btn ghost dots-btn" data-menu-btn
-                        aria-label="Actions">&#8942;</button>
+                      <button type="button" class="icon-btn ghost dots-btn" data-menu-btn aria-label="Actions">&#8942;</button>
                       <div class="card-menu" data-menu>
                         <form action="/themes/<%= t.id %>/toggle-visibility" method="post">
                           <button type="submit" class="menu-item">
@@ -56,25 +51,20 @@
                       </div>
                     </div>
                   </div>
-                  <ul class="list theme-children" id="children-<%= t.id %>"
-                    style="display:none; padding-left:1.5rem; border-left:2px solid var(--border-color); margin-left:1rem;">
+                  <ul class="theme-children" id="children-<%= t.id %>">
                     <% t.children.forEach(child=> { %>
-                      <li class="theme-row">
-                        <div>
-                          <strong>
-                            <%= child.name %>
-                          </strong>
-                          <br>
+                      <li class="theme-row child-row">
+                        <div class="theme-title">
+                          <strong><%= child.name %></strong>
                           <% if (Number(child.active)===0) { %>
-                            <span class="pill muted" style="margin-left:0.35rem;">Inactif (admin)</span>
+                            <span class="pill muted mini status-pill">Inactif (admin)</span>
                             <% } else if (Number(child.effective_active)===0) { %>
-                              <span class="pill muted" style="margin-left:0.35rem;">Inactif</span>
+                              <span class="pill muted mini status-pill">Inactif</span>
                               <% } %>
                         </div>
                         <div class="inline-actions">
                           <a class="btn ghost" href="/themes/<%= child.id %>">Voir</a>
-                          <button type="button" class="icon-btn ghost dots-btn" data-menu-btn
-                            aria-label="Actions">&#8942;</button>
+                          <button type="button" class="icon-btn ghost dots-btn" data-menu-btn aria-label="Actions">&#8942;</button>
                           <div class="card-menu" data-menu>
                             <% if (Number(child.active)===0) { %>
                               <% if (isAdmin) { %>
@@ -117,31 +107,30 @@
                 </li>
                 <% } else { %>
                   <!-- Standard Theme -->
-                  <li class="theme-row">
-                    <div>
-                      <strong>
-                        <%= t.name %>
-                      </strong>
-                    </div>
-                    <div class="inline-actions">
-                      <a class="btn ghost" href="/themes/<%= t.id %>">Voir</a>
-                      <button type="button" class="icon-btn ghost dots-btn" data-menu-btn
-                        aria-label="Actions">&#8942;</button>
-                      <div class="card-menu" data-menu>
-                        <form action="/themes/<%= t.id %>/toggle-visibility" method="post">
-                          <button type="submit" class="menu-item">
-                            <span>Masquer</span>
-                            <span class="menu-icon">&#128065;</span>
-                          </button>
-                        </form>
-                        <% if (isAdmin) { %>
-                          <form action="/themes/<%= t.id %>/toggle" method="post">
+                  <li class="theme-item">
+                    <div class="theme-row leaf-row">
+                      <div class="theme-title">
+                        <strong><%= t.name %></strong>
+                      </div>
+                      <div class="inline-actions">
+                        <a class="btn ghost" href="/themes/<%= t.id %>">Voir</a>
+                        <button type="button" class="icon-btn ghost dots-btn" data-menu-btn aria-label="Actions">&#8942;</button>
+                        <div class="card-menu" data-menu>
+                          <form action="/themes/<%= t.id %>/toggle-visibility" method="post">
                             <button type="submit" class="menu-item">
-                              <span>Désactiver (admin)</span>
-                              <span class="menu-icon">&#9940;</span>
+                              <span>Masquer</span>
+                              <span class="menu-icon">&#128065;</span>
                             </button>
                           </form>
+                          <% if (isAdmin) { %>
+                            <form action="/themes/<%= t.id %>/toggle" method="post">
+                              <button type="submit" class="menu-item">
+                                <span>Désactiver (admin)</span>
+                                <span class="menu-icon">&#9940;</span>
+                              </button>
+                            </form>
                           <% } %>
+                        </div>
                       </div>
                     </div>
                   </li>
@@ -163,49 +152,54 @@
 
             <% if (inactivePersonal && inactivePersonal.length> 0) { %>
               <p class="eyebrow">Inactifs pour moi</p>
-              <ul class="list">
+              <ul class="themes-list">
                 <% inactivePersonal.forEach(t=> { %>
-                  <li class="theme-row">
-                    <div>
-                      <strong>
-                        <%= t.name %>
-                      </strong>
-                      <span class="pill muted mini">Inactif pour moi</span>
-                    </div>
-                    <div class="inline-actions">
-                      <a class="btn ghost" href="/themes/<%= t.id %>">Voir</a>
-                      <button type="button" class="icon-btn ghost dots-btn" data-menu-btn
-                        aria-label="Actions">&#8942;</button>
-                      <div class="card-menu" data-menu>
-                        <form action="/themes/<%= t.id %>/toggle-visibility" method="post">
-                          <button type="submit" class="menu-item">
-                            <span>Afficher</span>
-                            <span class="menu-icon">&#128065;</span>
-                          </button>
-                        </form>
+                  <li class="theme-item">
+                    <div class="theme-row leaf-row">
+                      <div class="theme-title">
+                        <strong><%= t.name %></strong>
+                        <span class="pill muted mini status-pill">Inactif pour moi</span>
+                      </div>
+                      <div class="inline-actions">
+                        <a class="btn ghost" href="/themes/<%= t.id %>">Voir</a>
+                        <button type="button" class="icon-btn ghost dots-btn" data-menu-btn aria-label="Actions">&#8942;</button>
+                        <div class="card-menu" data-menu>
+                          <form action="/themes/<%= t.id %>/toggle-visibility" method="post">
+                            <button type="submit" class="menu-item">
+                              <span>Afficher</span>
+                              <span class="menu-icon">&#128065;</span>
+                            </button>
+                          </form>
+                        </div>
                       </div>
                     </div>
                   </li>
                   <% }) %>
               </ul>
+              <br>
               <% } %>
 
                 <% if (inactiveProposed && inactiveProposed.length> 0) { %>
                   <p class="eyebrow">Inactifs (admin)</p>
-                  <ul class="list">
+                  <ul class="themes-list">
                     <% inactiveProposed.forEach(t=> { %>
-                      <li class="theme-row">
-                        <div><strong>
-                            <%= t.name %>
-                          </strong></div>
-                        <div class="inline-actions">
-                          <% if (isAdmin) { %>
-                            <form action="/themes/<%= t.id %>/toggle" method="post" style="margin-right:0.5rem;">
-                              <button class="btn ghost" type="submit" title="Activer">Activer</button>
-                            </form>
-                            <% } else { %>
-                              <span class="pill muted mini">Inactif</span>
-                              <% } %>
+                      <li class="theme-item">
+                        <div class="theme-row leaf-row">
+                          <div class="theme-title">
+                            <strong><%= t.name %></strong>
+                            <% if (!isAdmin) { %>
+                              <span class="pill muted mini status-pill">Inactif</span>
+                            <% } %>
+                          </div>
+                          <div class="inline-actions">
+                            <% if (isAdmin) { %>
+                              <form action="/themes/<%= t.id %>/toggle" method="post" style="margin:0;">
+                                <button class="btn ghost" type="submit" title="Activer">Activer</button>
+                              </form>
+                              <% } else { %>
+                                <span class="pill muted mini status-pill">Inactif</span>
+                                <% } %>
+                          </div>
                         </div>
                       </li>
                       <% }) %>
@@ -246,18 +240,28 @@
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.inline-actions')) closeMenus();
     });
+    const toggleChildren = (btn, forceOpen = null) => {
+      const targetId = btn.dataset.toggleTarget;
+      const target = document.getElementById(targetId);
+      const icon = btn.querySelector('.chevron-icon');
+      const parentItem = btn.closest('.theme-item');
+      if (!target || !parentItem) return;
+      const isOpen = parentItem.classList.contains('is-open');
+      const shouldOpen = forceOpen !== null ? forceOpen : !isOpen;
+      parentItem.classList.toggle('is-open', shouldOpen);
+      btn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+      if (icon) icon.innerHTML = shouldOpen ? '&#9660;' : '&#9654;';
+    };
     document.querySelectorAll('.toggle-children-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const targetId = btn.dataset.toggleTarget;
-        const target = document.getElementById(targetId);
-        const icon = btn.querySelector('.chevron-icon');
-        if (target) {
-          const isHidden = target.style.display === 'none';
-          target.style.display = isHidden ? 'block' : 'none';
-          icon.innerHTML = isHidden ? '&#9660;' : '&#9654;';
-        }
+        toggleChildren(btn);
       });
+    });
+    document.querySelectorAll('.theme-row.parent-row .theme-title').forEach(title => {
+      const btn = title.closest('.parent-row')?.querySelector('.toggle-children-btn');
+      if (!btn) return;
+      title.addEventListener('click', () => toggleChildren(btn));
     });
   })();
 </script>
