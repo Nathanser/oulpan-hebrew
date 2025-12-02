@@ -1,134 +1,215 @@
-<section>
-  <div class="list-header">
-    <h1>Mes mots</h1>
+<section class="word-page">
+  <div class="list-header word-head">
+    <div>
+      <p class="eyebrow">Tableau de bord favoris</p>
+      <h1>Mes mots</h1>
+      <p class="muted mini">Passe d'un type de favoris &agrave; l'autre sans scroller de grandes cartes.</p>
+    </div>
   </div>
 
-  <div class="card" style="margin-top:1rem;">
-    <h2>Mes favoris<br>(Thèmes)</h2>
+  <div class="card word-hero">
+    <div class="word-hero-top">
+      <div>
+        <p class="eyebrow">Vue condens&eacute;e</p>
+        <h2>Mes favoris</h2>
+        <p class="muted mini">Choisis le groupe qui t'int&eacute;resse, les tableaux suivent.</p>
+      </div>
+      <div class="word-stats">
+        <div class="mini-stat">
+          <span>Th&egrave;mes</span>
+          <strong><%= favorites ? favorites.length : 0 %></strong>
+        </div>
+        <div class="mini-stat">
+          <span>Listes perso</span>
+          <strong><%= listFavorites ? listFavorites.length : 0 %></strong>
+        </div>
+        <div class="mini-stat">
+          <span>Listes partag&eacute;es</span>
+          <strong><%= sharedFavorites ? sharedFavorites.length : 0 %></strong>
+        </div>
+      </div>
+    </div>
+    <div class="segmented-control word-toggle">
+      <button type="button" class="seg-btn active" data-tab="themes" data-count="<%= favorites ? favorites.length : 0 %>">Th&egrave;mes</button>
+      <button type="button" class="seg-btn" data-tab="personal" data-count="<%= listFavorites ? listFavorites.length : 0 %>">Listes perso</button>
+      <button type="button" class="seg-btn" data-tab="shared" data-count="<%= sharedFavorites ? sharedFavorites.length : 0 %>">Listes partag&eacute;es</button>
+    </div>
+  </div>
+
+  <div class="card word-panel active" data-tab="themes">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">Favoris</p>
+        <h3>Th&egrave;mes</h3>
+      </div>
+      <span class="pill muted"><%= favorites && favorites.length ? favorites.length : 0 %> &eacute;l&eacute;ment(s)</span>
+    </div>
     <% if (!favorites || favorites.length===0) { %>
-      <p>Pas de favoris pour l'instant.</p>
+      <div class="empty-state">Pas de favoris pour l'instant.</div>
       <% } else { %>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Français</th>
-              <th>Hébreu</th>
-              <th>Thème</th>
-              <th>Niveau</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% favorites.forEach(w=> { %>
+        <div class="table-wrapper">
+          <table class="table compact-table">
+            <thead>
               <tr>
-                <td>
-                  <%= w.french %>
-                </td>
-                <td>
-                  <%= w.hebrew %>
-                </td>
-                <td>
-                  <%= w.theme_name || '-' %>
-                </td>
-                <td>
-                  <%= w.level_name || '-' %>
-                </td>
-                <td>
-                  <form action="/favorites/<%= w.id %>" method="post" style="display:inline;">
-                    <input type="hidden" name="redirectTo" value="/my/words">
-                    <button class="link" type="submit">Retirer</button>
-                  </form>
-                </td>
+                <th>Fran&ccedil;ais</th>
+                <th>H&eacute;breu</th>
+                <th>Th&egrave;me</th>
+                <th>Niveau</th>
+                <th>Actions</th>
               </tr>
-              <% }) %>
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              <% favorites.forEach(w=> { %>
+                <tr>
+                  <td>
+                    <%= w.french %>
+                  </td>
+                  <td>
+                    <%= w.hebrew %>
+                  </td>
+                  <td>
+                    <%= w.theme_name || '-' %>
+                  </td>
+                  <td>
+                    <%= w.level_name || '-' %>
+                  </td>
+                  <td>
+                    <form action="/favorites/<%= w.id %>" method="post" class="inline-form">
+                      <input type="hidden" name="redirectTo" value="/my/words">
+                      <button class="link" type="submit">Retirer</button>
+                    </form>
+                  </td>
+                </tr>
+                <% }) %>
+            </tbody>
+          </table>
+        </div>
         <% } %>
   </div>
 
-  <div class="card" style="margin-top:1rem;">
-    <h2>Mes favoris<br>(Listes perso)</h2>
+  <div class="card word-panel" data-tab="personal">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">Favoris</p>
+        <h3>Listes perso</h3>
+      </div>
+      <span class="pill muted"><%= listFavorites && listFavorites.length ? listFavorites.length : 0 %> &eacute;l&eacute;ment(s)</span>
+    </div>
     <% if (!listFavorites || listFavorites.length===0) { %>
-      <p>Pas de cartes de liste en favoris.</p>
+      <div class="empty-state">Pas de cartes de liste en favoris.</div>
       <% } else { %>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Français</th>
-              <th>Hébreu</th>
-              <th>Liste</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% listFavorites.forEach(c=> { %>
+        <div class="table-wrapper">
+          <table class="table compact-table">
+            <thead>
               <tr>
-                <td>
-                  <%= c.french %>
-                </td>
-                <td>
-                  <%= c.hebrew %>
-                </td>
-                <td>
-                  <%= c.set_name || '-' %>
-                </td>
-                <td>
-                  <form action="/my/lists/<%= c.set_id %>/cards/<%= c.id %>/action" method="post"
-                    style="display:inline;">
-                    <input type="hidden" name="action" value="toggle_fav">
-                    <input type="hidden" name="redirectTo" value="/my/words">
-                    <button class="link" type="submit">Retirer</button>
-                  </form>
-                </td>
+                <th>Fran&ccedil;ais</th>
+                <th>H&eacute;breu</th>
+                <th>Liste</th>
+                <th>Actions</th>
               </tr>
-              <% }) %>
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              <% listFavorites.forEach(c=> { %>
+                <tr>
+                  <td>
+                    <%= c.french %>
+                  </td>
+                  <td>
+                    <%= c.hebrew %>
+                  </td>
+                  <td>
+                    <%= c.set_name || '-' %>
+                  </td>
+                  <td>
+                    <form action="/my/lists/<%= c.set_id %>/cards/<%= c.id %>/action" method="post" class="inline-form">
+                      <input type="hidden" name="action" value="toggle_fav">
+                      <input type="hidden" name="redirectTo" value="/my/words">
+                      <button class="link" type="submit">Retirer</button>
+                    </form>
+                  </td>
+                </tr>
+                <% }) %>
+            </tbody>
+          </table>
+        </div>
         <% } %>
   </div>
 
-  <div class="card" style="margin-top:1rem;">
-    <h2>Mes favoris<br>(Listes partagées)</h2>
+  <div class="card word-panel" data-tab="shared">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">Favoris</p>
+        <h3>Listes partag&eacute;es</h3>
+      </div>
+      <span class="pill muted"><%= sharedFavorites && sharedFavorites.length ? sharedFavorites.length : 0 %> &eacute;l&eacute;ment(s)</span>
+    </div>
     <% if (!sharedFavorites || sharedFavorites.length===0) { %>
-      <p>Aucun favori provenant des listes partagées.</p>
+      <div class="empty-state">Aucun favori provenant des listes partag&eacute;es.</div>
       <% } else { %>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Français</th>
-              <th>Hébreu</th>
-              <th>Liste</th>
-              <th>Propriétaire</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% sharedFavorites.forEach(c=> { %>
+        <div class="table-wrapper">
+          <table class="table compact-table">
+            <thead>
               <tr>
-                <td>
-                  <%= c.french %>
-                </td>
-                <td>
-                  <%= c.hebrew %>
-                </td>
-                <td>
-                  <%= c.set_name || '-' %>
-                </td>
-                <td>
-                  <%= c.owner_name || '-' %>
-                </td>
-                <td>
-                  <form action="/my/lists/<%= c.set_id %>/cards/<%= c.id %>/action" method="post"
-                    style="display:inline;">
-                    <input type="hidden" name="action" value="toggle_fav">
-                    <input type="hidden" name="redirectTo" value="/my/words">
-                    <button class="link" type="submit">Retirer</button>
-                  </form>
-                </td>
+                <th>Fran&ccedil;ais</th>
+                <th>H&eacute;breu</th>
+                <th>Liste</th>
+                <th>Propri&eacute;taire</th>
+                <th>Actions</th>
               </tr>
-              <% }) %>
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              <% sharedFavorites.forEach(c=> { %>
+                <tr>
+                  <td>
+                    <%= c.french %>
+                  </td>
+                  <td>
+                    <%= c.hebrew %>
+                  </td>
+                  <td>
+                    <%= c.set_name || '-' %>
+                  </td>
+                  <td>
+                    <%= c.owner_name || '-' %>
+                  </td>
+                  <td>
+                    <form action="/my/lists/<%= c.set_id %>/cards/<%= c.id %>/action" method="post" class="inline-form">
+                      <input type="hidden" name="action" value="toggle_fav">
+                      <input type="hidden" name="redirectTo" value="/my/words">
+                      <button class="link" type="submit">Retirer</button>
+                    </form>
+                  </td>
+                </tr>
+                <% }) %>
+            </tbody>
+          </table>
+        </div>
         <% } %>
   </div>
 </section>
+
+<script>
+  (() => {
+    const switches = Array.from(document.querySelectorAll('.word-toggle .seg-btn'));
+    const panels = Array.from(document.querySelectorAll('.word-panel'));
+    if (!switches.length || !panels.length) return;
+
+    const activate = (tab) => {
+      switches.forEach(btn => {
+        const isActive = btn.dataset.tab === tab;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      });
+      panels.forEach(panel => {
+        panel.classList.toggle('active', panel.dataset.tab === tab);
+      });
+    };
+
+    const preferred = switches.find(btn => Number(btn.dataset.count || '0') > 0) || switches[0];
+    if (preferred) activate(preferred.dataset.tab);
+
+    switches.forEach(btn => {
+      btn.addEventListener('click', () => activate(btn.dataset.tab));
+    });
+  })();
+</script>

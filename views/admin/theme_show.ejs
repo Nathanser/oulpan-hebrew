@@ -91,8 +91,9 @@
                   </form>
                 </div>
                 <div class="word-card-flags">
-                  <% if (!word.active) { %><span class="pill muted">Inactif</span>
-                    <% } %>
+                  <% if (word.active) { %><span class="pill muted">Actif</span>
+                  <% } else { %><span class="pill muted">Inactif</span>
+                  <% } %>
                 </div>
               </div>
               <% }) %>

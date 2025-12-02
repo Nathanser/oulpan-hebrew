@@ -1,4 +1,4 @@
-<% const activeCount=(words || []).filter(w=> Number(w.effective_active)).length; %>
+﻿<% const activeCount=(words || []).filter(w=> Number(w.effective_active)).length; %>
   <% const inactiveCount=(words || []).length - activeCount; %>
 
     <section class="card list-screen">
@@ -115,23 +115,21 @@
                         </button>
                       </form>
                       <% } %>
-                        <% if (Number(word.global_active) && currentUser.role !=='admin' ) { %>
-                          <form method="post" action="/words/<%= word.id %>/toggle-self" style="display:inline;">
-                            <input type="hidden" name="redirectTo" value="/themes/<%= theme.id %>">
-                            <button class="btn ghost mini" type="submit">
-                              <%= isEffectiveActive ? 'Masquer pour moi' : 'Réactiver pour moi' %>
-                            </button>
-                          </form>
-                          <% } %>
+                        
                   </div>
                   <% } %>
                     <div class="word-card-flags">
+                      <% if (isEffectiveActive) { %>
+                        <span class="pill muted">Actif</span>
+                      <% } else { %>
+                        <span class="pill muted">Inactif</span>
+                      <% } %>
                       <% if (isGlobalInactive) { %>
                         <span class="pill muted">Inactif global</span>
-                        <% } %>
-                          <% if (isFavorite) { %>
-                            <span class="pill accent">Favori</span>
-                            <% } %>
+                      <% } %>
+                      <% if (isFavorite) { %>
+                        <span class="pill accent">Favori</span>
+                      <% } %>
                     </div>
               </div>
               <% }) %>
@@ -289,3 +287,5 @@
         applyFilters();
       })();
     </script>
+
+

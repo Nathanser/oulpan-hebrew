@@ -1,3 +1,6 @@
+
+
+
 <%
   const f = filters || {};
   const themeIdsString = (f.theme_ids || []).join(',');
@@ -35,7 +38,7 @@
     <div class="session-mode-line session-mode-rows">
       <% chosenLabels.forEach(lbl => { %>
         <div class="session-mode-pills single-pill-row">
-          <span class="pill session-mode-pill"><%= lbl %></span>
+          <span style="font-size:medium;"class="pill session-mode-pill"><%= lbl %></span>
         </div>
       <% }) %>
     </div>
@@ -102,7 +105,7 @@
                 <br>
                 <div class="options-grid">
                   <% (options || []).forEach(opt=> { const label = opt.label || opt.french || opt.hebrew; const isHeb = /[\u0590-\u05FF]/.test(label || ''); %>
-                    <button type="submit" name="choice_word_id" value="<%= opt.id %>" class="option-btn <%= isHeb ? 'heb-label' : '' %>">
+                    <button style="font-size:x-large;" type="submit" name="choice_word_id" value="<%= opt.id %>" class="option-btn <%= isHeb ? 'heb-label' : '' %>">
                       <%= label %>
                     </button>
                   <% }) %>
@@ -111,7 +114,7 @@
               <% } %>
 
                 <% if (result) { %>
-                  <div class="result <%= result.isCorrect ? 'success' : 'error' %>">
+                  <div style="font-size:x-large;" class="result <%= result.isCorrect ? 'success' : 'error' %>">
                     <% if (result.isCorrect) { %>
                       <p>Bonne réponse !</p>
                       <% } else { %>

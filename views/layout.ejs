@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/style.css" />
 </head>
 
-<body class="<%= (currentUser && currentUser.theme === 'light') ? 'light-theme' : '' %> app-scale">
+<body class="<%= (currentUser && currentUser.theme === 'light') ? 'light-theme' : '' %> <%= typeof scalePage !== 'undefined' && scalePage ? 'app-scale' : '' %>">
   <div class="layout-shell">
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-top">

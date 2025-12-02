@@ -1,3 +1,6 @@
+
+
+
 <% const memorizedCount=(cards || []).filter(c=> Number(c.memorized)).length; %>
   <% const pendingCount=(cards || []).length - memorizedCount; %>
 
@@ -121,12 +124,9 @@
                                   <% } %>
                     </div>
                     <div class="word-card-flags">
-                      <% if (!card.active) { %><span class="pill muted">Inactif</span>
-                        <% } %>
-                          <% if (card.memorized) { %><span class="pill success">Mémorisé</span>
-                            <% } %>
-                              <% if (card.favorite) { %><span class="pill accent">Favori</span>
-                                <% } %>
+                      <% if (card.active) { %><span class="pill muted">Actif</span><% } else { %><span class="pill muted">Inactif</span><% } %>
+                      <% if (card.memorized) { %><span class="pill success">Mémorisé</span><% } %>
+                      <% if (card.favorite) { %><span class="pill accent">Favori</span><% } %>
                     </div>
               </div>
               <% }) %>
