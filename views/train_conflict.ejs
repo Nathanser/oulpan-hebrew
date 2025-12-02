@@ -1,7 +1,7 @@
 <section class="card">
-  <h1>Révision déjà en cours</h1>
-  <p>Tu as déjà démarré une révision avec ce ou ces thèmes et/ou listes :</p>
-  <ul class="muted">
+  <h2 style="text-align: center;">Révision en cours</h1>
+  <p style="font-size: large;">Tu as déjà une session en cours avec ces thèmes/listes :</p>
+  <ul style="font-size: medium;" class="muted">
     <% if (overlapThemes && overlapThemes.length) { %>
       <li>Thèmes : <%= overlapThemes.map(t=> t.name).join(', ') %></li>
       <% } %>
@@ -9,36 +9,49 @@
           <li>Listes : <%= overlapSets.map(s=> s.name).join(', ') %></li>
           <% } %>
   </ul>
-  <p class="muted mini">Veux-tu recommencer depuis le début ou reprendre ?</p>
+  <br>
+  <p style="font-size: large;text-align: center;">Tu veux reprendre ou recommencer ?</p>
 
-  <div class="mode-switch" style="margin-top:1rem; gap:0.5rem; flex-wrap:wrap;">
+  <div class="mode-switch"
+     style="margin-top:1rem; gap:0.5rem; flex-wrap:wrap; display:flex; justify-content:center;">
     <form method="get" action="/train/resume" style="display:inline;">
       <input type="hidden" name="choice" value="resume">
-      <button type="submit" class="btn">Reprendre</button>
+      <button type="submit" class="btn" style="font-size: small; display: block; width: fit-content; margin: 0 auto;">
+        Reprendre
+      </button>
     </form>
+
     <form method="post" action="/train/session" style="display:inline;">
       <input type="hidden" name="conflict_choice" value="restart">
-      <% (params && params.modes ? (Array.isArray(params.modes) ? params.modes : [params.modes]) :
-        ['flashcards']).forEach(m=> { %>
+
+      <% (params && params.modes ? (Array.isArray(params.modes) ? params.modes : [params.modes]) : ['flashcards']).forEach(m=> { %>
         <input type="hidden" name="modes[]" value="<%= m %>">
-        <% }) %>
-          <% (params && params.theme_ids ? params.theme_ids : []).forEach(id=> { %>
-            <input type="hidden" name="theme_ids[]" value="<%= id %>">
-            <% }) %>
-              <% (params && params.set_ids ? params.set_ids : []).forEach(id=> { %>
-                <input type="hidden" name="set_ids[]" value="<%= id %>">
-                <% }) %>
-                  <input type="hidden" name="level_id" value="<%= params && params.level_id ? params.level_id : '' %>">
-                  <input type="hidden" name="rev_mode"
-                    value="<%= params && params.rev_mode ? params.rev_mode : 'order' %>">
-                  <input type="hidden" name="show_phonetic"
-                    value="<%= params && typeof params.show_phonetic !== 'undefined' ? params.show_phonetic : 1 %>">
-                  <input type="hidden" name="remaining"
-                    value="<%= params && typeof params.remaining !== 'undefined' ? params.remaining : 10 %>">
-                  <input type="hidden" name="total"
-                    value="<%= params && typeof params.total !== 'undefined' ? params.total : (params && params.remaining ? params.remaining : 10) %>">
-                  <button type="submit" class="btn ghost">Recommencer depuis le début</button>
+      <% }) %>
+
+      <% (params && params.theme_ids ? params.theme_ids : []).forEach(id=> { %>
+        <input type="hidden" name="theme_ids[]" value="<%= id %>">
+      <% }) %>
+
+      <% (params && params.set_ids ? params.set_ids : []).forEach(id=> { %>
+        <input type="hidden" name="set_ids[]" value="<%= id %>">
+      <% }) %>
+
+      <input type="hidden" name="level_id" value="<%= params && params.level_id ? params.level_id : '' %>">
+      <input type="hidden" name="rev_mode" value="<%= params && params.rev_mode ? params.rev_mode : 'order' %>">
+      <input type="hidden" name="show_phonetic" value="<%= params && typeof params.show_phonetic !== 'undefined' ? params.show_phonetic : 1 %>">
+      <input type="hidden" name="remaining" value="<%= params && typeof params.remaining !== 'undefined' ? params.remaining : 10 %>">
+      <input type="hidden" name="total" value="<%= params && typeof params.total !== 'undefined' ? params.total : (params && params.remaining ? params.remaining : 10) %>">
+
+      <button type="submit" class="btn ghost"
+        style="font-size: small; display: block; width: fit-content; margin: 0 auto; background-color:#5B9FB4; color:white;">
+  Recommencer
+</button>
+
     </form>
-    <a class="btn secondary" href="/train/setup">Modifier ma sélection</a>
-  </div>
+
+    <a class="btn secondary" href="/train/setup" style="font-size: small; background-color:#121728; display: block; width: fit-content; margin: 0 auto;">
+      Modifier ma sélection
+    </a>
+</div>
+
 </section>

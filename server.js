@@ -116,6 +116,142 @@ function modeLabel(mode) {
   }
 }
 
+async function fetchNextOrderedWord(userId, filters = {}) {
+  const params = [userId, userId, userId, userId];
+  const excludedIds = Array.isArray(filters.excludedIds)
+    ? filters.excludedIds.map(id => Number(id)).filter(id => !Number.isNaN(id))
+    : [];
+  let sql = `SELECT w.*,
+        IFNULL(p.strength, 0) AS strength,
+        p.last_seen,
+        p.id AS progress_id,
+        fav.id AS fav_id
+       FROM words w
+       LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = ?
+       LEFT JOIN favorites fav ON fav.word_id = w.id AND fav.user_id = ?
+       LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
+       LEFT JOIN themes t ON t.id = w.theme_id
+       LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
+       LEFT JOIN theme_levels l ON l.id = w.level_id
+       WHERE w.active = 1
+         AND COALESCE(uwo.active, 1) = 1
+         AND (w.theme_id IS NULL OR (t.active = 1 AND COALESCE(uto.active, 1) = 1))
+         AND (w.level_id IS NULL OR l.active = 1)`;
+
+  if (filters.theme_id) {
+    sql += ' AND w.theme_id = ?';
+    params.push(filters.theme_id);
+  } else if (filters.theme_ids && filters.theme_ids.length > 0) {
+    const placeholders = filters.theme_ids.map(() => '?').join(',');
+    sql += ` AND w.theme_id IN (${placeholders})`;
+    params.push(...filters.theme_ids);
+  }
+  if (filters.level_id) {
+    sql += ' AND w.level_id = ?';
+    params.push(filters.level_id);
+  }
+  if (filters.difficulty) {
+    sql += ' AND w.difficulty = ?';
+    params.push(filters.difficulty);
+  }
+
+  if (filters.scope === 'global') {
+    sql += ' AND w.user_id IS NULL';
+  } else if (filters.scope === 'mine') {
+    sql += ' AND w.user_id = ?';
+    params.push(userId);
+  } else if (filters.scope === 'none') {
+    return null;
+  } else {
+    sql += ' AND (w.user_id IS NULL OR w.user_id = ?)';
+    params.push(userId);
+  }
+
+  if (filters.global_theme_ids && filters.global_theme_ids.length > 0 && filters.scope !== 'mine') {
+    const placeholders = filters.global_theme_ids.map(() => '?').join(',');
+    sql += ` AND (w.user_id = ? OR w.theme_id IN (${placeholders}))`;
+    params.push(null, ...filters.global_theme_ids);
+  }
+
+  if (excludedIds.length > 0) {
+    const placeholders = excludedIds.map(() => '?').join(',');
+    sql += ` AND w.id NOT IN (${placeholders})`;
+    params.push(...excludedIds);
+  }
+
+  if (filters.theme_order && filters.theme_order.length > 0) {
+    const caseExpr = filters.theme_order.map((id, idx) => `WHEN ? THEN ${idx}`).join(' ');
+    sql += ` ORDER BY CASE w.theme_id ${caseExpr} ELSE 2147483647 END ASC, COALESCE(w.position, 2147483647) ASC, w.id ASC LIMIT 1`;
+    params.push(...filters.theme_order.map(Number));
+  } else {
+    sql += ' ORDER BY COALESCE(w.theme_id, 2147483647) ASC, COALESCE(w.position, 2147483647) ASC, w.id ASC LIMIT 1';
+  }
+
+  return get(sql, params);
+}
+
+async function getWordPoolForUser(userId, filters = {}) {
+  const mode = (filters.rev_mode || 'order').toLowerCase();
+  const params = [userId, userId, userId, userId];
+  let sql = `SELECT w.id
+        FROM words w
+        LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = ?
+        LEFT JOIN favorites fav ON fav.word_id = w.id AND fav.user_id = ?
+        LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
+        LEFT JOIN themes t ON t.id = w.theme_id
+        LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
+        LEFT JOIN theme_levels l ON l.id = w.level_id
+        WHERE w.active = 1
+          AND COALESCE(uwo.active, 1) = 1
+          AND (w.theme_id IS NULL OR (t.active = 1 AND COALESCE(uto.active, 1) = 1))
+          AND (w.level_id IS NULL OR l.active = 1)`;
+
+  if (filters.theme_id) {
+    sql += ' AND w.theme_id = ?';
+    params.push(filters.theme_id);
+  } else if (filters.theme_ids && filters.theme_ids.length > 0) {
+    const placeholders = filters.theme_ids.map(() => '?').join(',');
+    sql += ` AND w.theme_id IN (${placeholders})`;
+    params.push(...filters.theme_ids);
+  }
+  if (filters.level_id) {
+    sql += ' AND w.level_id = ?';
+    params.push(filters.level_id);
+  }
+  if (filters.difficulty) {
+    sql += ' AND w.difficulty = ?';
+    params.push(filters.difficulty);
+  }
+
+  if (filters.scope === 'global') {
+    sql += ' AND w.user_id IS NULL';
+  } else if (filters.scope === 'mine') {
+    sql += ' AND w.user_id = ?';
+    params.push(userId);
+  } else if (filters.scope === 'none') {
+    return [];
+  } else {
+    sql += ' AND (w.user_id IS NULL OR w.user_id = ?)';
+    params.push(userId);
+  }
+
+  if (filters.global_theme_ids && filters.global_theme_ids.length > 0 && filters.scope !== 'mine') {
+    const placeholders = filters.global_theme_ids.map(() => '?').join(',');
+    sql += ` AND (w.user_id = ? OR w.theme_id IN (${placeholders}))`;
+    params.push(null, ...filters.global_theme_ids);
+  }
+
+  if (mode === 'favorites' || mode === 'favorite') {
+    sql += ' AND fav.id IS NOT NULL';
+  } else if (mode === 'new') {
+    sql += ' AND p.id IS NULL';
+  }
+
+  sql += ' ORDER BY w.position ASC, w.id ASC';
+
+  return all(sql, params);
+}
+
 async function fetchNextWord(userId, filters = {}) {
   const mode = (filters.rev_mode || 'order').toLowerCase();
   const params = [userId, userId, userId, userId];
@@ -1560,6 +1696,8 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
   const allowedThemeIds = new Set(await getActiveThemeIdsForUser(userId));
   const filteredThemeIds = (state.theme_ids || []).filter(id => allowedThemeIds.has(Number(id)));
   state.theme_ids = filteredThemeIds;
+  const selectedSetIds = state.set_ids || [];
+  const source = state.source || (selectedSetIds.length > 0 ? 'cards' : 'words');
   const filters = {
     theme_id: filteredThemeIds.length === 1 ? filteredThemeIds[0] : null,
     theme_ids: filteredThemeIds,
@@ -1568,20 +1706,26 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
     rev_mode: state.rev_mode || 'random',
     scope: state.scope || 'all',
     scope_list: [],
-    source: state.set_ids && state.set_ids.length > 0 ? 'cards' : 'words',
-    set_ids: state.set_ids || []
+    source,
+    set_ids: selectedSetIds,
+    theme_order: filteredThemeIds
   };
 
-  const remainingCount = Math.max(0, Number(state.remaining || 1) - 1);
-  const totalCount = Number(state.total || state.remaining || 1);
-  const answeredCount = Number(state.answered || (totalCount - remainingCount - 1)) + 1;
+  const prevTotal = Number(state.total);
+  const totalCount = Number.isFinite(prevTotal) && prevTotal > 0 ? prevTotal : (Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : 1);
+  const prevRemaining = Number(state.remaining);
+  const remainingBefore = Number.isFinite(prevRemaining) ? prevRemaining : totalCount;
+  const remainingCount = Math.max(0, remainingBefore - 1);
+  const prevAnswered = Number(state.answered);
+  const answeredCount = Number.isFinite(prevAnswered)
+    ? prevAnswered + 1
+    : Math.max(0, totalCount - remainingBefore) + 1;
   let correctCount = Number(state.correct || 0);
   let currentItemId = '';
   let currentFavorite = 0;
 
   try {
-    if (filters.source === 'cards') {
-      if (!String(word_id).startsWith('card_')) return res.redirect('/train');
+    if ((filters.source === 'cards' || filters.source === 'mixed') && String(word_id).startsWith('card_')) {
       const cardId = Number(String(word_id).replace('card_', ''));
       const chosenId = String(choice_word_id).replace('card_', '');
       const card = await get(
@@ -1637,7 +1781,7 @@ app.post('/train/flashcards', requireAuth, async (req, res) => {
       if (isCorrect) correctCount += 1;
       await upsertProgress(userId, word_id, isCorrect);
       if (remainingCount > 0) {
-        req.session.trainState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount, modes: modeList };
+        req.session.trainState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount, modes: modeList, replay: null };
       } else {
         delete req.session.trainState;
       }
@@ -3211,6 +3355,9 @@ app.post('/train/session', requireAuth, async (req, res) => {
   const allowedThemeIds = new Set(await getActiveThemeIdsForUser(req.session.user.id));
   const themeList = themeIdsRaw.filter(id => allowedThemeIds.has(id));
   const setList = setListRaw.filter(id => allowedSetSet.has(id));
+  const hasThemes = themeList.length > 0;
+  const hasSets = setList.length > 0;
+  const source = hasThemes && hasSets ? 'mixed' : hasSets ? 'cards' : 'words';
   let remain = remaining === 'all' ? null : Number(remaining || 10);
   const showPhonetic = String(show_phonetic) === '0' ? 0 : 1;
   const conflictChoice = req.body.conflict_choice;
@@ -3307,41 +3454,68 @@ app.post('/train/session', requireAuth, async (req, res) => {
 
   let poolWords = null;
   let poolCards = null;
+  const themeOrderMap = new Map(themeList.map((id, idx) => [Number(id), idx]));
+  const setOrderMap = new Map(setList.map((id, idx) => [Number(id), idx]));
+
+  // Preload pools when we need ordering
+  const needOrderedPools = (rev_mode || '').toLowerCase() === 'order';
+  if (needOrderedPools) {
+    if (hasSets) {
+      const cards = await getEffectiveCardsForUser(req.session.user.id, setList);
+      poolCards = cards.map(c => ({
+        ...c,
+        order_set: setOrderMap.has(Number(c.set_id)) ? setOrderMap.get(Number(c.set_id)) : Number.MAX_SAFE_INTEGER
+      })).sort((a, b) => {
+        if (a.order_set !== b.order_set) return a.order_set - b.order_set;
+        const pa = Number(a.position);
+        const pb = Number(b.position);
+        if (!Number.isNaN(pa) && !Number.isNaN(pb) && pa !== pb) return pa - pb;
+        return Number(a.id) - Number(b.id);
+      });
+    }
+    if (hasThemes) {
+      const words = await getWordPoolForUser(req.session.user.id, {
+        theme_ids: themeList,
+        level_id: level_id || null,
+        rev_mode: rev_mode || 'order',
+        scope: 'all'
+      });
+      poolWords = words
+        .map(w => ({
+          ...w,
+          order_theme: themeOrderMap.has(Number(w.theme_id)) ? themeOrderMap.get(Number(w.theme_id)) : Number.MAX_SAFE_INTEGER
+        }))
+        .sort((a, b) => {
+          if (a.order_theme !== b.order_theme) return a.order_theme - b.order_theme;
+          const pa = Number(a.position);
+          const pb = Number(b.position);
+          if (!Number.isNaN(pa) && !Number.isNaN(pb) && pa !== pb) return pa - pb;
+          return Number(a.id) - Number(b.id);
+        });
+    }
+  }
+
   if (remain === null) {
-    if (setList.length > 0) {
-      const poolCardsFull = await getEffectiveCardsForUser(req.session.user.id, setList);
-      poolCards = poolCardsFull.map(c => ({ id: c.id }));
-      remain = poolCards.length;
+    const baseFilters = {
+      theme_ids: themeList,
+      level_id: level_id || null,
+      rev_mode: rev_mode || 'order',
+      scope: 'all'
+    };
+    if (!poolCards && hasSets) {
+      poolCards = await getEffectiveCardsForUser(req.session.user.id, setList);
+    }
+    if (!poolWords && hasThemes) {
+      poolWords = await getWordPoolForUser(req.session.user.id, baseFilters);
+    }
+    if (source === 'cards') {
+      remain = poolCards ? poolCards.length : 0;
+    } else if (source === 'words') {
+      remain = poolWords ? poolWords.length : 0;
     } else {
-      const params = [];
-      let baseSql = `SELECT w.id
-        FROM words w
-        LEFT JOIN themes t ON t.id = w.theme_id
-        LEFT JOIN theme_levels l ON l.id = w.level_id
-        LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
-        LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
-        WHERE w.active = 1
-          AND COALESCE(uwo.active, 1) = 1
-          AND (w.theme_id IS NULL OR (t.active = 1 AND COALESCE(uto.active, 1) = 1))
-          AND (w.level_id IS NULL OR l.active = 1)`;
-      params.push(req.session.user.id, req.session.user.id);
-      if (themeList.length === 1) {
-        baseSql += ' AND w.theme_id = ?';
-        params.push(themeList[0]);
-      } else if (themeList.length > 1) {
-        const ph = themeList.map(() => '?').join(',');
-        baseSql += ` AND w.theme_id IN (${ph})`;
-        params.push(...themeList);
-      }
-      if (level_id) {
-        baseSql += ' AND w.level_id = ?';
-        params.push(level_id);
-      }
-      baseSql += ' AND (w.user_id IS NULL OR w.user_id = ?)';
-      params.push(req.session.user.id);
-      baseSql += ' ORDER BY w.id ASC';
-      poolWords = await all(baseSql, params);
-      remain = poolWords.length;
+      const cardCount = poolCards ? poolCards.length : 0;
+      const wordCount = poolWords ? poolWords.length : 0;
+      remain = cardCount + wordCount;
     }
   }
 
@@ -3392,6 +3566,7 @@ app.post('/train/session', requireAuth, async (req, res) => {
     set_ids: setList,
     level_id: level_id || '',
     rev_mode: rev_mode || 'order',
+    source,
     scope: 'all',
     remaining: remain,
     total: remain,
@@ -3401,7 +3576,11 @@ app.post('/train/session', requireAuth, async (req, res) => {
     usedWordIds: [],
     usedCardIds: [],
     poolWords: poolWords ? poolWords.map(w => w.id) : null,
-    poolCards: poolCards ? poolCards.map(c => c.id) : null
+    poolCards: poolCards ? poolCards.map(c => c.id) : null,
+    wordQueue: poolWords ? poolWords.map(w => w.id) : null,
+    cardQueue: poolCards ? poolCards.map(c => c.id) : null,
+    wordQueueIndex: 0,
+    cardQueueIndex: 0
   };
   res.redirect('/train');
 });
@@ -3418,6 +3597,18 @@ app.get('/train', requireAuth, async (req, res) => {
   state.usedCardIds = Array.isArray(state.usedCardIds)
     ? state.usedCardIds.map(id => Number(id)).filter(id => !Number.isNaN(id))
     : [];
+  state.wordQueue = Array.isArray(state.wordQueue)
+    ? state.wordQueue.map(id => Number(id)).filter(id => !Number.isNaN(id))
+    : null;
+  state.cardQueue = Array.isArray(state.cardQueue)
+    ? state.cardQueue.map(id => Number(id)).filter(id => !Number.isNaN(id))
+    : null;
+  state.wordQueueIndex = Number.isInteger(state.wordQueueIndex) ? state.wordQueueIndex : 0;
+  state.cardQueueIndex = Number.isInteger(state.cardQueueIndex) ? state.cardQueueIndex : 0;
+  const numericRemaining = Number(state.remaining);
+  const numericTotal = Number(state.total);
+  state.remaining = Number.isFinite(numericRemaining) ? numericRemaining : (Number.isFinite(numericTotal) ? numericTotal : 0);
+  state.total = Number.isFinite(numericTotal) ? numericTotal : state.remaining;
   const allowedSets = await getAccessibleSetIds(userId);
   state.set_ids = Array.isArray(state.set_ids) ? state.set_ids.filter(id => allowedSets.includes(Number(id))) : [];
   const replay = state.replay || null;
@@ -3442,6 +3633,16 @@ app.get('/train', requireAuth, async (req, res) => {
   const themeList = themeListRaw.filter(id => allowedThemeIds.has(Number(id)));
   state.theme_ids = themeList;
   const selectedSetIds = state.set_ids || [];
+  const hasThemes = themeList.length > 0;
+  const hasSets = selectedSetIds.length > 0;
+  let source = state.source || (hasSets ? 'cards' : 'words');
+  const setOrder = new Map(selectedSetIds.map((id, idx) => [Number(id), idx]));
+  if (source === 'mixed' && !hasSets) {
+    source = hasThemes ? 'words' : 'cards';
+  } else if (source === 'mixed' && !hasThemes) {
+    source = 'cards';
+  }
+  state.source = source;
 
   const filters = {
     theme_id: themeList.length === 1 ? themeList[0] : null,
@@ -3451,8 +3652,10 @@ app.get('/train', requireAuth, async (req, res) => {
     rev_mode: state.rev_mode || 'random',
     scope: 'all',
     scope_list: [],
-    source: selectedSetIds.length > 0 ? 'cards' : 'words',
-    set_ids: selectedSetIds
+    source,
+    set_ids: selectedSetIds,
+    theme_order: themeList,
+    set_order: selectedSetIds
   };
 
   const themes = await getActiveThemesForUser(userId);
@@ -3483,6 +3686,236 @@ app.get('/train', requireAuth, async (req, res) => {
   }
 
   try {
+    const reviewMode = (state.rev_mode || 'order').toLowerCase();
+    if (filters.source === 'mixed') {
+      const allowedSetIds = await getAccessibleSetIds(userId);
+      const filteredIds = (filters.set_ids || []).filter(id => allowedSetIds.includes(Number(id)));
+      const cardsPool = filteredIds.length > 0 ? await getEffectiveCardsForUser(userId, filteredIds) : [];
+      const usedCardSet = new Set(state.usedCardIds.map(id => Number(id)).filter(id => !Number.isNaN(id)));
+      let availableCards = cardsPool.filter(c => !usedCardSet.has(Number(c.id)));
+      if (availableCards.length === 0 && cardsPool.length > 0 && reviewMode !== 'order') {
+        state.usedCardIds = [];
+        availableCards = cardsPool;
+      }
+
+      let chosenCard = null;
+      if (replay && replay.type === 'card') {
+        const cardId = Number(replay.id);
+        const card = await get(
+          `SELECT c.*, COALESCE(co.favorite, c.favorite) AS effective_favorite
+           FROM cards c
+           LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+           WHERE c.id = ?`,
+          [userId, cardId]
+        );
+        const stillAllowed = card && filteredIds.includes(Number(card.set_id));
+        if (card && stillAllowed) {
+          chosenCard = { ...card, favorite: card.effective_favorite };
+        }
+        state.replay = null;
+      }
+
+      let word = null;
+      if (replay && replay.type === 'word') {
+        const candidate = await get('SELECT * FROM words WHERE id = ?', [replay.id]);
+        if (candidate) {
+          word = candidate;
+        } else {
+          state.replay = null;
+        }
+      }
+
+      const excludedIds = state.usedWordIds.map(id => Number(id)).filter(id => !Number.isNaN(id));
+      const wordQueue = Array.isArray(state.wordQueue) ? state.wordQueue : null;
+      if (!word && (reviewMode !== 'order' || availableCards.length === 0)) {
+        if (reviewMode === 'order' && wordQueue && wordQueue.length > 0) {
+          if (state.wordQueueIndex < wordQueue.length) {
+            const nextId = wordQueue[state.wordQueueIndex];
+            const candidate = await get('SELECT * FROM words WHERE id = ?', [nextId]);
+            if (candidate) {
+              word = candidate;
+              state.wordQueueIndex += 1;
+              if (!state.usedWordIds.includes(Number(nextId))) {
+                state.usedWordIds.push(Number(nextId));
+              }
+            }
+          }
+        } else {
+          const fetcher = fetchNextWord;
+          word = await fetcher(userId, { ...filters, source: 'words', excludedIds });
+
+          if (!word && excludedIds.length > 0) {
+            state.usedWordIds = [];
+            word = await fetcher(userId, { ...filters, source: 'words', excludedIds: [] });
+          }
+          if (word) {
+            const wordId = Number(word.id);
+            if (!state.usedWordIds.includes(wordId)) {
+              state.usedWordIds.push(wordId);
+            }
+          }
+        }
+      }
+
+      const renderCardChoice = async (card) => {
+        const cardId = Number(card.id);
+        const cardKey = `card_${cardId}`;
+        const wordLike = { id: cardKey, hebrew: card.hebrew, transliteration: card.transliteration, french: card.french, favorite: card.favorite };
+        currentItemId = wordLike.id;
+        currentFavorite = card.favorite ? 1 : 0;
+        if (!state.usedCardIds.includes(cardId)) {
+          state.usedCardIds.push(cardId);
+        }
+        state.pendingQuestion = { type: 'card', id: cardId, questionMode };
+        req.session.trainState = state;
+
+        if (questionMode === MODE_WRITTEN) {
+          return renderTrain({
+            word: wordLike,
+            message: null,
+            result: null,
+            mode,
+            modes: modeList,
+            questionMode,
+            filters,
+            options: null,
+            themes,
+            remaining: remainingCount,
+            total: totalCount,
+            answered: answeredCount,
+            correct: correctCount,
+            nextUrl: `/train`
+          });
+        }
+
+        const poolCopy = cardsPool.filter(c => c.id !== cardId);
+        const distractors = [];
+        while (poolCopy.length > 0 && distractors.length < 3) {
+          const idx = Math.floor(Math.random() * poolCopy.length);
+          distractors.push(poolCopy.splice(idx, 1)[0]);
+        }
+        const isReverse = questionMode === MODE_FLASHCARDS_REVERSE;
+        const optionsRaw = [
+          ...distractors.map(c => ({ id: `card_${c.id}`, label: isReverse ? c.hebrew : c.french })),
+          { id: cardKey, label: isReverse ? card.hebrew : card.french }
+        ];
+        for (let i = optionsRaw.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [optionsRaw[i], optionsRaw[j]] = [optionsRaw[j], optionsRaw[i]];
+        }
+        return renderTrain({
+          word: wordLike,
+          message: null,
+          result: null,
+          mode,
+          modes: modeList,
+          questionMode,
+          filters,
+          options: optionsRaw,
+          themes,
+          remaining: remainingCount,
+          total: totalCount,
+          answered: answeredCount,
+          correct: correctCount,
+          nextUrl: `/train`
+        });
+      };
+
+      const renderWordChoice = async (wordChoice) => {
+        let fav = wordChoice.fav_id ? 1 : 0;
+        if (!fav) {
+          const favRow = await get('SELECT id FROM favorites WHERE user_id = ? AND word_id = ?', [userId, wordChoice.id]);
+          fav = favRow ? 1 : 0;
+        }
+        currentItemId = wordChoice.id;
+        currentFavorite = fav;
+        const isReverse = questionMode === MODE_FLASHCARDS_REVERSE;
+        const options =
+          wordChoice && (questionMode === MODE_FLASHCARDS || questionMode === MODE_FLASHCARDS_REVERSE)
+            ? await getFlashcardOptions(userId, wordChoice, filters, isReverse)
+            : null;
+        state.replay = null;
+        req.session.trainState = state;
+        return renderTrain({
+          word: wordChoice,
+          message: null,
+          result: null,
+          mode,
+          modes: modeList,
+          questionMode,
+          filters,
+          options,
+          themes,
+          remaining: remainingCount,
+          total: totalCount,
+          answered: answeredCount,
+          correct: correctCount,
+          nextUrl: `/train`
+        });
+      };
+
+      let choice = null;
+      if (chosenCard) {
+        choice = { type: 'card', card: chosenCard };
+      } else if (word && replay && replay.type === 'word') {
+        choice = { type: 'word', word };
+      } else if (reviewMode === 'order') {
+        if (availableCards.length > 0) {
+          availableCards.sort((a, b) => {
+            const sa = Number(a.set_id) || 0;
+            const sb = Number(b.set_id) || 0;
+            const oa = setOrder.has(sa) ? setOrder.get(sa) : 2147483647;
+            const ob = setOrder.has(sb) ? setOrder.get(sb) : 2147483647;
+            if (oa !== ob) return oa - ob;
+            const pa = Number(a.position);
+            const pb = Number(b.position);
+            if (!Number.isNaN(pa) && !Number.isNaN(pb) && pa !== pb) return pa - pb;
+            return Number(a.id) - Number(b.id);
+          });
+          choice = { type: 'card', card: availableCards[0] };
+        } else if (word) {
+          choice = { type: 'word', word };
+        }
+      } else {
+        const candidates = [];
+        if (availableCards.length > 0) {
+          const pickCard = availableCards[Math.floor(Math.random() * availableCards.length)];
+          candidates.push({ type: 'card', card: pickCard });
+        }
+        if (word) {
+          candidates.push({ type: 'word', word });
+        }
+        if (candidates.length > 0) {
+          choice = candidates[Math.floor(Math.random() * candidates.length)];
+        }
+      }
+
+      if (!choice) {
+        delete req.session.trainState;
+        return renderTrain({
+          word: null,
+          message: 'Aucun mot pour ces criteres.',
+          result: null,
+          mode,
+          modes: modeList,
+          questionMode,
+          filters,
+          options: null,
+          themes,
+          remaining: 0,
+          total: totalCount,
+          answered: answeredCount,
+          correct: correctCount,
+          nextUrl: null
+        });
+      }
+
+      if (choice.type === 'card') {
+        return renderCardChoice(choice.card);
+      }
+      return renderWordChoice(choice.word);
+    }
+
     if (filters.source === 'cards') {
       if (replay && replay.type === 'card') {
         const cardId = Number(replay.id);
@@ -3537,6 +3970,7 @@ app.get('/train', requireAuth, async (req, res) => {
           state.replay = null;
         }
       }
+
       const allowedSetIds = await getAccessibleSetIds(userId);
       const filteredIds = (filters.set_ids || []).filter(id => allowedSetIds.includes(Number(id)));
       if (filteredIds.length === 0) {
@@ -3579,29 +4013,75 @@ app.get('/train', requireAuth, async (req, res) => {
         });
       }
 
-      let availableCards = cardsPool;
-      if (state.usedCardIds.length > 0) {
-        const usedSet = new Set(state.usedCardIds.map(id => Number(id)).filter(id => !Number.isNaN(id)));
-        availableCards = cardsPool.filter(c => !usedSet.has(Number(c.id)));
-      }
-      if (availableCards.length === 0) {
-        state.usedCardIds = [];
-        availableCards = cardsPool;
-      }
+      let pick = null;
+      const cardQueue = Array.isArray(state.cardQueue) ? state.cardQueue : [];
 
-      const pick = availableCards[Math.floor(Math.random() * availableCards.length)];
-      const cardId = Number(pick.id);
-      const cardKey = `card_${cardId}`;
-      const word = { id: cardKey, hebrew: pick.hebrew, transliteration: pick.transliteration, french: pick.french, favorite: pick.favorite };
-      currentItemId = word.id;
-      currentFavorite = word.favorite ? 1 : 0;
-      if (!state.usedCardIds.includes(cardId)) {
-        state.usedCardIds.push(cardId);
+      if (reviewMode === 'order') {
+        // Advance strictly following queue order; once queue is exhausted, stop picking cards
+        if (state.cardQueueIndex < cardQueue.length) {
+          const nextId = cardQueue[state.cardQueueIndex];
+          pick = cardsPool.find(c => Number(c.id) === Number(nextId));
+          state.cardQueueIndex += 1;
+        } else {
+          pick = null;
+        }
+      } else {
+        let availableCards = cardsPool;
+        if (state.usedCardIds.length > 0) {
+          const usedSet = new Set(state.usedCardIds.map(id => Number(id)).filter(id => !Number.isNaN(id)));
+          availableCards = cardsPool.filter(c => !usedSet.has(Number(c.id)));
+        }
+        if (availableCards.length === 0 && cardsPool.length > 0) {
+          state.usedCardIds = [];
+          availableCards = cardsPool;
+        }
+        pick = availableCards[Math.floor(Math.random() * availableCards.length)];
       }
-      state.pendingQuestion = { type: 'card', id: cardId, questionMode };
-      req.session.trainState = state;
+      if (pick) {
+        const cardId = Number(pick.id);
+        const cardKey = `card_${cardId}`;
+        const word = { id: cardKey, hebrew: pick.hebrew, transliteration: pick.transliteration, french: pick.french, favorite: pick.favorite };
+        currentItemId = word.id;
+        currentFavorite = word.favorite ? 1 : 0;
+        if (!state.usedCardIds.includes(cardId)) {
+          state.usedCardIds.push(cardId);
+        }
+        state.pendingQuestion = { type: 'card', id: cardId, questionMode };
+        req.session.trainState = state;
 
-      if (questionMode === MODE_WRITTEN) {
+        if (questionMode === MODE_WRITTEN) {
+          return renderTrain({
+            word,
+            message: null,
+            result: null,
+            mode,
+            modes: modeList,
+            questionMode,
+            filters,
+            options: null,
+            themes,
+            remaining: remainingCount,
+            total: totalCount,
+            answered: answeredCount,
+            correct: correctCount,
+            nextUrl: `/train`
+          });
+        }
+        const poolCopy = cardsPool.filter(c => c.id !== pick.id);
+        const distractors = [];
+        while (poolCopy.length > 0 && distractors.length < 3) {
+          const idx = Math.floor(Math.random() * poolCopy.length);
+          distractors.push(poolCopy.splice(idx, 1)[0]);
+        }
+        const isReverse = questionMode === MODE_FLASHCARDS_REVERSE;
+        const optionsRaw = [
+          ...distractors.map(c => ({ id: `card_${c.id}`, label: isReverse ? c.hebrew : c.french })),
+          { id: cardKey, label: isReverse ? pick.hebrew : pick.french }
+        ];
+        for (let i = optionsRaw.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [optionsRaw[i], optionsRaw[j]] = [optionsRaw[j], optionsRaw[i]];
+        }
         return renderTrain({
           word,
           message: null,
@@ -3610,7 +4090,7 @@ app.get('/train', requireAuth, async (req, res) => {
           modes: modeList,
           questionMode,
           filters,
-          options: null,
+          options: optionsRaw,
           themes,
           remaining: remainingCount,
           total: totalCount,
@@ -3619,37 +4099,6 @@ app.get('/train', requireAuth, async (req, res) => {
           nextUrl: `/train`
         });
       }
-      const poolCopy = cardsPool.filter(c => c.id !== pick.id);
-      const distractors = [];
-      while (poolCopy.length > 0 && distractors.length < 3) {
-        const idx = Math.floor(Math.random() * poolCopy.length);
-        distractors.push(poolCopy.splice(idx, 1)[0]);
-      }
-      const isReverse = questionMode === MODE_FLASHCARDS_REVERSE;
-      const optionsRaw = [
-        ...distractors.map(c => ({ id: `card_${c.id}`, label: isReverse ? c.hebrew : c.french })),
-        { id: cardKey, label: isReverse ? pick.hebrew : pick.french }
-      ];
-      for (let i = optionsRaw.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [optionsRaw[i], optionsRaw[j]] = [optionsRaw[j], optionsRaw[i]];
-      }
-      return renderTrain({
-        word,
-        message: null,
-        result: null,
-        mode,
-        modes: modeList,
-        questionMode,
-        filters,
-        options: optionsRaw,
-        themes,
-        remaining: remainingCount,
-        total: totalCount,
-        answered: answeredCount,
-        correct: correctCount,
-        nextUrl: `/train`
-      });
     }
 
     let word = null;
@@ -3663,14 +4112,15 @@ app.get('/train', requireAuth, async (req, res) => {
     }
     if (!word) {
       const excludedIds = state.usedWordIds.map(id => Number(id)).filter(id => !Number.isNaN(id));
-      word = await fetchNextWord(userId, { ...filters, excludedIds });
+      const fetcher = reviewMode === 'order' ? fetchNextOrderedWord : fetchNextWord;
+      word = await fetcher(userId, { ...filters, excludedIds });
 
       // If no word found and we have excluded words, it means we exhausted the pool.
       // Reset used words and try again to allow repetition.
       if (!word && excludedIds.length > 0) {
         state.usedWordIds = [];
         // We pass empty excludedIds to fetch from the full pool again
-        word = await fetchNextWord(userId, { ...filters, excludedIds: [] });
+        word = await fetcher(userId, { ...filters, excludedIds: [] });
       }
       if (word) {
         const wordId = Number(word.id);
@@ -3744,6 +4194,8 @@ app.post('/train/answer', requireAuth, async (req, res) => {
   const modeList = normalizeModes(state.modes || state.mode);
   state.modes = modeList;
   const activeMode = normalizeMode(question_mode || state.currentMode || modeList[0]);
+  const selectedSetIds = state.set_ids || [];
+  const source = state.source || (selectedSetIds.length > 0 ? 'cards' : 'words');
   const filters = {
     theme_id: state.theme_id || null,
     theme_ids: state.theme_ids || [],
@@ -3752,13 +4204,19 @@ app.post('/train/answer', requireAuth, async (req, res) => {
     rev_mode: state.rev_mode || 'random',
     scope: state.scope || 'all',
     scope_list: [],
-    source: state.set_ids && state.set_ids.length > 0 ? 'cards' : 'words',
-    set_ids: state.set_ids || []
+    source,
+    set_ids: selectedSetIds
   };
 
-  const remainingCount = Math.max(0, Number(state.remaining || 1) - 1);
-  const totalCount = Number(state.total || state.remaining || 1);
-  const answeredCount = Number(state.answered || (totalCount - remainingCount - 1)) + 1;
+  const prevTotal = Number(state.total);
+  const totalCount = Number.isFinite(prevTotal) && prevTotal > 0 ? prevTotal : (Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : 1);
+  const prevRemaining = Number(state.remaining);
+  const remainingBefore = Number.isFinite(prevRemaining) ? prevRemaining : totalCount;
+  const remainingCount = Math.max(0, remainingBefore - 1);
+  const prevAnswered = Number(state.answered);
+  const answeredCount = Number.isFinite(prevAnswered)
+    ? prevAnswered + 1
+    : Math.max(0, totalCount - remainingBefore) + 1;
   let correctCount = Number(state.correct || 0);
   const normalizedAnswer = (user_answer || '').trim().toLowerCase();
   let currentItemId = '';
@@ -3773,7 +4231,7 @@ app.post('/train/answer', requireAuth, async (req, res) => {
   try {
     const themes = await getActiveThemesForUser(userId);
 
-    if (filters.source === 'cards' && String(word_id).startsWith('card_')) {
+    if ((filters.source === 'cards' || filters.source === 'mixed') && String(word_id).startsWith('card_')) {
       const cardId = Number(String(word_id).replace('card_', ''));
       const card = await get(
         `SELECT c.*, COALESCE(co.favorite, c.favorite) AS effective_favorite,
