@@ -1,4 +1,4 @@
-<section>
+﻿<section>
   <div class="list-header">
     <div>
       <h1>Thèmes par défaut</h1>
@@ -43,7 +43,7 @@
               <div class="set-list-actions inline-actions">
                 <% if (theme.children && theme.children.length> 0) { %>
                   <button type="button" class="icon-btn ghost toggle-children-btn"
-                    data-toggle-target="admin-children-<%= theme.id %>" aria-label="Voir sous-themes">
+                    data-toggle-target="admin-children-<%= theme.id %>" aria-label="Voir sous-thèmes">
                     <span class="chevron-icon">&#9654;</span>
                   </button>
                   <% } else { %>
@@ -78,7 +78,7 @@
               </span>
               <% if (theme.children && theme.children.length> 0) { %>
                 <span class="pill muted mini subtheme-pill">
-                  <%= theme.children.length %> sous-themes
+                  <%= theme.children.length %> sous-thèmes
                 </span>
               <% } %>
             </div>
@@ -178,3 +178,4 @@
     });
   })();
 </script>
+

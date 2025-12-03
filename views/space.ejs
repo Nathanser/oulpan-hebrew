@@ -1,9 +1,9 @@
-<section>
+﻿<section>
   <div class="list-header">
     <div>
       <p class="eyebrow">Tableau de bord</p>
       <h1>Mon espace</h1>
-      <p class="muted">Vue rapide sur ta progression par listes perso et themes en ligne.</p>
+      <p class="muted">Vue rapide sur ta progression par listes perso et thèmes en ligne.</p>
     </div>
   </div>
 
@@ -11,22 +11,22 @@
     <div class="stat-card">
       <p class="eyebrow">Mots/cartes vus</p>
       <h2><%= overall && overall.total_seen ? overall.total_seen : 0 %></h2>
-      <p class="muted">Total de contenus consultes.</p>
+      <p class="muted">Total de contenus consultés.</p>
     </div>
     <div class="stat-card">
-      <p class="eyebrow">Reussites</p>
+      <p class="eyebrow">Réussites</p>
       <h2><%= overall && overall.total_success ? overall.total_success : 0 %></h2>
-      <p class="muted">Reponses correctes.</p>
+      <p class="muted">Réponses correctes.</p>
     </div>
     <div class="stat-card">
       <p class="eyebrow">Erreurs</p>
       <h2><%= overall && overall.total_fail ? overall.total_fail : 0 %></h2>
-      <p class="muted">Points a retravailler.</p>
+      <p class="muted">Points à retravailler.</p>
     </div>
     <div class="stat-card">
-      <p class="eyebrow">Taux de maitrise</p>
+      <p class="eyebrow">Taux de maîtrise</p>
       <h2><%= overall && overall.avg_strength ? Math.round(overall.avg_strength) : 0 %>%</h2>
-      <p class="muted">Basé sur tes reponses.</p>
+      <p class="muted">Basé sur tes réponses.</p>
     </div>
   </div>
 
@@ -40,10 +40,10 @@
     <div class="switch-filter" data-group="sets">
       <button class="switch-btn" data-group="sets" data-filter="all">Tous</button>
       <button class="switch-btn active" data-group="sets" data-filter="started">En cours</button>
-      <button class="switch-btn" data-group="sets" data-filter="todo">A faire</button>
+      <button class="switch-btn" data-group="sets" data-filter="todo">À faire</button>
     </div>
     <% if (!setStats || setStats.length===0) { %>
-      <p class="muted">Cree une liste pour suivre ta progression.</p>
+      <p class="muted">Crée une liste pour suivre ta progression.</p>
     <% } else { %>
       <div class="progress-grid scrollable-progress">
         <% setStats.forEach(s=> {
@@ -69,22 +69,22 @@
             <div class="progress-value"><%= seenPct %>%</div>
           </div>
           <div class="progress-row">
-            <div class="progress-label">Memorisees</div>
+            <div class="progress-label">Mémorisées</div>
             <div class="meter">
               <div class="meter-fill success" style="width:<%= memPct %>%"></div>
             </div>
             <div class="progress-value"><%= memPct %>%</div>
           </div>
           <p class="muted mini progress-meta">
-            <span class="meta-item">Memorisees : <%= mem %></span>
+            <span class="meta-item">Mémorisées : <%= mem %></span>
             <span class="meta-sep">|</span>
             <span class="meta-item">En cours : <%= learning %></span>
             <span class="meta-sep">|</span>
-            <span class="meta-item">A revoir : <%= struggling %></span>
+            <span class="meta-item">À revoir : <%= struggling %></span>
           </p>
           
           <div class="progress-card-actions">
-            <a class="detail-btn" href="/space/list-<%= s.id %>">Details</a>
+            <a class="detail-btn" href="/space/list-<%= s.id %>">Détails</a>
           </div>
         </div>
         <% }) %>
@@ -95,17 +95,17 @@
   <div class="card space-section">
     <div class="section-head">
       <div>
-        <p class="eyebrow">Themes en ligne</p>
-        <h2>Suivi par theme</h2>
+        <p class="eyebrow">Thèmes en ligne</p>
+        <h2>Suivi par thème</h2>
       </div>
     </div>
     <div class="switch-filter" data-group="themes">
       <button class="switch-btn" data-group="themes" data-filter="all">Tous</button>
       <button class="switch-btn active" data-group="themes" data-filter="started">En cours</button>
-      <button class="switch-btn" data-group="themes" data-filter="todo">A faire</button>
+      <button class="switch-btn" data-group="themes" data-filter="todo">À faire</button>
     </div>
     <% if (!themeStats || themeStats.length===0) { %>
-      <p class="muted">Pas de themes en ligne actifs.</p>
+      <p class="muted">Pas de thèmes en ligne actifs.</p>
     <% } else { %>
       <div class="progress-grid scrollable-progress">
         <% themeStats.forEach(t=> {
@@ -131,16 +131,16 @@
             <div class="progress-value"><%= seenPct %>%</div>
           </div>
           <div class="progress-row">
-            <div class="progress-label">Memorises</div>
+            <div class="progress-label">Mémorisés</div>
             <div class="meter">
               <div class="meter-fill success" style="width:<%= memPct %>%"></div>
             </div>
             <div class="progress-value"><%= memPct %>%</div>
           </div>
-          <p class="muted mini">Memorises : <%= memorized %> | En cours : <%= learning %> | A revoir : <%= struggling %></p>
+          <p class="muted mini">Mémorisés : <%= memorized %> | En cours : <%= learning %> | À revoir : <%= struggling %></p>
           
           <div class="progress-card-actions">
-            <a class="detail-btn" href="/space/theme-<%= t.id %>">Details</a>
+            <a class="detail-btn" href="/space/theme-<%= t.id %>">Détails</a>
           </div>
         </div>
         <% }) %>
@@ -180,3 +180,4 @@
     });
   })();
 </script>
+

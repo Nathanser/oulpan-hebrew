@@ -1,8 +1,8 @@
-<section>
+﻿<section>
   <div class="list-header">
     <div>
       <h1>Doublons</h1>
-      <p class="muted">Detection des mots identiques entre themes par defaut et listes.</p>
+      <p class="muted">Détection des mots identiques entre thèmes par défaut et listes.</p>
     </div>
     <div class="inline-actions">
       <a class="btn ghost" href="/admin">Retour admin</a>
@@ -11,11 +11,11 @@
 
   <div class="grid">
     <div class="card">
-      <p class="eyebrow">Entre themes et listes</p>
+      <p class="eyebrow">Entre thèmes et listes</p>
       <h2><%= stats.cross %> doublon<%= stats.cross > 1 ? 's' : '' %></h2>
     </div>
     <div class="card">
-      <p class="eyebrow">Themes par defaut</p>
+      <p class="eyebrow">Thèmes par défaut</p>
       <h2><%= stats.theme %> doublon<%= stats.theme > 1 ? 's' : '' %></h2>
     </div>
     <div class="card">
@@ -26,17 +26,17 @@
 
   <div class="card" style="margin-top:1rem;">
     <div class="list-header">
-      <h3>Doublons entre themes et listes</h3>
+      <h3>Doublons entre thèmes et listes</h3>
     </div>
     <% if (!crossDuplicates || crossDuplicates.length === 0) { %>
-      <p class="muted">Aucun doublon detecte entre themes et listes.</p>
+      <p class="muted">Aucun doublon detecte Entre thèmes et listes.</p>
       <% } else { %>
         <div class="table-responsive">
           <table class="table">
             <thead>
               <tr>
-                <th>Francais</th>
-                <th>Hebreu</th>
+                <th>Français</th>
+                <th>Hébreu</th>
                 <th>Occurrences</th>
               </tr>
             </thead>
@@ -49,7 +49,7 @@
                     <ul style="margin:0; padding-left:1.1rem;">
                       <% g.entries.forEach(e => { %>
                         <li>
-                          <%= e.source === 'theme' ? 'Theme' : 'Liste' %> :
+                          <%= e.source === 'theme' ? 'Thème' : 'Liste' %> :
                           <%= e.source === 'theme' ? (e.theme + (e.level ? ' - ' + e.level : '')) : (e.list + ' (' + e.owner + ')') %>
                         </li>
                         <% }) %>
@@ -65,17 +65,17 @@
 
   <div class="card" style="margin-top:1rem;">
     <div class="list-header">
-      <h3>Doublons dans les themes par defaut</h3>
+      <h3>Doublons dans les Thèmes par défaut</h3>
     </div>
     <% if (!themeDuplicates || themeDuplicates.length === 0) { %>
-      <p class="muted">Aucun doublon trouve dans les themes.</p>
+      <p class="muted">Aucun doublon trouvé dans les thèmes.</p>
       <% } else { %>
         <div class="table-responsive">
           <table class="table">
             <thead>
               <tr>
-                <th>Francais</th>
-                <th>Hebreu</th>
+                <th>Français</th>
+                <th>Hébreu</th>
                 <th>Occurrences</th>
               </tr>
             </thead>
@@ -104,14 +104,14 @@
       <h3>Doublons dans les listes (toutes)</h3>
     </div>
     <% if (!listDuplicates || listDuplicates.length === 0) { %>
-      <p class="muted">Aucun doublon trouve dans les listes.</p>
+      <p class="muted">Aucun doublon trouvé dans les listes.</p>
       <% } else { %>
         <div class="table-responsive">
           <table class="table">
             <thead>
               <tr>
-                <th>Francais</th>
-                <th>Hebreu</th>
+                <th>Français</th>
+                <th>Hébreu</th>
                 <th>Occurrences</th>
               </tr>
             </thead>
@@ -135,3 +135,5 @@
         <% } %>
   </div>
 </section>
+
+

@@ -1,4 +1,4 @@
-
+﻿
 
 
 <% const memorizedCount=(cards || []).filter(c=> Number(c.memorized)).length; %>
@@ -314,7 +314,7 @@
               const openModal = (mode) => {
                 if (!selecting) return;
                 if (getSelectedIds().length === 0) {
-                  showBanner('Selectionne au moins un mot.');
+                  showBanner('Sélectionne au moins un mot.');
                   return;
                 }
                 currentAction = mode;
@@ -332,7 +332,7 @@
                 copyAction.addEventListener('click', (e) => {
                   e.preventDefault();
                   if (copyAction.dataset.disabled === '1') {
-                    showBanner('Selectionne au moins un mot.');
+                    showBanner('Sélectionne au moins un mot.');
                     return;
                   }
                   openModal('copy');
@@ -342,7 +342,7 @@
                 moveAction.addEventListener('click', (e) => {
                   e.preventDefault();
                   if (moveAction.dataset.disabled === '1') {
-                    showBanner('Selectionne au moins un mot.');
+                    showBanner('Sélectionne au moins un mot.');
                     return;
                   }
                   openModal('move');
@@ -353,7 +353,7 @@
                 toggleActiveAction.addEventListener('click', async (e) => {
                   e.preventDefault();
                   if (toggleActiveAction.dataset.disabled === '1') {
-                    showBanner('Selectionne au moins une carte.');
+                    showBanner('Sélectionne au moins une carte.');
                     return;
                   }
                   const selectedIds = getSelectedIds();
@@ -386,7 +386,7 @@
                   e.preventDefault();
                   const selected = getSelectedIds();
                   if (selected.length === 0) {
-                    showBanner('Selectionne au moins un mot.');
+                    showBanner('Sélectionne au moins un mot.');
                     closeModal();
                     return;
                   }
@@ -435,3 +435,4 @@
             applyFilters();
           })();
         </script>
+

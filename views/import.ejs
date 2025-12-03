@@ -1,4 +1,4 @@
-<section>
+﻿<section>
   <div class="list-header">
     <div>
       <p class="eyebrow">Import / Export</p>
@@ -50,7 +50,7 @@
                     <input type="file" accept=".json,application/json" id="import-file" />
                   </label>
                   <% const placeholder=importType==='theme'
-                    ? '{"name":"Nouveau theme","active":1,"words":[{"hebrew":"...","french":"...","transliteration":"..."}]}'
+                    ? '{"name":"Nouveau thème","active":1,"words":[{"hebrew":"...","french":"...","transliteration":"..."}]}'
                     : '{"name":"Nouvelle liste","words":[{"hebrew":"...","french":"...","transliteration":"..."}]}' ; %>
                     <label>Données (JSON)
                       <textarea name="payload" id="import-payload" rows="8"

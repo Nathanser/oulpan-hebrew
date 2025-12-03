@@ -1,4 +1,4 @@
-<%
+﻿<%
   const f = filters || {};
   const themeIdsString = (f.theme_ids || []).join(',');
   const setIdsString = (f.set_ids || []).join(',');
@@ -17,7 +17,7 @@
   const showPhonetic = !(filters && (filters.show_phonetic === 0 || filters.show_phonetic === '0' || String(filters.show_phonetic).toLowerCase() === 'false'));
   const modeLabels = { flashcards: 'Flashcards classique', flashcards_reverse: 'Flashcards reverse', written: 'Révision par écrit' };
   const chosenModes = selectedModes.length > 0 ? selectedModes : [qMode || mode];
-  const chosenLabels = chosenModes.map(m => modeLabels[m] || 'R?vision');
+  const chosenLabels = chosenModes.map(m => modeLabels[m] || 'Révision');
   const uiFontSize = (typeof fontSize !== 'undefined' && fontSize) ? fontSize
     : (filters && filters.font_size ? filters.font_size : 'x-large');
 %>
@@ -192,7 +192,7 @@
           });
           const data = await res.json();
           if (!res.ok || !data || data.success === false) {
-            throw new Error('Toggle favori echoue');
+            throw new Error('Le basculement du favori a échoué');
           }
           currentFav = !!data.favorite;
           updateUI(currentFav);
@@ -210,3 +210,6 @@
       });
     })();
   </script>
+
+
+

@@ -1,11 +1,11 @@
-<section class="search-page">
+﻿<section class="search-page">
   <div class="list-header">
     <div>
       <h1>Doublons</h1>
-      <p class="muted">Retrouve les mots en double entre themes et listes auxquels tu as acces.</p>
+      <p class="muted">Retrouve les mots en double entre thèmes et listes auxquels tu as accès.</p>
     </div>
     <div class="inline-actions">
-      <a class="btn ghost" href="/search">Retour recherche</a>
+      <a class="btn ghost" href="/search">Retour à la recherche</a>
     </div>
   </div>
 
@@ -20,8 +20,8 @@
         <span class="filter-label">Type</span>
         <select id="filter-kind">
           <option value="all">Tous</option>
-          <option value="cross">Global (theme + liste)</option>
-          <option value="theme">Themes</option>
+          <option value="cross">Global (thème + liste)</option>
+          <option value="theme">Thèmes</option>
           <option value="list">Listes</option>
         </select>
       </label>
@@ -41,7 +41,7 @@
           <% groups.forEach(group => { %>
             <div class="search-card dup-group" data-kind="<%= group.kind %>">
               <div class="search-card-top">
-                <span class="pill muted mini">Cle: <%= group.key %></span>
+                <span class="pill muted mini">Clé: <%= group.key %></span>
                 <span class="pill mini"><%= group.items.length %> occurrences</span>
               </div>
               <div class="search-card-body">
@@ -55,7 +55,7 @@
                 <div class="meta-row">
                   <span class="meta-label">Type</span>
                   <span class="meta-value">
-                    <%= group.kind === 'cross' ? 'Theme + Liste' : (group.kind === 'theme' ? 'Theme' : 'Liste') %>
+                    <%= group.kind === 'cross' ? 'Thème + Liste' : (group.kind === 'theme' ? 'Thème' : 'Liste') %>
                   </span>
                 </div>
               </div>
@@ -70,7 +70,7 @@
                 <% group.items.forEach(item => { %>
                   <div class="dup-item">
                     <div class="dup-meta">
-                      <span class="pill mini"><%= item.kind === 'theme' ? 'Theme' : 'Liste' %></span>
+                      <span class="pill mini"><%= item.kind === 'theme' ? 'Thème' : 'Liste' %></span>
                       <strong><%= item.french %></strong>
                       <span class="muted mini"><%= item.hebrew %></span>
                       <div class="muted mini">
@@ -95,7 +95,7 @@
                         <% } else if (item.isGlobal) { %>
                           <form method="post" action="/words/<%= item.id %>/toggle-self" class="inline-form">
                             <input type="hidden" name="redirectTo" value="/search/duplicates">
-                            <button class="btn ghost mini" type="submit"><%= item.active ? 'Masquer pour moi' : 'Reafficher pour moi' %></button>
+                            <button class="btn ghost mini" type="submit"><%= item.active ? 'Masquer pour moi' : 'Réafficher pour moi' %></button>
                           </form>
                         <% } %>
                         <% if (item.isOwner) { %>
@@ -143,7 +143,7 @@
       </div>
     <% } else { %>
       <div class="card">
-        <p class="muted">Aucun doublon actif detecte.</p>
+        <p class="muted">Aucun doublon actif détecté.</p>
       </div>
     <% } %>
   </div>
@@ -152,13 +152,13 @@
     <% if (hasIgnored) { %>
       <div class="card">
         <div class="list-header">
-          <h3>Doublons ignores (<%= ignoredGroups.length %>)</h3>
+          <h3>Doublons ignorés (<%= ignoredGroups.length %>)</h3>
         </div>
         <div class="search-results-grid">
           <% ignoredGroups.forEach(group => { %>
             <div class="search-card dup-group" data-kind="<%= group.kind %>">
               <div class="search-card-top">
-                <span class="pill muted mini">Cle: <%= group.key %></span>
+                <span class="pill muted mini">Clé: <%= group.key %></span>
                 <span class="pill mini"><%= group.items.length %> occurrences</span>
               </div>
               <div class="search-card-body">
@@ -168,7 +168,7 @@
               <form method="post" action="/search/duplicates/ignore" class="inline-form" style="margin:0.3rem 0 0.5rem;">
                 <input type="hidden" name="dup_key" value="<%= group.key %>">
                 <input type="hidden" name="action" value="unignore">
-                <button class="btn ghost mini" type="submit">Retirer des ignores</button>
+                <button class="btn ghost mini" type="submit">Retirer des ignorés</button>
               </form>
             </div>
           <% }) %>
@@ -176,7 +176,7 @@
       </div>
     <% } else { %>
       <div class="card">
-        <p class="muted">Aucun doublon ignore.</p>
+        <p class="muted">Aucun doublon ignoré.</p>
       </div>
     <% } %>
   </div>
@@ -218,3 +218,4 @@
     apply();
   })();
 </script>
+
