@@ -1119,6 +1119,26 @@ function duplicateKey(hebrew, french) {
   return `${fr}|${he}`;
 }
 
+// Normalization used for written revision answers to make comparisons resilient to accents, hyphens, and optional hints.
+function normalizeWrittenAnswer(str = '') {
+  let normalized = String(str || '');
+  normalized = normalized.replace(/\([^)]*\)/g, ' '); // drop parenthetical hints
+  normalized = normalized.replace(/œ/g, 'oe').replace(/æ/g, 'ae');
+  normalized = normalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  normalized = normalized.toLowerCase();
+  normalized = normalized.replace(/-/g, ' ');
+  normalized = normalized.replace(/[.!?]+$/g, '');
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+  return normalized;
+}
+
+function isWrittenAnswerCorrect(userAnswer = '', expectedAnswer = '') {
+  const user = normalizeWrittenAnswer(userAnswer);
+  const expected = normalizeWrittenAnswer(expectedAnswer);
+  if (!user || !expected) return false;
+  return user === expected;
+}
+
 function normalizeAnswerString(str = '') {
   return String(str || '')
     .normalize('NFD')
@@ -5021,8 +5041,8 @@ const handleTrainAnswer = async (req, res) => {
     ? prevAnswered + 1
     : Math.max(0, totalCount - remainingBefore) + 1;
   let correctCount = Number(state.correct || 0);
-  const normalizedAnswer = (user_answer || '').trim().toLowerCase();
   const isChoiceMode = activeMode === MODE_FLASHCARDS || activeMode === MODE_FLASHCARDS_REVERSE;
+  const isWrittenMode = activeMode === MODE_WRITTEN;
   const selectedChoice = (choice_word_id || '').toString().trim();
   let currentItemId = '';
   let currentFavorite = 0;
@@ -5053,7 +5073,9 @@ const handleTrainAnswer = async (req, res) => {
       currentFavorite = card.effective_favorite ? 1 : 0;
       const isCorrect = isChoiceMode
         ? selectedChoice && selectedChoice === `card_${cardId}`
-        : normalizedAnswer && normalizedAnswer === (card.french || '').trim().toLowerCase();
+        : isWrittenMode
+          ? isWrittenAnswerCorrect(user_answer, card.french)
+          : (user_answer || '').trim().toLowerCase() === (card.french || '').trim().toLowerCase();
       if (isCorrect) correctCount += 1;
       await upsertCardProgress(userId, cardId, isCorrect);
       req.session.trainState = {
@@ -5101,7 +5123,9 @@ const handleTrainAnswer = async (req, res) => {
 
     const isCorrect = isChoiceMode
       ? selectedChoice && selectedChoice === String(word_id)
-      : normalizedAnswer && normalizedAnswer === (word.french || '').trim().toLowerCase();
+      : isWrittenMode
+        ? isWrittenAnswerCorrect(user_answer, word.french)
+        : (user_answer || '').trim().toLowerCase() === (word.french || '').trim().toLowerCase();
     if (isCorrect) correctCount += 1;
 
     const progressUpdate = await upsertProgress(userId, word_id, isCorrect);
