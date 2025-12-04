@@ -3,8 +3,8 @@
  <div class="lists-topbar">
   <h1>Mes listes</h1>
 
-  <form class="filter-row" action="/my/lists" method="get">
-    <label class="filter-label" style="margin:0;">
+  <div class="filter-row">
+    <label class="filter-label">
       Filtrer par
       <select style="background: #040616; min-width: 210px;" name="sort" onchange="this.form.submit()">
         <option value="custom" <%= sort==='custom' ? 'selected' : '' %>>

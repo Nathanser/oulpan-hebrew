@@ -1888,200 +1888,6 @@ app.get('/app', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/space', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  try {
-    const [overall, setStats, themeStats] = await Promise.all([
-      buildSpaceOverview(userId),
-      getSpaceSetStats(userId),
-      getSpaceThemeStats(userId)
-    ]);
-    res.render('space', { overall, setStats, themeStats });
-  } catch (e) {
-    console.error(e);
-    res.render('space', { overall: null, setStats: [], themeStats: [] });
-  }
-});
-
-app.get('/space/:slug', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const info = parseSpaceSlug(req.params.slug);
-  if (!info) return res.redirect('/space');
-  try {
-    const detail =
-      info.type === 'set'
-        ? await getSetDetailForSpace(userId, info.id)
-        : await getThemeDetailForSpace(userId, info.id);
-    if (!detail) return res.redirect('/space');
-    res.render('space_detail', {
-      type: detail.type,
-      set: detail.set || null,
-      theme: detail.theme || null,
-      stats: detail.stats || {},
-      items: detail.items || [],
-      weakest: detail.weakest || null,
-      lastError: detail.lastError || null,
-      nextReviewLabel: detail.nextReviewLabel || '-'
-    });
-  } catch (e) {
-    console.error(e);
-    res.redirect('/space');
-  }
-});
-
-app.get('/search', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  try {
-    const { items, counts } = await buildSearchItems(userId);
-    res.render('search', { searchItems: items, counts });
-  } catch (e) {
-    console.error(e);
-    res.render('search', { searchItems: [], counts: { total: 0, themes: 0, lists: 0 } });
-  }
-});
-
-app.get('/search/duplicates', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const isAdmin = req.session.user && req.session.user.role === 'admin';
-  try {
-    const ignoredRows = await all('SELECT dup_key FROM duplicate_ignores WHERE user_id = ?', [userId]);
-    const ignoredKeys = new Set(ignoredRows.map(r => r.dup_key));
-
-    const themeRows = await all(
-      `SELECT w.id AS word_id, w.hebrew, w.french, w.transliteration, w.active AS word_active,
-              w.user_id AS word_owner_id, w.theme_id,
-              t.name AS theme_name, t.active AS theme_active, t.user_id AS theme_owner_id,
-              l.name AS level_name,
-              COALESCE(uto.active, 1) AS theme_user_active
-         FROM words w
-         LEFT JOIN themes t ON t.id = w.theme_id
-         LEFT JOIN theme_levels l ON l.id = w.level_id
-         LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
-        WHERE (w.user_id IS NULL OR w.user_id = ?)`,
-      [userId, userId]
-    );
-
-    const listRows = await all(
-      `SELECT c.id AS card_id, c.hebrew, c.french, c.transliteration, c.active AS card_active,
-              COALESCE(co.active, c.active, 1) AS effective_card_active,
-              c.set_id,
-              s.name AS set_name, s.active AS set_active, s.user_id AS set_owner_id,
-              COALESCE(uso.active, s.active, 1) AS effective_set_active,
-              sh.can_edit AS share_can_edit,
-              owner.display_name AS owner_name
-         FROM cards c
-         JOIN sets s ON s.id = c.set_id
-         LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
-         LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
-         LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
-         LEFT JOIN users owner ON owner.id = s.user_id
-        WHERE s.user_id = ? OR sh.id IS NOT NULL`,
-      [userId, userId, userId, userId]
-    );
-
-    const themeItems = themeRows
-      .map(row => {
-        const key = duplicateKey(row.hebrew, row.french);
-        if (!key) return null;
-        const containerActive =
-          Number(row.theme_active ?? 1) === 1 && Number(row.theme_user_active ?? 1) === 1;
-        const active = Number(row.word_active ?? 1) === 1 && containerActive;
-        const isOwner = Number(row.word_owner_id) === Number(userId);
-        const isGlobal = row.word_owner_id === null;
-        return {
-          key,
-          kind: 'theme',
-          id: row.word_id,
-          themeId: row.theme_id,
-          french: row.french || '',
-          hebrew: row.hebrew || '',
-          transliteration: row.transliteration || '',
-          container: row.theme_name || 'Sans theme',
-          level: row.level_name || '',
-          containerActive,
-          active,
-          isOwner,
-          isGlobal,
-          canEdit: isOwner || isAdmin
-        };
-      })
-      .filter(Boolean);
-
-    const listItems = listRows
-      .map(row => {
-        const key = duplicateKey(row.hebrew, row.french);
-        if (!key) return null;
-        const containerActive = Number(row.effective_set_active ?? 1) === 1;
-        const active = Number(row.effective_card_active ?? 1) === 1 && containerActive;
-        const isOwner = Number(row.set_owner_id) === Number(userId);
-        const canEdit = isOwner || Number(row.share_can_edit) === 1 || isAdmin;
-        return {
-          key,
-          kind: 'list',
-          id: row.card_id,
-          setId: row.set_id,
-          french: row.french || '',
-          hebrew: row.hebrew || '',
-          transliteration: row.transliteration || '',
-          container: row.set_name || 'Sans liste',
-          ownerName: row.owner_name || '',
-          containerActive,
-          active,
-          canEdit,
-          isOwner
-        };
-      })
-      .filter(Boolean);
-
-    const allItems = [...themeItems, ...listItems];
-    const map = new Map();
-    allItems.forEach(item => {
-      if (!map.has(item.key)) map.set(item.key, []);
-      map.get(item.key).push(item);
-    });
-
-    const groups = Array.from(map.entries())
-      .filter(([, items]) => items.length > 1)
-      .map(([key, items]) => {
-        const kinds = new Set(items.map(i => i.kind));
-        const kind = kinds.size > 1 ? 'cross' : items[0].kind;
-        const sample = items.find(i => i.french) || items[0];
-        return { key, kind, items, sample };
-      })
-      .sort((a, b) =>
-        String(a.sample.french || '').localeCompare(String(b.sample.french || ''), 'fr', { sensitivity: 'base' })
-      );
-
-    const activeGroups = groups.filter(g => !ignoredKeys.has(g.key));
-    const ignoredGroups = groups.filter(g => ignoredKeys.has(g.key));
-
-    res.render('duplicates_user', { groups: activeGroups, ignoredGroups, isAdmin });
-  } catch (e) {
-    console.error('User duplicates error:', e);
-    res.render('duplicates_user', { groups: [], ignoredGroups: [], isAdmin });
-  }
-});
-
-app.post('/search/duplicates/ignore', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const { dup_key, action, redirectTo } = req.body;
-  const allowedRedirects = ['/my/lists', '/my/words', '/search/duplicates'];
-  const backUrl =
-    redirectTo && allowedRedirects.some(p => redirectTo.startsWith(p)) ? redirectTo : '/search/duplicates';
-  const key = (dup_key || '').trim();
-  if (!key) return res.redirect(backUrl);
-  try {
-    if (action === 'unignore') {
-      await run('DELETE FROM duplicate_ignores WHERE user_id = ? AND dup_key = ?', [userId, key]);
-    } else {
-      await run('INSERT OR IGNORE INTO duplicate_ignores (user_id, dup_key) VALUES (?, ?)', [userId, key]);
-    }
-  } catch (e) {
-    console.error('Duplicate ignore toggle error:', e);
-  }
-  res.redirect(backUrl);
-});
-
 // ---------- Profil ----------
 app.get('/profile', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
@@ -4755,8 +4561,7 @@ const handleTrainAnswer = async (req, res) => {
     ? prevAnswered + 1
     : Math.max(0, totalCount - remainingBefore) + 1;
   let correctCount = Number(state.correct || 0);
-  const selectedChoice = typeof choice_word_id !== 'undefined' ? String(choice_word_id).trim() : '';
-  const hasChoice = selectedChoice.length > 0;
+  const normalizedAnswer = (user_answer || '').trim().toLowerCase();
   let currentItemId = '';
   let currentFavorite = 0;
   const renderTrainAnswer = (payload) =>
@@ -4784,9 +4589,7 @@ const handleTrainAnswer = async (req, res) => {
       if (!card) return res.redirect('/train');
       currentItemId = `card_${cardId}`;
       currentFavorite = card.effective_favorite ? 1 : 0;
-      const isCorrect = hasChoice
-        ? selectedChoice === `card_${cardId}`
-        : isAnswerMatch(user_answer, card.french);
+      const isCorrect = normalizedAnswer && normalizedAnswer === (card.french || '').trim().toLowerCase();
       if (isCorrect) correctCount += 1;
       await upsertCardProgress(userId, cardId, isCorrect);
       if (remainingCount > 0) {
@@ -4828,9 +4631,7 @@ const handleTrainAnswer = async (req, res) => {
     const favRow = await get('SELECT id FROM favorites WHERE user_id = ? AND word_id = ?', [userId, word_id]);
     currentFavorite = favRow ? 1 : 0;
 
-    const isCorrect = hasChoice
-      ? selectedChoice === String(word_id)
-      : isAnswerMatch(user_answer, word.french);
+    const isCorrect = normalizedAnswer && normalizedAnswer === (word.french || '').trim().toLowerCase();
     if (isCorrect) correctCount += 1;
 
     const progressUpdate = await upsertProgress(userId, word_id, isCorrect);
