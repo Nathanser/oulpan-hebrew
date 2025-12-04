@@ -62,15 +62,50 @@
 
               <div class="card" style="margin-bottom:1rem;">
                 <div class="list-header" style="margin:0 0 0.5rem;">
-                  <h3 style="margin:0;">Exporter en JSON (ZIP)</h3>
+                  <h3 style="margin:0;">Exporter en JSON</h3>
                   <small class="muted">
-                    <%= isAdmin ? 'Thèmes actifs/inactifs + listes de tous les utilisateurs'
-                      : 'Toutes mes listes personnelles' %>
+                    <%= isAdmin ? 'Thèmes admin + listes utilisateurs' : 'Mes listes personnelles' %>
                   </small>
                 </div>
-                <form method="post" action="/export">
-                  <p class="muted">Un fichier .zip sera téléchargé, contenant un JSON par thème ou liste (compatible
-                    avec l'import).</p> <br>
+                <form method="post" action="/export" id="export-form">
+                  <p class="muted">Choisis quoi exporter et le format.</p>
+                  <label style="display:flex; align-items:center; gap:0.4rem; margin-top:0.4rem;">
+                    <input type="radio" name="export_scope" value="all" checked> Tout exporter
+                  </label>
+                  <label style="display:flex; align-items:center; gap:0.4rem;">
+                    <input type="radio" name="export_scope" value="custom"> Sélection manuelle
+                  </label>
+                  <% if (exportThemes && exportThemes.length && isAdmin) { %>
+                    <div class="export-section" data-export-section="themes" style="display:none; margin-top:0.5rem;">
+                      <p class="muted" style="margin:0 0 0.3rem;">Thèmes</p>
+                      <div style="max-height:180px; overflow:auto; border:1px solid var(--border-main); padding:0.4rem; border-radius:0.5rem;">
+                        <% exportThemes.forEach(t => { %>
+                          <label style="display:flex; align-items:center; gap:0.35rem; margin:0.15rem 0;">
+                            <input type="checkbox" name="theme_ids" value="<%= t.id %>">
+                            <span><%= t.name %></span>
+                          </label>
+                        <% }) %>
+                      </div>
+                    </div>
+                  <% } %>
+                  <% if (exportSets && exportSets.length) { %>
+                    <div class="export-section" data-export-section="sets" style="display:none; margin-top:0.6rem;">
+                      <p class="muted" style="margin:0 0 0.3rem;">Listes</p>
+                      <div style="max-height:180px; overflow:auto; border:1px solid var(--border-main); padding:0.4rem; border-radius:0.5rem;">
+                        <% exportSets.forEach(s => { %>
+                          <label style="display:flex; align-items:center; gap:0.35rem; margin:0.15rem 0;">
+                            <input type="checkbox" name="set_ids" value="<%= s.id %>">
+                            <span><%= s.name %><% if (s.owner_name) { %> <small class="muted">( <%= s.owner_name %> )</small><% } %></span>
+                          </label>
+                        <% }) %>
+                      </div>
+                    </div>
+                  <% } %>
+                  <label style="display:flex; align-items:center; gap:0.4rem; margin-top:0.6rem;">
+                    <input type="checkbox" name="single_file" value="1"> Tout réunir dans un seul fichier JSON
+                  </label>
+                  <p class="muted" style="margin-top:0.3rem;">Sinon, export en ZIP avec un fichier par élément.</p>
+                  <br>
                   <button type="submit" class="btn" style="width:100%;">Exporter</button>
                 </form>
               </div>
@@ -91,5 +126,16 @@
         reader.readAsText(file, 'utf-8');
       });
     }
+
+    const scopeRadios = Array.from(document.querySelectorAll('input[name="export_scope"]'));
+    const sections = Array.from(document.querySelectorAll('.export-section'));
+    const toggleSections = () => {
+      const custom = scopeRadios.some(r => r.checked && r.value === 'custom');
+      sections.forEach(sec => {
+        sec.style.display = custom ? '' : 'none';
+      });
+    };
+    scopeRadios.forEach(r => r.addEventListener('change', toggleSections));
+    toggleSections();
   })();
 </script>

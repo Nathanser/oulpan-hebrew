@@ -9,9 +9,10 @@
   </div>
   <br>
 
-  <form class="form" action="/admin/themes" method="get" style="max-width:340px;">
-    <label>Filtrer par
-      <select name="sort" onchange="this.form.submit()">
+  <form class="form" action="/admin/themes" method="get" style="max-width:340px; display:flex; align-items:center; gap:0.4rem;">
+    <label style="flex:1;">Filtrer par
+      <select name="sort" onchange="this.form.submit()" style="width: 210px;">
+        <option value="custom" <%=sort==='custom' ? 'selected' : '' %>>Ordre personnalisé</option>
         <option value="created_asc" <%=sort==='created_asc' ? 'selected' : '' %>>Date de création (plus anciennes)
         </option>
         <option value="created_desc" <%=sort==='created_desc' ? 'selected' : '' %>>Date de création (plus récentes)
@@ -19,17 +20,20 @@
         <option value="alpha" <%=sort==='alpha' ? 'selected' : '' %>>Ordre alphabétique</option>
       </select>
     </label>
+    <button type="button" class="icon-btn ghost" id="admin-themes-reorder-toggle" aria-label="Réordonner les thèmes"
+      title="Réordonner les thèmes" style="height:2.3rem; width:2.4rem;">
+      <span class="menu-icon">⇵</span>
+    </button>
   </form>
 
   <% if (!themes || themes.length===0) { %>
     <div class="card set-list-empty">
       <p>Pas encore de thèmes par défaut.</p>
-      <a class="btn" href="/admin/themes/new">Créer un thème</a>
     </div>
     <% } else { %>
       <div class="grid set-list-grid">
         <% themes.forEach(theme=> { %>
-          <div class="card set-list-card" style="display:flex; flex-direction:column; gap:0.5rem;">
+          <div class="card set-list-card" data-theme-id="<%= theme.id %>" style="display:flex; flex-direction:column; gap:0.5rem;">
             <div class="set-list-top">
               <div class="set-list-info">
                 <div style="display:flex; align-items:center; gap:0.5rem;">
@@ -41,6 +45,8 @@
                 <p class="muted mini">Créé le <%= theme.created_at ? new Date(theme.created_at).toLocaleDateString('fr-FR') : '-' %></p>
               </div>
               <div class="set-list-actions inline-actions">
+                <button type="button" class="reorder-handle set-reorder-handle" data-drag-handle
+                  title="Réordonner ce thème">&#9776;</button>
                 <% if (theme.children && theme.children.length> 0) { %>
                   <button type="button" class="icon-btn ghost toggle-children-btn"
                     data-toggle-target="admin-children-<%= theme.id %>" aria-label="Voir sous-thèmes">
@@ -52,19 +58,19 @@
                   <button type="button" class="icon-btn ghost dots-btn" data-menu-btn aria-label="Actions">&#8942;</button>
                   <div class="card-menu" data-menu>
                     <a class="menu-item" href="/admin/themes/<%= theme.id %>/edit">
-                      <span>Modifier</span>
+                      <span style="font-size: medium; font-weight: bold;">Modifier</span>
                       <span class="menu-icon">&#9998;</span>
                     </a>
                     <form action="/admin/themes/<%= theme.id %>/toggle" method="post">
                       <button type="submit" class="menu-item">
-                        <span><%= theme.active ? 'Désactiver (admin)' : 'Activer (admin)' %></span>
+                        <span style="font-size: small; font-weight: bold;"><%= theme.active ? 'Désactiver (admin)' : 'Activer (admin)' %></span>
                         <span class="menu-icon"><%= theme.active ? 'Off' : 'On' %></span>
                       </button>
                     </form>
                     <form action="/admin/themes/<%= theme.id %>?_method=DELETE" method="post"
                       onsubmit="return confirm('Supprimer ce thème par défaut ?');">
                       <button type="submit" class="menu-item danger">
-                        <span>Supprimer</span>
+                        <span style="font-size: medium; font-weight: bold;">Supprimer</span>
                         <span class="menu-icon">&#128465;</span>
                       </button>
                     </form>
@@ -73,11 +79,11 @@
             </div>
 
             <div class="set-list-status">
-              <span class="pill <%= theme.active ? 'success' : 'muted' %>">
+              <span style="font-size: small; font-weight: bold;" class="pill <%= theme.active ? 'success' : 'muted' %>">
                 <%= theme.active ? 'Actif' : 'Inactif (admin)' %>
               </span>
               <% if (theme.children && theme.children.length> 0) { %>
-                <span class="pill muted mini subtheme-pill">
+                <span style="font-size: small; font-weight: bold;" class="pill muted mini subtheme-pill">
                   <%= theme.children.length %> sous-thèmes
                 </span>
               <% } %>
@@ -146,6 +152,10 @@
 
 <script>
   (() => {
+    const HOLD_DELAY_MS = 300;
+    const AUTO_SCROLL_EDGE = 110;
+    const AUTO_SCROLL_STEP = 22;
+
     const closeMenus = () => {
       document.querySelectorAll('.card-menu.open').forEach(m => m.classList.remove('open'));
     };
@@ -176,6 +186,209 @@
         }
       });
     });
+
+    const reorderToggle = document.getElementById('admin-themes-reorder-toggle');
+    const grid = document.querySelector('.set-list-grid');
+    let reorderMode = false;
+    let dragState = null;
+
+    const getOrder = () => {
+      if (!grid) return [];
+      return Array.from(grid.querySelectorAll('.set-list-card'))
+        .map(card => Number(card.dataset.themeId))
+        .filter(id => Number.isInteger(id) && id > 0);
+    };
+
+    let lastOrder = getOrder();
+
+    const ordersEqual = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+
+    const updateSelectLock = () => {
+      document.body.classList.toggle('no-text-select', reorderMode || !!dragState);
+    };
+
+    const setReorderMode = (active) => {
+      if (!grid) return;
+      reorderMode = active;
+      if (active) {
+        grid.dataset.mode = 'reorder';
+      } else {
+        delete grid.dataset.mode;
+      }
+      if (reorderToggle) {
+        reorderToggle.classList.toggle('is-active', active);
+        reorderToggle.innerHTML = active ? '&times;' : '<span class="menu-icon">⇵</span>';
+        reorderToggle.setAttribute('aria-pressed', active ? 'true' : 'false');
+      }
+      closeMenus();
+      updateSelectLock();
+    };
+
+    if (reorderToggle && (!grid || lastOrder.length <= 1)) {
+      reorderToggle.disabled = true;
+      reorderToggle.title = 'Aucun thème à réordonner';
+    }
+
+    const autoScroll = (clientY) => {
+      if (clientY < AUTO_SCROLL_EDGE) {
+        window.scrollBy({ top: -AUTO_SCROLL_STEP, behavior: 'auto' });
+      } else if (clientY > window.innerHeight - AUTO_SCROLL_EDGE) {
+        window.scrollBy({ top: AUTO_SCROLL_STEP, behavior: 'auto' });
+      }
+    };
+
+    const placePlaceholder = (pageY) => {
+      if (!dragState || !grid) return;
+      const { card, placeholder } = dragState;
+      const siblings = Array.from(grid.querySelectorAll('.set-list-card')).filter(el => el !== card);
+      let placed = false;
+      for (const sibling of siblings) {
+        const rect = sibling.getBoundingClientRect();
+        const middle = rect.top + window.scrollY + rect.height / 2;
+        if (pageY < middle) {
+          grid.insertBefore(placeholder, sibling);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) grid.appendChild(placeholder);
+    };
+
+    const persistOrder = async (order) => {
+      if (!order || order.length === 0 || ordersEqual(order, lastOrder)) return;
+      try {
+        if (reorderToggle) {
+          reorderToggle.setAttribute('disabled', 'disabled');
+          reorderToggle.classList.add('loading');
+        }
+        const res = await fetch('/admin/themes/reorder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ordered_ids: order })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data || data.success !== true) {
+          throw new Error('save failed');
+        }
+        lastOrder = order.slice();
+        window.location.reload();
+      } catch (err) {
+        alert('Impossible de sauvegarder le nouvel ordre.');
+        console.error(err);
+      } finally {
+        if (reorderToggle && grid) {
+          reorderToggle.removeAttribute('disabled');
+          reorderToggle.classList.remove('loading');
+        }
+      }
+    };
+
+    const finishDrag = () => {
+      if (!dragState || !grid) return;
+      const { card, placeholder } = dragState;
+      card.classList.remove('dragging');
+      card.removeAttribute('style');
+      grid.insertBefore(card, placeholder);
+      placeholder.remove();
+      dragState = null;
+      const order = getOrder();
+      updateSelectLock();
+      card.classList.add('drag-settled');
+      setTimeout(() => card.classList.remove('drag-settled'), 320);
+      persistOrder(order);
+    };
+
+    const startDrag = (card, startEvt) => {
+      if (dragState || !reorderMode || !grid) return;
+      const rect = card.getBoundingClientRect();
+      const placeholder = document.createElement('div');
+      placeholder.className = 'card-placeholder';
+      placeholder.style.height = `${rect.height}px`;
+      dragState = {
+        card,
+        placeholder,
+        offsetY: startEvt.clientY - rect.top,
+        left: rect.left
+      };
+      grid.insertBefore(placeholder, card.nextElementSibling);
+
+      card.classList.add('dragging');
+      updateSelectLock();
+      card.style.width = `${rect.width}px`;
+      card.style.height = `${rect.height}px`;
+      card.style.left = `${rect.left}px`;
+      card.style.top = `${rect.top}px`;
+      card.style.position = 'fixed';
+      card.style.pointerEvents = 'none';
+      card.style.zIndex = '60';
+
+      const onMove = (e) => {
+        e.preventDefault();
+        const clientY = e.clientY;
+        if (!Number.isFinite(clientY)) return;
+        card.style.top = `${clientY - dragState.offsetY}px`;
+        card.style.left = `${dragState.left}px`;
+        autoScroll(clientY);
+        placePlaceholder(clientY + window.scrollY);
+      };
+
+      const onUp = () => {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        finishDrag();
+      };
+
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    };
+
+    const attachDrag = (card) => {
+      card.addEventListener('pointerdown', (e) => {
+        if (!reorderMode) return;
+        if (!e.target.closest('[data-drag-handle]')) return;
+        if (e.button !== 0 && e.pointerType !== 'touch') return;
+        if (e.pointerType === 'touch') {
+          e.preventDefault();
+        }
+
+        const startEvt = e;
+        let moved = false;
+
+        const detectMove = (moveEvt) => {
+          if (
+            Math.abs(moveEvt.clientY - startEvt.clientY) > 6 ||
+            Math.abs(moveEvt.clientX - startEvt.clientX) > 6
+          ) {
+            moved = true;
+          }
+        };
+
+        const cancel = () => {
+          clearTimeout(timer);
+          document.removeEventListener('pointermove', detectMove);
+          document.removeEventListener('pointerup', cancel);
+        };
+
+        const timer = setTimeout(() => {
+          if (!moved) startDrag(card, startEvt);
+          cancel();
+        }, HOLD_DELAY_MS);
+
+        document.addEventListener('pointermove', detectMove);
+        document.addEventListener('pointerup', cancel);
+      });
+    };
+
+    if (grid) {
+      grid.querySelectorAll('.set-list-card').forEach(card => attachDrag(card));
+    }
+
+    if (reorderToggle) {
+      reorderToggle.addEventListener('click', () => {
+        if (!grid) return;
+        setReorderMode(!reorderMode);
+      });
+    }
   })();
 </script>
 

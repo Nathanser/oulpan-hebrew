@@ -103,6 +103,20 @@
       const body = document.body;
       const sunIcon = '&#9728;&#65039;';
       const moonIcon = '&#127769;';
+      const persistTheme = async (theme) => {
+        try {
+          await fetch('/profile/theme', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Accept': 'application/json'
+            },
+            body: `theme=${encodeURIComponent(theme)}`
+          });
+        } catch (err) {
+          console.error('Impossible de sauvegarder le theme', err);
+        }
+      };
 
       const applyTheme = (theme) => {
         if (theme === 'light') {
@@ -134,6 +148,7 @@
           const newTheme = currentTheme === 'light' ? 'dark' : 'light';
           localStorage.setItem('theme', newTheme);
           applyTheme(newTheme);
+          persistTheme(newTheme);
         });
       }
 

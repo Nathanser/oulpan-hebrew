@@ -1399,6 +1399,39 @@ details.advanced summary {
   justify-content: flex-end;
 }
 
+.set-list-grid[data-mode="reorder"] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.set-list-grid[data-mode="reorder"] .set-list-card {
+  width: 100%;
+  cursor: grab;
+}
+
+.set-list-grid[data-mode="reorder"] .set-list-card.dragging {
+  cursor: grabbing;
+}
+
+.set-list-grid[data-mode="reorder"] .set-list-actions .btn,
+.set-list-grid[data-mode="reorder"] .set-list-actions .icon-btn:not(.set-reorder-handle) {
+  display: none;
+}
+
+.set-list-grid[data-mode="reorder"] .set-reorder-handle {
+  display: inline-flex;
+}
+
+.set-list-grid[data-mode="reorder"] .set-list-card,
+.set-list-grid[data-mode="reorder"] .set-reorder-handle {
+  touch-action: none;
+}
+
+.set-list-card.drag-settled {
+  animation: settle-card 0.2s ease;
+}
+
 .set-list-empty {
   display: flex;
   flex-direction: column;
@@ -2883,10 +2916,11 @@ input[type=range]::-moz-range-thumb:hover {
 /* Ligne du filtre + bouton */
 .filter-row {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 0.8rem;
-  margin: 0 auto;
+  margin: 0 0 0 auto;
   width: fit-content;
+  justify-content: flex-end;
 }
 
 /* Label "Filtrer par" */
@@ -2915,11 +2949,97 @@ input[type=range]::-moz-range-thumb:hover {
   white-space: nowrap;
 }
 
-/* Space detail */
-.space-detail .detail-visuals {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
+  @media (max-width: 640px) {
+    .filter-row {
+      width: 100%;
+      margin: 0;
+      flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0.55rem;
+  }
+
+  .filter-label {
+    width: 100%;
+  }
+
+  .filter-label select {
+    width: 100%;
+  }
+
+    .filter-row .btn.small {
+      align-self: flex-start;
+    }
+  }
+
+  /* Affinage des contrôles filtre listes */
+  .lists-topbar .filter-row {
+    gap: 0.75rem;
+    margin: 0 auto;
+    width: min(560px, 100%);
+    justify-content: center;
+    flex-wrap: nowrap;
+    padding: 0.55rem 0.75rem;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-main);
+    border-radius: 0.9rem;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .lists-topbar .filter-label {
+    margin: 0;
+  }
+
+  .lists-topbar .filter-label select {
+    width: 230px;
+    padding: 0.45rem 0.55rem;
+    font-size: 0.95rem;
+    border-radius: 0.5rem;
+    height: 2.55rem;
+  }
+
+  .lists-topbar .btn.small {
+    padding: 0.55rem 1rem;
+    font-size: 0.95rem;
+    border-radius: 0.65rem;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.55rem;
+    box-shadow: var(--shadow-sm);
+  }
+
+  @media (max-width: 640px) {
+    .lists-topbar .filter-row {
+      width: 100%;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.55rem;
+      padding: 0.65rem 0.7rem;
+    }
+
+    .lists-topbar .filter-label {
+      flex: 1 1 auto;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .lists-topbar .filter-label select {
+      width: 100%;
+    }
+
+    .lists-topbar .btn.small {
+      width: 100%;
+      min-width: 0;
+      justify-content: center;
+    }
+  }
+
+  /* Space detail */
+  .space-detail .detail-visuals {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
   align-items: center;
 }
 

@@ -220,6 +220,111 @@ function pickLastError(items = []) {
   }, null);
 }
 
+function nearestNextReview(items = []) {
+  return items.reduce((soonest, item) => {
+    if (!item || !item.nextReview) return soonest;
+    if (!soonest) return item.nextReview;
+    return item.nextReview < soonest ? item.nextReview : soonest;
+  }, null);
+}
+
+async function findCardInSet(setId, cardParam) {
+  const num = Number(cardParam);
+  if (!Number.isFinite(num)) return null;
+  const direct = await get('SELECT * FROM cards WHERE id = ? AND set_id = ?', [num, setId]);
+  if (direct) return direct;
+  const offset = Math.max(0, num - 1);
+  return get(
+    'SELECT * FROM cards WHERE set_id = ? ORDER BY position ASC, id ASC LIMIT 1 OFFSET ?',
+    [setId, offset]
+  );
+}
+
+async function buildSearchItems(userId) {
+  const items = [];
+
+  const themeWords = await all(
+    `SELECT w.*, t.id AS theme_id, t.name AS theme_name, t.active AS theme_active,
+            COALESCE(uto.active, 1) AS user_theme_active,
+            l.name AS level_name, l.active AS level_active
+     FROM words w
+     LEFT JOIN themes t ON t.id = w.theme_id
+     LEFT JOIN theme_levels l ON l.id = w.level_id
+     LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
+     WHERE (w.user_id IS NULL OR w.user_id = ?)`,
+    [userId, userId]
+  );
+
+  themeWords.forEach(row => {
+    const baseActive = Number(row.active || 0) === 1;
+    const containerActive = Number(row.theme_active || 0) === 1 && Number(row.user_theme_active || 0) === 1;
+    const levelActive = row.level_active === null || typeof row.level_active === 'undefined' ? 1 : Number(row.level_active);
+    items.push({
+      kind: 'theme',
+      origin: row.user_id ? 'personal' : 'global',
+      hebrew: row.hebrew || '',
+      french: row.french || '',
+      transliteration: row.transliteration || '',
+      active: baseActive && containerActive && levelActive === 1 ? 1 : 0,
+      baseActive: baseActive ? 1 : 0,
+      containerActive: containerActive ? 1 : 0,
+      levelActive: levelActive,
+      location: row.theme_name || 'Sans thème',
+      level: row.level_name || '',
+      owner: '',
+      originId: row.theme_id
+    });
+  });
+
+  const cardRows = await all(
+    `SELECT c.*, s.name AS set_name, s.user_id AS set_user_id,
+            s.active AS set_active,
+            COALESCE(uso.active, s.active) AS effective_set_active,
+            COALESCE(co.active, c.active, 1) AS effective_card_active,
+            u.display_name AS owner_name,
+            CASE WHEN sh.id IS NOT NULL THEN 1 ELSE 0 END AS is_shared
+     FROM cards c
+     JOIN sets s ON s.id = c.set_id
+     LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
+     LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+     LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+     LEFT JOIN users u ON u.id = s.user_id
+     WHERE s.user_id = ? OR sh.id IS NOT NULL`,
+    [userId, userId, userId, userId]
+  );
+
+  cardRows.forEach(row => {
+    const baseActive = Number(row.active || 0) === 1;
+    const containerActive = Number(row.effective_set_active || 0) === 1;
+    const cardActive = Number(row.effective_card_active || 0) === 1;
+    const origin =
+      row.set_user_id === userId ? 'personal' : row.is_shared ? 'shared' : 'global';
+    items.push({
+      kind: 'list',
+      origin,
+      hebrew: row.hebrew || '',
+      french: row.french || '',
+      transliteration: row.transliteration || '',
+      active: containerActive && cardActive ? 1 : 0,
+      baseActive: baseActive ? 1 : 0,
+      containerActive: containerActive ? 1 : 0,
+      levelActive: 1,
+      location: row.set_name || 'Liste',
+      level: '',
+      owner: row.owner_name || '',
+      originId: row.set_id || row.id
+    });
+  });
+
+  const counts = {
+    total: items.length,
+    themes: items.filter(i => i.kind === 'theme').length,
+    lists: items.filter(i => i.kind === 'list').length
+  };
+
+  return { items, counts };
+}
+
 function normalizeMode(raw) {
   const value = (raw || '').toLowerCase();
   if (value === 'quiz') return MODE_WRITTEN; // compat ancien nom
@@ -335,6 +440,7 @@ async function fetchNextOrderedWord(userId, filters = {}) {
 
 async function getWordPoolForUser(userId, filters = {}) {
   const mode = (filters.rev_mode || 'order').toLowerCase();
+  const isWeakMode = mode === 'weak';
   const params = [userId, userId, userId, userId];
   let sql = `SELECT w.id
         FROM words w
@@ -384,6 +490,10 @@ async function getWordPoolForUser(userId, filters = {}) {
     params.push(null, ...filters.global_theme_ids);
   }
 
+  if (isWeakMode) {
+    sql += ` AND COALESCE(p.status, '') != '${WORD_STATUS_MEMORIZED}'`;
+  }
+
   if (mode === 'favorites' || mode === 'favorite') {
     sql += ' AND fav.id IS NOT NULL';
   } else if (mode === 'new') {
@@ -397,6 +507,7 @@ async function getWordPoolForUser(userId, filters = {}) {
 
 async function fetchNextWord(userId, filters = {}) {
   const mode = (filters.rev_mode || 'order').toLowerCase();
+  const isWeakMode = mode === 'weak';
   const params = [userId, userId, userId, userId];
   const excludedIds = Array.isArray(filters.excludedIds)
     ? filters.excludedIds.map(id => Number(id)).filter(id => !Number.isNaN(id))
@@ -453,6 +564,10 @@ async function fetchNextWord(userId, filters = {}) {
     params.push(null, ...filters.global_theme_ids);
   }
 
+  if (isWeakMode) {
+    sql += ` AND COALESCE(p.status, '') != '${WORD_STATUS_MEMORIZED}'`;
+  }
+
   if (mode === 'favorites' || mode === 'favorite') {
     sql += ' AND fav.id IS NOT NULL';
   } else if (mode === 'new') {
@@ -467,7 +582,10 @@ async function fetchNextWord(userId, filters = {}) {
 
   const statusOrderExpr = `CASE COALESCE(p.status, '') WHEN '${WORD_STATUS_STRUGGLING}' THEN 0 WHEN '${WORD_STATUS_LEARNING}' THEN 1 WHEN '${WORD_STATUS_MEMORIZED}' THEN 2 ELSE 1 END`;
 
-  if (mode === 'random' || mode === 'favorites' || mode === 'favorite') {
+  if (isWeakMode) {
+    const weakStatusOrderExpr = `CASE COALESCE(p.status, '') WHEN '${WORD_STATUS_STRUGGLING}' THEN 0 WHEN '${WORD_STATUS_LEARNING}' THEN 1 ELSE 2 END`;
+    sql += ` ORDER BY ${weakStatusOrderExpr} ASC, RANDOM() LIMIT 1`;
+  } else if (mode === 'random' || mode === 'favorites' || mode === 'favorite') {
     sql += ` ORDER BY ${statusOrderExpr} ASC, RANDOM() LIMIT 1`;
   } else if (mode === 'new') {
     sql += ' ORDER BY w.created_at DESC LIMIT 1';
@@ -856,6 +974,23 @@ function duplicateKey(hebrew, french) {
   return `${fr}|${he}`;
 }
 
+function normalizeAnswerString(str = '') {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[\(\)\[\]\{\}\.,;:!?\u2019\u2018"']/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isAnswerMatch(userAnswer = '', correctAnswer = '') {
+  const user = normalizeAnswerString(userAnswer);
+  const correct = normalizeAnswerString(correctAnswer);
+  if (!user || !correct) return false;
+  return correct === user || correct.includes(user);
+}
+
 function crc32(buf) {
   const table = crc32.table || (crc32.table = (() => {
     let c;
@@ -1123,8 +1258,8 @@ async function nextWordPosition(themeId, userId) {
 async function renumberThemes(userId) {
   const rows = await all(
     userId === null
-      ? 'SELECT id FROM themes WHERE user_id IS NULL ORDER BY COALESCE(created_at, id) ASC'
-      : 'SELECT id FROM themes WHERE user_id = ? ORDER BY COALESCE(created_at, id) ASC',
+      ? 'SELECT id FROM themes WHERE user_id IS NULL ORDER BY COALESCE(display_no, created_at, id) ASC'
+      : 'SELECT id FROM themes WHERE user_id = ? ORDER BY COALESCE(display_no, created_at, id) ASC',
     userId === null ? [] : [userId]
   );
   for (let i = 0; i < rows.length; i++) {
@@ -1134,7 +1269,7 @@ async function renumberThemes(userId) {
 
 async function renumberSets(userId) {
   const rows = await all(
-    'SELECT id FROM sets WHERE user_id = ? ORDER BY COALESCE(created_at, id) ASC',
+    'SELECT id FROM sets WHERE user_id = ? ORDER BY COALESCE(display_no, created_at, id) ASC',
     [userId]
   );
   for (let i = 0; i < rows.length; i++) {
@@ -1142,7 +1277,103 @@ async function renumberSets(userId) {
   }
 }
 
+async function compactThemeIds() {
+  const rows = await all('SELECT id FROM themes ORDER BY id ASC');
+  let expected = 1;
+  const moves = [];
+
+  for (const row of rows) {
+    const currentId = Number(row.id);
+    if (currentId !== expected) {
+      moves.push({ oldId: currentId, newId: expected });
+    }
+    expected += 1;
+  }
+
+  if (moves.length === 0) return;
+
+  // Update theme IDs first (always moving downward so we avoid collisions)
+  for (const move of moves) {
+    await run('UPDATE themes SET id = ? WHERE id = ?', [move.newId, move.oldId]);
+  }
+
+  // Update references to the shifted IDs
+  for (const move of moves) {
+    await run('UPDATE themes SET parent_id = ? WHERE parent_id = ?', [move.newId, move.oldId]);
+    await run('UPDATE words SET theme_id = ? WHERE theme_id = ?', [move.newId, move.oldId]);
+    await run('UPDATE theme_levels SET theme_id = ? WHERE theme_id = ?', [move.newId, move.oldId]);
+    await run('UPDATE user_theme_overrides SET theme_id = ? WHERE theme_id = ?', [move.newId, move.oldId]);
+  }
+}
+
+async function compactWords() {
+  const rows = await all(
+    `SELECT id FROM words
+     ORDER BY COALESCE(theme_id, 2147483647) ASC, COALESCE(position, id) ASC, id ASC`
+  );
+  if (!rows || rows.length === 0) return;
+  let expected = 1;
+  const moves = [];
+  let maxId = 0;
+  for (const row of rows) {
+    const currentId = Number(row.id);
+    if (currentId > maxId) maxId = currentId;
+    if (currentId !== expected) moves.push({ oldId: currentId, newId: expected });
+    expected += 1;
+  }
+  if (moves.length === 0) return;
+  const tempBase = maxId + 100000;
+
+  // Phase 1: move to temp IDs to avoid collisions
+  for (const move of moves) {
+    await run('UPDATE words SET id = ? WHERE id = ?', [tempBase + move.newId, move.oldId]);
+  }
+  // Phase 2: assign final IDs
+  for (const move of moves) {
+    await run('UPDATE words SET id = ? WHERE id = ?', [move.newId, tempBase + move.newId]);
+  }
+  // Phase 3: update references
+  for (const move of moves) {
+    await run('UPDATE progress SET word_id = ? WHERE word_id = ?', [move.newId, move.oldId]);
+    await run('UPDATE favorites SET word_id = ? WHERE word_id = ?', [move.newId, move.oldId]);
+    await run('UPDATE user_word_overrides SET word_id = ? WHERE word_id = ?', [move.newId, move.oldId]);
+  }
+}
+
+async function compactCards() {
+  const rows = await all(
+    `SELECT id FROM cards
+     ORDER BY set_id ASC, COALESCE(position, id) ASC, id ASC`
+  );
+  if (!rows || rows.length === 0) return;
+  let expected = 1;
+  const moves = [];
+  let maxId = 0;
+  for (const row of rows) {
+    const currentId = Number(row.id);
+    if (currentId > maxId) maxId = currentId;
+    if (currentId !== expected) moves.push({ oldId: currentId, newId: expected });
+    expected += 1;
+  }
+  if (moves.length === 0) return;
+  const tempBase = maxId + 100000;
+
+  for (const move of moves) {
+    await run('UPDATE cards SET id = ? WHERE id = ?', [tempBase + move.newId, move.oldId]);
+  }
+  for (const move of moves) {
+    await run('UPDATE cards SET id = ? WHERE id = ?', [move.newId, tempBase + move.newId]);
+  }
+  for (const move of moves) {
+    await run('UPDATE card_progress SET card_id = ? WHERE card_id = ?', [move.newId, move.oldId]);
+    await run('UPDATE card_overrides SET card_id = ? WHERE card_id = ?', [move.newId, move.oldId]);
+  }
+}
+
 async function renumberAllThemesAndSets() {
+  await compactThemeIds();
+  await compactWords();
+  await compactCards();
   const themeOwners = await all('SELECT DISTINCT user_id FROM themes');
   const owners = themeOwners.map(r => r.user_id);
   if (!owners.includes(null)) owners.push(null);
@@ -1153,6 +1384,243 @@ async function renumberAllThemesAndSets() {
   for (const row of setOwners) {
     await renumberSets(row.user_id);
   }
+}
+
+async function buildSpaceOverview(userId) {
+  const statsWords = await get(
+    `SELECT
+      COUNT(DISTINCT word_id) AS words_seen,
+      SUM(success_count) AS total_success,
+      SUM(fail_count) AS total_fail,
+      AVG(strength) AS avg_strength
+     FROM progress WHERE user_id = ?`,
+    [userId]
+  );
+  const statsCards = await get(
+    `SELECT
+      COUNT(DISTINCT cp.card_id) AS cards_seen,
+      SUM(cp.success_count) AS total_success,
+      SUM(cp.fail_count) AS total_fail
+     FROM card_progress cp
+     JOIN cards c ON c.id = cp.card_id
+     JOIN sets s ON s.id = c.set_id AND s.active = 1
+     LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
+     WHERE cp.user_id = ? AND (s.user_id = ? OR sh.id IS NOT NULL)`,
+    [userId, userId, userId]
+  );
+  const overall = {
+    words_seen: statsWords?.words_seen || 0,
+    cards_seen: statsCards?.cards_seen || 0,
+    total_success: (statsWords?.total_success || 0) + (statsCards?.total_success || 0),
+    total_fail: (statsWords?.total_fail || 0) + (statsCards?.total_fail || 0),
+    avg_strength: 0
+  };
+  const attempts = overall.total_success + overall.total_fail;
+  if (attempts > 0) {
+    overall.avg_strength = Math.round((overall.total_success / attempts) * 100);
+  }
+  overall.total_seen = overall.words_seen + overall.cards_seen;
+  return overall;
+}
+
+async function getSpaceSetStats(userId) {
+  const setIds = await getAccessibleSetIds(userId);
+  if (!setIds || setIds.length === 0) return [];
+  const placeholders = setIds.map(() => '?').join(',');
+  return all(
+    `SELECT
+        s.id,
+        s.name,
+        COUNT(c.id) AS total_cards,
+        SUM(CASE WHEN cp.status = ? THEN 1 ELSE 0 END) AS memorized,
+        SUM(CASE WHEN cp.status = ? THEN 1 ELSE 0 END) AS struggling,
+        SUM(CASE WHEN cp.status = ? THEN 1 ELSE 0 END) AS learning,
+        SUM(CASE WHEN cp.card_id IS NOT NULL THEN 1 ELSE 0 END) AS seen_cards
+     FROM sets s
+     LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+     LEFT JOIN cards c ON c.set_id = s.id AND c.active = 1
+     LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+     LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = ?
+     WHERE s.id IN (${placeholders})
+       AND s.active = 1
+       AND COALESCE(uso.active, s.active) = 1
+       AND (c.id IS NULL OR COALESCE(co.active, c.active, 1) = 1)
+     GROUP BY s.id
+     ORDER BY s.display_no ASC, s.id ASC`,
+    [
+      WORD_STATUS_MEMORIZED,
+      WORD_STATUS_STRUGGLING,
+      WORD_STATUS_LEARNING,
+      userId,
+      userId,
+      userId,
+      ...setIds
+    ]
+  );
+}
+
+async function getSpaceThemeStats(userId) {
+  const themeIds = await getActiveThemeIdsForUser(userId);
+  if (!themeIds || themeIds.length === 0) return [];
+  const placeholders = themeIds.map(() => '?').join(',');
+  return all(
+    `SELECT
+        t.id,
+        t.name,
+        COUNT(w.id) AS total_words,
+        SUM(CASE WHEN p.status = ? THEN 1 ELSE 0 END) AS memorized,
+        SUM(CASE WHEN p.status = ? THEN 1 ELSE 0 END) AS struggling,
+        SUM(CASE WHEN p.status = ? THEN 1 ELSE 0 END) AS learning,
+        SUM(CASE WHEN p.word_id IS NOT NULL THEN 1 ELSE 0 END) AS seen_words
+     FROM themes t
+     LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
+     LEFT JOIN words w ON w.theme_id = t.id AND w.active = 1 AND (w.user_id IS NULL OR w.user_id = ?)
+     LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
+     LEFT JOIN theme_levels l ON l.id = w.level_id
+     LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = ?
+     WHERE t.id IN (${placeholders})
+       AND t.active = 1
+       AND COALESCE(uto.active, 1) = 1
+       AND (w.id IS NULL OR COALESCE(uwo.active, 1) = 1)
+       AND (w.id IS NULL OR w.level_id IS NULL OR l.active = 1)
+     GROUP BY t.id
+     ORDER BY t.display_no ASC, t.id ASC`,
+    [
+      WORD_STATUS_MEMORIZED,
+      WORD_STATUS_STRUGGLING,
+      WORD_STATUS_LEARNING,
+      userId,
+      userId,
+      userId,
+      userId,
+      ...themeIds
+    ]
+  );
+}
+
+function buildDetailItems(rows = []) {
+  return rows.map(row => {
+    const snap = normalizeProgressSnapshot(row);
+    return {
+      hebrew: row.hebrew || '',
+      french: row.french || '',
+      transliteration: row.transliteration || null,
+      status: snap.status,
+      status_label: statusLabel(snap.status),
+      good_total: snap.good_total,
+      bad_total: snap.bad_total,
+      streak: snap.streak,
+      last_seen_at: snap.last_seen_at,
+      last_wrong_at: snap.last_wrong_at,
+      last_seen_label: formatDateLabel(snap.last_seen_at),
+      last_wrong_label: formatDateLabel(snap.last_wrong_at),
+      nextReview: snap.nextReview,
+      seen: snap.seen
+    };
+  });
+}
+
+async function getSetDetailForSpace(userId, setId) {
+  const set = await get(
+    `SELECT s.*
+     FROM sets s
+     LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
+     LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+     WHERE s.id = ?
+       AND s.active = 1
+       AND COALESCE(uso.active, s.active) = 1
+       AND (s.user_id = ? OR sh.id IS NOT NULL)`,
+    [userId, userId, setId, userId]
+  );
+  if (!set) return null;
+
+  const cards = await all(
+    `SELECT c.*, cp.*, COALESCE(co.active, c.active, 1) AS effective_active
+     FROM cards c
+     LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+     LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = ?
+     WHERE c.set_id = ?`,
+    [userId, userId, set.id]
+  );
+  const activeCards = cards.filter(c => Number(c.effective_active) === 1);
+  const items = buildDetailItems(activeCards);
+  const total = activeCards.length;
+  const seen = items.filter(i => i.seen).length;
+  const memorized = items.filter(i => i.status === WORD_STATUS_MEMORIZED).length;
+  const struggling = items.filter(i => i.status === WORD_STATUS_STRUGGLING).length;
+  const learning = items.filter(
+    i => i.status === WORD_STATUS_LEARNING || i.status === 'learning' || i.status === null
+  ).length;
+  const stats = {
+    total,
+    memorized,
+    struggling,
+    learning,
+    seen,
+    memorized_pct: total ? Math.round((memorized / total) * 100) : 0,
+    progress_pct: total ? Math.round((seen / total) * 100) : 0
+  };
+  const weakest = pickWeakestItem(items);
+  const lastError = pickLastError(items);
+  const nextReview = nearestNextReview(items);
+  return {
+    type: 'set',
+    set,
+    stats,
+    items,
+    weakest,
+    lastError,
+    nextReviewLabel: formatDateLabel(nextReview)
+  };
+}
+
+async function getThemeDetailForSpace(userId, themeId) {
+  const themeIds = await getActiveThemeIdsForUser(userId);
+  if (!themeIds.includes(Number(themeId))) return null;
+  const theme = await get('SELECT * FROM themes WHERE id = ?', [themeId]);
+  if (!theme) return null;
+  const words = await all(
+    `SELECT w.*, p.*
+     FROM words w
+     LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
+     LEFT JOIN theme_levels l ON l.id = w.level_id
+     LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = ?
+     WHERE w.theme_id = ?
+       AND w.active = 1
+       AND COALESCE(uwo.active, 1) = 1
+       AND (w.level_id IS NULL OR l.active = 1)
+       AND (w.user_id IS NULL OR w.user_id = ?)`,
+    [userId, userId, themeId, userId]
+  );
+  const items = buildDetailItems(words);
+  const total = words.length;
+  const seen = items.filter(i => i.seen).length;
+  const memorized = items.filter(i => i.status === WORD_STATUS_MEMORIZED).length;
+  const struggling = items.filter(i => i.status === WORD_STATUS_STRUGGLING).length;
+  const learning = items.filter(
+    i => i.status === WORD_STATUS_LEARNING || i.status === 'learning' || i.status === null
+  ).length;
+  const stats = {
+    total,
+    memorized,
+    struggling,
+    learning,
+    seen,
+    memorized_pct: total ? Math.round((memorized / total) * 100) : 0,
+    progress_pct: total ? Math.round((seen / total) * 100) : 0
+  };
+  const weakest = pickWeakestItem(items);
+  const lastError = pickLastError(items);
+  const nextReview = nearestNextReview(items);
+  return {
+    type: 'theme',
+    theme,
+    stats,
+    items,
+    weakest,
+    lastError,
+    nextReviewLabel: formatDateLabel(nextReview)
+  };
 }
 
 async function requireAuth(req, res, next) {
@@ -1184,7 +1652,7 @@ async function requireAdmin(req, res, next) {
   }
 }
 
-// Admin par dÃ©faut
+// Admin par défaut
 async function ensureAdmin() {
   const admin = await get("SELECT * FROM users WHERE role = 'admin'");
   if (!admin) {
@@ -1193,7 +1661,7 @@ async function ensureAdmin() {
       'INSERT INTO users (email, password_hash, password_plain, display_name, first_name, last_name, level, role) VALUES (?,?,?,?,?,?,?,?)',
       ['admin@example.com', hash, 'admin123', 'Admin', 'Admin', 'System', 'Expert', 'admin']
     );
-    console.log('Admin crÃ©Ã© : admin@example.com / admin123');
+    console.log('Admin créé : admin@example.com / admin123');
   }
 }
 
@@ -1206,42 +1674,42 @@ async function ensureBaseThemes() {
       'Immigration et Alya',
       'Politique et droits',
       'Education',
-      'Environnement, \u00e9cologie',
+      'Environnement, écologie',
       'Monde du travail',
       'Magasins et achats',
       'La parole et les 5 sens',
-      'La guerre et l\'arm\u00e9e',
+      'La guerre et l\'armée',
       'Les sentiments',
       'Description d\'un objet',
-      'Description du caract\u00e8re',
+      'Description du caractère',
       'Description du physique',
       'Les voyages',
       'Description d\'un lieu',
       'Compter et mesurer',
       'Justice et crimes',
-      'Rep\u00e8res temporels',
+      'Repères temporels',
       'Banque, bourse, affaires',
       'Maison et nettoyage',
       'Sport et jeux',
-      'Climat et m\u00e9t\u00e9o',
+      'Climat et météo',
       'Poids et mesures',
       'Famille et cycle de la vie',
       'Agriculture',
       'La presse',
       'Informatique et Internet',
-      'V\u00eatements',
-      'T\u00e9l\u00e9phone portable',
+      'Vêtements',
+      'Téléphone portable',
       'Art et culture',
       'Le monde du spectacle',
       'Automobile',
       'La vie juive',
-      'Sant\u00e9',
+      'Santé',
       'Loisirs',
       'Animaux',
-      'Appareils m\u00e9nagers',
-      'La ville et ses probl\u00e8mes',
-      'Probl\u00e8mes de soci\u00e9t\u00e9',
-      'Mots \u00e0 conna\u00eetre',
+      'Appareils ménagers',
+      'La ville et ses problèmes',
+      'Problèmes de société',
+      'Mots à connaître',
       'Les mots pour commenter',
       'Alimentation'
     ];
@@ -1254,6 +1722,7 @@ async function ensureBaseThemes() {
     console.log('Thèmes de base crées (liste fournie).');
   }
 }
+
 (async () => {
   try {
     await ensureAdmin();
@@ -1289,7 +1758,7 @@ app.post('/register', async (req, res) => {
   try {
     const existing = await get('SELECT * FROM users WHERE email = ?', [email]);
     if (existing) {
-      return res.render('register', { error: 'Cet email est déjà  utilisé.' });
+      return res.render('register', { error: 'Cet email est déjà utilisé.' });
     }
     const hash = await bcrypt.hash(password, 10);
     const info = await run(
@@ -1419,6 +1888,200 @@ app.get('/app', requireAuth, async (req, res) => {
   }
 });
 
+app.get('/space', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  try {
+    const [overall, setStats, themeStats] = await Promise.all([
+      buildSpaceOverview(userId),
+      getSpaceSetStats(userId),
+      getSpaceThemeStats(userId)
+    ]);
+    res.render('space', { overall, setStats, themeStats });
+  } catch (e) {
+    console.error(e);
+    res.render('space', { overall: null, setStats: [], themeStats: [] });
+  }
+});
+
+app.get('/space/:slug', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const info = parseSpaceSlug(req.params.slug);
+  if (!info) return res.redirect('/space');
+  try {
+    const detail =
+      info.type === 'set'
+        ? await getSetDetailForSpace(userId, info.id)
+        : await getThemeDetailForSpace(userId, info.id);
+    if (!detail) return res.redirect('/space');
+    res.render('space_detail', {
+      type: detail.type,
+      set: detail.set || null,
+      theme: detail.theme || null,
+      stats: detail.stats || {},
+      items: detail.items || [],
+      weakest: detail.weakest || null,
+      lastError: detail.lastError || null,
+      nextReviewLabel: detail.nextReviewLabel || '-'
+    });
+  } catch (e) {
+    console.error(e);
+    res.redirect('/space');
+  }
+});
+
+app.get('/search', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  try {
+    const { items, counts } = await buildSearchItems(userId);
+    res.render('search', { searchItems: items, counts });
+  } catch (e) {
+    console.error(e);
+    res.render('search', { searchItems: [], counts: { total: 0, themes: 0, lists: 0 } });
+  }
+});
+
+app.get('/search/duplicates', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const isAdmin = req.session.user && req.session.user.role === 'admin';
+  try {
+    const ignoredRows = await all('SELECT dup_key FROM duplicate_ignores WHERE user_id = ?', [userId]);
+    const ignoredKeys = new Set(ignoredRows.map(r => r.dup_key));
+
+    const themeRows = await all(
+      `SELECT w.id AS word_id, w.hebrew, w.french, w.transliteration, w.active AS word_active,
+              w.user_id AS word_owner_id, w.theme_id,
+              t.name AS theme_name, t.active AS theme_active, t.user_id AS theme_owner_id,
+              l.name AS level_name,
+              COALESCE(uto.active, 1) AS theme_user_active
+         FROM words w
+         LEFT JOIN themes t ON t.id = w.theme_id
+         LEFT JOIN theme_levels l ON l.id = w.level_id
+         LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
+        WHERE (w.user_id IS NULL OR w.user_id = ?)`,
+      [userId, userId]
+    );
+
+    const listRows = await all(
+      `SELECT c.id AS card_id, c.hebrew, c.french, c.transliteration, c.active AS card_active,
+              COALESCE(co.active, c.active, 1) AS effective_card_active,
+              c.set_id,
+              s.name AS set_name, s.active AS set_active, s.user_id AS set_owner_id,
+              COALESCE(uso.active, s.active, 1) AS effective_set_active,
+              sh.can_edit AS share_can_edit,
+              owner.display_name AS owner_name
+         FROM cards c
+         JOIN sets s ON s.id = c.set_id
+         LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
+         LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+         LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+         LEFT JOIN users owner ON owner.id = s.user_id
+        WHERE s.user_id = ? OR sh.id IS NOT NULL`,
+      [userId, userId, userId, userId]
+    );
+
+    const themeItems = themeRows
+      .map(row => {
+        const key = duplicateKey(row.hebrew, row.french);
+        if (!key) return null;
+        const containerActive =
+          Number(row.theme_active ?? 1) === 1 && Number(row.theme_user_active ?? 1) === 1;
+        const active = Number(row.word_active ?? 1) === 1 && containerActive;
+        const isOwner = Number(row.word_owner_id) === Number(userId);
+        const isGlobal = row.word_owner_id === null;
+        return {
+          key,
+          kind: 'theme',
+          id: row.word_id,
+          themeId: row.theme_id,
+          french: row.french || '',
+          hebrew: row.hebrew || '',
+          transliteration: row.transliteration || '',
+          container: row.theme_name || 'Sans theme',
+          level: row.level_name || '',
+          containerActive,
+          active,
+          isOwner,
+          isGlobal,
+          canEdit: isOwner || isAdmin
+        };
+      })
+      .filter(Boolean);
+
+    const listItems = listRows
+      .map(row => {
+        const key = duplicateKey(row.hebrew, row.french);
+        if (!key) return null;
+        const containerActive = Number(row.effective_set_active ?? 1) === 1;
+        const active = Number(row.effective_card_active ?? 1) === 1 && containerActive;
+        const isOwner = Number(row.set_owner_id) === Number(userId);
+        const canEdit = isOwner || Number(row.share_can_edit) === 1 || isAdmin;
+        return {
+          key,
+          kind: 'list',
+          id: row.card_id,
+          setId: row.set_id,
+          french: row.french || '',
+          hebrew: row.hebrew || '',
+          transliteration: row.transliteration || '',
+          container: row.set_name || 'Sans liste',
+          ownerName: row.owner_name || '',
+          containerActive,
+          active,
+          canEdit,
+          isOwner
+        };
+      })
+      .filter(Boolean);
+
+    const allItems = [...themeItems, ...listItems];
+    const map = new Map();
+    allItems.forEach(item => {
+      if (!map.has(item.key)) map.set(item.key, []);
+      map.get(item.key).push(item);
+    });
+
+    const groups = Array.from(map.entries())
+      .filter(([, items]) => items.length > 1)
+      .map(([key, items]) => {
+        const kinds = new Set(items.map(i => i.kind));
+        const kind = kinds.size > 1 ? 'cross' : items[0].kind;
+        const sample = items.find(i => i.french) || items[0];
+        return { key, kind, items, sample };
+      })
+      .sort((a, b) =>
+        String(a.sample.french || '').localeCompare(String(b.sample.french || ''), 'fr', { sensitivity: 'base' })
+      );
+
+    const activeGroups = groups.filter(g => !ignoredKeys.has(g.key));
+    const ignoredGroups = groups.filter(g => ignoredKeys.has(g.key));
+
+    res.render('duplicates_user', { groups: activeGroups, ignoredGroups, isAdmin });
+  } catch (e) {
+    console.error('User duplicates error:', e);
+    res.render('duplicates_user', { groups: [], ignoredGroups: [], isAdmin });
+  }
+});
+
+app.post('/search/duplicates/ignore', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const { dup_key, action, redirectTo } = req.body;
+  const allowedRedirects = ['/my/lists', '/my/words', '/search/duplicates'];
+  const backUrl =
+    redirectTo && allowedRedirects.some(p => redirectTo.startsWith(p)) ? redirectTo : '/search/duplicates';
+  const key = (dup_key || '').trim();
+  if (!key) return res.redirect(backUrl);
+  try {
+    if (action === 'unignore') {
+      await run('DELETE FROM duplicate_ignores WHERE user_id = ? AND dup_key = ?', [userId, key]);
+    } else {
+      await run('INSERT OR IGNORE INTO duplicate_ignores (user_id, dup_key) VALUES (?, ?)', [userId, key]);
+    }
+  } catch (e) {
+    console.error('Duplicate ignore toggle error:', e);
+  }
+  res.redirect(backUrl);
+});
+
 // ---------- Profil ----------
 app.get('/profile', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
@@ -1533,12 +2196,21 @@ app.post('/profile/info', requireAuth, async (req, res) => {
 app.post('/profile/theme', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   const theme = req.body.theme === 'light' ? 'light' : 'dark';
+  const wantsJson =
+    (req.xhr || (req.headers['x-requested-with'] || '').toLowerCase() === 'xmlhttprequest') ||
+    (req.headers.accept && req.headers.accept.toLowerCase().includes('application/json'));
   try {
     await run('UPDATE users SET theme = ? WHERE id = ?', [theme, userId]);
     req.session.user.theme = theme;
+    if (wantsJson) {
+      return res.json({ success: true, theme });
+    }
     res.redirect('/profile?msg=Theme mis a jour');
   } catch (e) {
     console.error(e);
+    if (wantsJson) {
+      return res.status(500).json({ success: false, error: 'update_failed' });
+    }
     res.redirect('/profile?err=Erreur de mise a jour du theme');
   }
 });
@@ -1673,8 +2345,37 @@ app.post('/profile/delete', requireAuth, async (req, res) => {
 });
 
 // ---------- Import JSON ----------
-function buildImportContext(req, extra = {}) {
+async function buildImportContext(req, extra = {}) {
   const isAdmin = req.session.user && req.session.user.role === 'admin';
+  const userId = req.session.user.id;
+  let exportThemes = [];
+  let exportSets = [];
+  try {
+    if (isAdmin) {
+      exportThemes = await all(
+        `SELECT id, name, parent_id, COALESCE(display_no, id) AS ord
+         FROM themes
+         WHERE user_id IS NULL
+         ORDER BY ord ASC, id ASC`
+      );
+      exportSets = await all(
+        `SELECT s.id, s.name, s.user_id, COALESCE(s.display_no, s.id) AS ord, u.display_name AS owner_name
+         FROM sets s
+         JOIN users u ON u.id = s.user_id
+         ORDER BY ord ASC, s.id ASC`
+      );
+    } else {
+      exportSets = await all(
+        `SELECT id, name, COALESCE(display_no, id) AS ord
+         FROM sets
+         WHERE user_id = ?
+         ORDER BY ord ASC, id ASC`,
+        [userId]
+      );
+    }
+  } catch (e) {
+    console.error('Export options fetch error:', e);
+  }
   return {
     isAdmin,
     importType: isAdmin ? 'theme' : 'list',
@@ -1683,12 +2384,14 @@ function buildImportContext(req, extra = {}) {
     importSuccess: null,
     payloadValue: '',
     pendingImport: null,
+    exportThemes,
+    exportSets,
     ...extra
   };
 }
 
-app.get('/import', requireAuth, (req, res) => {
-  const ctx = buildImportContext(req, {
+app.get('/import', requireAuth, async (req, res) => {
+  const ctx = await buildImportContext(req, {
     importError: req.query.import_error || null,
     importSuccess: req.query.import_success || null
   });
@@ -1708,6 +2411,119 @@ app.post('/import', requireAuth, async (req, res) => {
   } catch (e) {
     return redirectErr('JSON invalide');
   }
+
+  // Bulk mode: payload contains multiple themes/lists in one JSON
+  const topArray = Array.isArray(parsed) ? parsed : [];
+  const bulkThemes = Array.isArray(parsed.themes) ? parsed.themes : (isAdmin ? topArray : []);
+  const bulkLists = Array.isArray(parsed.lists)
+    ? parsed.lists
+    : Array.isArray(parsed.sets)
+      ? parsed.sets
+      : (!isAdmin ? topArray : []);
+  const isBulk = bulkThemes.length > 0 || bulkLists.length > 0;
+
+  if (isBulk) {
+    try {
+      if (bulkThemes.length > 0 && !isAdmin) {
+        return redirectErr('Import de thèmes réservé à l’admin.');
+      }
+
+      let importedThemes = 0;
+      let importedLists = 0;
+
+      if (isAdmin && bulkThemes.length > 0) {
+        const allocateThemeId = await createIdAllocator('themes');
+        const allocateWordId = await createIdAllocator('words');
+        let nextDisplay = await nextDisplayNo('themes', null);
+        const parentCache = new Map();
+
+        const ensureParentId = async (parentName) => {
+          const key = parentName.toLowerCase().trim();
+          if (parentCache.has(key)) return parentCache.get(key);
+          const existing = await get('SELECT id FROM themes WHERE name = ? AND user_id IS NULL', [parentName]);
+          if (existing) {
+            parentCache.set(key, existing.id);
+            return existing.id;
+          }
+          const newId = allocateThemeId();
+          const displayNo = nextDisplay++;
+          await run(
+            'INSERT INTO themes (id, name, active, user_id, created_at, display_no, parent_id) VALUES (?,?,1,NULL, CURRENT_TIMESTAMP, ?, NULL)',
+            [newId, parentName, displayNo]
+          );
+          parentCache.set(key, newId);
+          return newId;
+        };
+
+        for (const entry of bulkThemes) {
+          const name = entry && entry.name ? String(entry.name).trim() : '';
+          const words = normalizeImportEntries(entry.words);
+          if (!name || words.length === 0) continue;
+          const active = entry.active === 0 ? 0 : 1;
+          const parentId = entry.parent_name ? await ensureParentId(String(entry.parent_name)) : null;
+          const themeId = allocateThemeId();
+          const displayNo = nextDisplay++;
+          await run(
+            'INSERT INTO themes (id, name, active, user_id, created_at, display_no, parent_id) VALUES (?,?,?,NULL, CURRENT_TIMESTAMP, ?, ?)',
+            [themeId, name, active, displayNo, parentId]
+          );
+          for (let i = 0; i < words.length; i++) {
+            const w = words[i];
+            const wordId = allocateWordId();
+            await run(
+              `INSERT INTO words (id, hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id, position)
+               VALUES (?,?,?,?,?,?,?,?,?,?)`,
+              [wordId, w.hebrew, w.transliteration || null, w.french, themeId, null, 1, w.active, null, i + 1]
+            );
+          }
+          importedThemes += 1;
+        }
+      }
+
+      if (bulkLists.length > 0) {
+        const userId = req.session.user.id;
+        const allocateSetId = await createIdAllocator('sets');
+        let nextDisplay = await nextDisplayNo('sets', userId);
+        for (const entry of bulkLists) {
+          const name = entry && entry.name ? String(entry.name).trim() : '';
+          const words = normalizeImportEntries(entry.words);
+          if (!name || words.length === 0) continue;
+          const active = entry.active === 0 ? 0 : 1;
+          const setId = allocateSetId();
+          const displayNo = nextDisplay++;
+          await run('INSERT INTO sets (id, name, user_id, active, display_no) VALUES (?,?,?,?,?)', [
+            setId,
+            name,
+            userId,
+            active ? 1 : 0,
+            displayNo
+          ]);
+          for (let i = 0; i < words.length; i++) {
+            const w = words[i];
+            await run(
+              `INSERT INTO cards (set_id, french, hebrew, transliteration, position, active, favorite, memorized)
+               VALUES (?,?,?,?,?,?,?,?)`,
+              [setId, w.french, w.hebrew, w.transliteration || null, i + 1, w.active, w.favorite, w.memorized]
+            );
+          }
+          importedLists += 1;
+        }
+      }
+
+      const successMsg = [
+        importedThemes ? `${importedThemes} thème(s)` : null,
+        importedLists ? `${importedLists} liste(s)` : null
+      ]
+        .filter(Boolean)
+        .join(' et ') || 'Aucun élément importé';
+
+      return res.redirect(`/import?import_success=${encodeURIComponent(successMsg)}`);
+    } catch (e) {
+      console.error('Bulk import error:', e);
+      return redirectErr('Erreur pendant l import');
+    }
+  }
+
   const name = parsed && parsed.name ? String(parsed.name).trim() : '';
   if (!name) return redirectErr(importType === 'theme' ? 'Nom de theme manquant' : 'Nom de liste manquant');
 
@@ -1722,7 +2538,7 @@ app.post('/import', requireAuth, async (req, res) => {
       if (existing && !confirmAppend) {
         return res.render(
           'import',
-          buildImportContext(req, {
+          await buildImportContext(req, {
             payloadValue: payloadText,
             pendingImport: { type: 'theme', name, targetId: existing.id, wordsCount: words.length }
           })
@@ -1773,7 +2589,7 @@ app.post('/import', requireAuth, async (req, res) => {
     if (existing && !confirmAppend) {
       return res.render(
         'import',
-        buildImportContext(req, {
+        await buildImportContext(req, {
           payloadValue: payloadText,
           pendingImport: { type: 'list', name, targetId: existing.id, wordsCount: words.length }
         })
@@ -1808,12 +2624,26 @@ app.post('/export', requireAuth, async (req, res) => {
   const isAdmin = req.session.user && req.session.user.role === 'admin';
   const userId = req.session.user.id;
   try {
+    const scope = req.body.export_scope || 'all';
+    const singleFile = req.body.single_file === '1';
+    const selectedThemeIds = isAdmin ? normalizeIds(req.body.theme_ids || []) : [];
+    const selectedSetIds = normalizeIds(req.body.set_ids || []);
+
+    const includeThemes = isAdmin && (scope === 'all' || selectedThemeIds.length > 0);
+    const includeSets = scope === 'all' || selectedSetIds.length > 0;
+
+    if (!includeThemes && !includeSets) {
+      return res.status(400).send('Aucun élément sélectionné pour export.');
+    }
+
     const files = [];
+    const allPayload = { themes: [], lists: [] };
 
     const addListFile = (basePath, set, cards) => {
       const payload = {
         name: set.name,
         active: set.active,
+        ...(isAdmin ? { owner_name: set.owner_name, owner_id: set.user_id } : {}),
         words: cards.map(c => ({
           hebrew: c.hebrew,
           french: c.french,
@@ -1823,14 +2653,40 @@ app.post('/export', requireAuth, async (req, res) => {
           memorized: c.memorized
         }))
       };
-      const fname = `${basePath}/list_${set.id}_${slugify(set.name)}.json`;
-      files.push({ path: fname, content: JSON.stringify(payload, null, 2) });
+      if (singleFile) {
+        allPayload.lists.push(payload);
+      } else {
+        const fname = `${basePath}/list_${set.id}_${slugify(set.name)}.json`;
+        files.push({ path: fname, content: JSON.stringify(payload, null, 2) });
+      }
     };
 
-    if (isAdmin) {
-      const themes = await all('SELECT t.*, p.name AS parent_name FROM themes t LEFT JOIN themes p ON p.id = t.parent_id');
+    if (includeThemes) {
+      const params = [];
+      let where = 'WHERE t.user_id IS NULL';
+      if (selectedThemeIds.length > 0) {
+        where += ` AND t.id IN (${selectedThemeIds.map(() => '?').join(',')})`;
+        params.push(...selectedThemeIds);
+      }
+      const themes = await all(
+        `SELECT t.*,
+                p.name AS parent_name,
+                (SELECT COUNT(*) FROM themes c WHERE c.parent_id = t.id) AS child_count,
+                (SELECT COUNT(*) FROM words w WHERE w.theme_id = t.id) AS word_count
+         FROM themes t
+         LEFT JOIN themes p ON p.id = t.parent_id
+         ${where}
+         ORDER BY COALESCE(t.display_no, t.id) ASC, t.id ASC`,
+        params
+      );
+
       for (const t of themes) {
-        const words = await all('SELECT hebrew, french, transliteration, active, difficulty FROM words WHERE theme_id = ? ORDER BY position ASC, id ASC', [t.id]);
+        const skipParentOnly = Number(t.child_count || 0) > 0 && Number(t.word_count || 0) === 0;
+        if (skipParentOnly) continue;
+        const words = await all(
+          'SELECT hebrew, french, transliteration, active, difficulty FROM words WHERE theme_id = ? ORDER BY position ASC, id ASC',
+          [t.id]
+        );
         const payload = {
           name: t.name,
           active: t.active,
@@ -1843,21 +2699,51 @@ app.post('/export', requireAuth, async (req, res) => {
             difficulty: w.difficulty
           }))
         };
-        const fname = `themes/theme_${t.id}_${slugify(t.name)}.json`;
-        files.push({ path: fname, content: JSON.stringify(payload, null, 2) });
+        if (singleFile) {
+          allPayload.themes.push(payload);
+        } else {
+          const fname = `themes/theme_${t.id}_${slugify(t.name)}.json`;
+          files.push({ path: fname, content: JSON.stringify(payload, null, 2) });
+        }
       }
+    }
 
-      const sets = await all('SELECT s.*, u.display_name AS owner_name FROM sets s JOIN users u ON u.id = s.user_id');
-      for (const s of sets) {
-        const cards = await all('SELECT hebrew, french, transliteration, active, favorite, memorized FROM cards WHERE set_id = ? ORDER BY position ASC, id ASC', [s.id]);
-        addListFile(`lists/user_${s.user_id}_${slugify(s.owner_name || '')}`, s, cards);
+    if (includeSets) {
+      const params = [];
+      let where = 'WHERE s.user_id = ?';
+      params.push(userId);
+      if (isAdmin) {
+        where = 'WHERE 1=1';
+        params.length = 0;
       }
-    } else {
-      const sets = await all('SELECT * FROM sets WHERE user_id = ?', [userId]);
-      for (const s of sets) {
-        const cards = await all('SELECT hebrew, french, transliteration, active, favorite, memorized FROM cards WHERE set_id = ? ORDER BY position ASC, id ASC', [s.id]);
-        addListFile('my-lists', s, cards);
+      if (selectedSetIds.length > 0) {
+        where += ` AND s.id IN (${selectedSetIds.map(() => '?').join(',')})`;
+        params.push(...selectedSetIds);
       }
+      const sets = await all(
+        `SELECT s.*, u.display_name AS owner_name
+         FROM sets s
+         JOIN users u ON u.id = s.user_id
+         ${where}
+         ORDER BY COALESCE(s.display_no, s.id) ASC, s.id ASC`,
+        params
+      );
+
+      for (const s of sets) {
+        const cards = await all(
+          'SELECT hebrew, french, transliteration, active, favorite, memorized FROM cards WHERE set_id = ? ORDER BY position ASC, id ASC',
+          [s.id]
+        );
+        const basePath = isAdmin ? `lists/user_${s.user_id}_${slugify(s.owner_name || '')}` : 'my-lists';
+        addListFile(basePath, s, cards);
+      }
+    }
+
+    if (singleFile) {
+      const filename = isAdmin ? 'export-admin.json' : 'export-mes-listes.json';
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.end(JSON.stringify(allPayload, null, 2));
     }
 
     const zipBuf = createZip(files);
@@ -1872,7 +2758,7 @@ app.post('/export', requireAuth, async (req, res) => {
 });
 
 
-// ---------- BibliothÃ¨que perso / globale ----------
+// ---------- Bibliothèque perso / globale ----------
 app.get('/my/words', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   try {
@@ -1926,311 +2812,110 @@ app.get('/my/words', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/train/flashcards', requireAuth, async (req, res) => {
+// ---------- Themes ----------
+app.get('/themes', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
-  const { word_id, choice_word_id, question_mode } = req.body;
-  const state = req.session.trainState;
-  if (!state) return res.redirect('/train/setup');
-
-  const modeList = normalizeModes(state.modes || state.mode);
-  state.modes = modeList;
-  const sizeVal = String(state.font_size || '').toLowerCase();
-  state.font_size = TRAIN_FONT_SIZES.includes(sizeVal) ? sizeVal : DEFAULT_TRAIN_PARAMS.font_size;
-  const activeMode = normalizeMode(question_mode || state.currentMode || modeList[0]);
-  const allowedThemeIds = new Set(await getActiveThemeIdsForUser(userId));
-  const filteredThemeIds = (state.theme_ids || []).filter(id => allowedThemeIds.has(Number(id)));
-  state.theme_ids = filteredThemeIds;
-  const selectedSetIds = state.set_ids || [];
-  const source = state.source || (selectedSetIds.length > 0 ? 'cards' : 'words');
-  const filters = {
-    theme_id: filteredThemeIds.length === 1 ? filteredThemeIds[0] : null,
-    theme_ids: filteredThemeIds,
-    level_id: state.level_id || null,
-    show_phonetic: typeof state.show_phonetic === 'undefined' ? 1 : state.show_phonetic,
-    font_size: state.font_size || DEFAULT_TRAIN_PARAMS.font_size,
-    rev_mode: state.rev_mode || 'random',
-    scope: state.scope || 'all',
-    scope_list: [],
-    source,
-    set_ids: selectedSetIds,
-    theme_order: filteredThemeIds
-  };
-
-  const prevTotal = Number(state.total);
-  const totalCount = Number.isFinite(prevTotal) && prevTotal > 0 ? prevTotal : (Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : 1);
-  const prevRemaining = Number(state.remaining);
-  const remainingBefore = Number.isFinite(prevRemaining) ? prevRemaining : totalCount;
-  const remainingCount = Math.max(0, remainingBefore - 1);
-  const prevAnswered = Number(state.answered);
-  const answeredCount = Number.isFinite(prevAnswered)
-    ? prevAnswered + 1
-    : Math.max(0, totalCount - remainingBefore) + 1;
-  let correctCount = Number(state.correct || 0);
-  let currentItemId = '';
-  let currentFavorite = 0;
-
+  const isAdmin = req.session.user && req.session.user.role === 'admin';
   try {
-    if ((filters.source === 'cards' || filters.source === 'mixed') && String(word_id).startsWith('card_')) {
-      const cardId = Number(String(word_id).replace('card_', ''));
-      const chosenId = String(choice_word_id).replace('card_', '');
-      const card = await get(
-        `SELECT c.*, COALESCE(co.favorite, c.favorite) AS effective_favorite
-         FROM cards c
-         LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
-         WHERE c.id = ?`,
-        [userId, cardId]
-      );
-      if (!card) return res.redirect('/train');
-      currentItemId = `card_${cardId}`;
-      currentFavorite = card.effective_favorite ? 1 : 0;
-      const isCorrect = String(chosenId) === String(cardId);
-      if (isCorrect) correctCount += 1;
-      await upsertCardProgress(userId, cardId, isCorrect);
-      const updatedState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount, modes: modeList, replay: null };
-      req.session.trainState = updatedState;
-      const result = {
-        isCorrect,
-        hebrew: card.hebrew,
-        transliteration: card.transliteration,
-        french: card.french
-      };
-      const themes = await getActiveThemesForUser(userId);
-      return res.render('train', {
-        currentItemId,
-        currentFavorite,
-        word: null,
-        message: remainingCount > 0 ? null : 'Session terminee.',
-        result,
-        mode: modeList[0] || activeMode,
-        modes: modeList,
-        questionMode: activeMode,
-        filters,
-        options: null,
-        themes,
-        fontSize: state.font_size || DEFAULT_TRAIN_PARAMS.font_size,
-        remaining: remainingCount,
-        total: totalCount,
-        answered: answeredCount,
-        correct: correctCount,
-        nextUrl: remainingCount > 0 ? '/train' : null
-      });
-    } else {
-      const word = await get('SELECT * FROM words WHERE id = ?', [word_id]);
-      if (!word) return res.redirect('/train');
-      currentItemId = String(word_id);
-      const favRow = await get('SELECT id FROM favorites WHERE user_id = ? AND word_id = ?', [userId, word_id]);
-      currentFavorite = favRow ? 1 : 0;
-      const isCorrect = String(choice_word_id) === String(word_id);
-      if (isCorrect) correctCount += 1;
-      await upsertProgress(userId, word_id, isCorrect);
-      const updatedState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount, modes: modeList, replay: null };
-      req.session.trainState = updatedState;
+    const activeThemes = await getActiveThemeTreeForUser(userId);
 
-      const result = {
-        isCorrect,
-        hebrew: word.hebrew,
-        transliteration: word.transliteration,
-        french: word.french
-      };
-
-      const nextUrl = remainingCount > 0 ? `/train` : null;
-      const themes = await getActiveThemesForUser(userId);
-      res.render('train', {
-        currentItemId,
-        currentFavorite,
-        word: null,
-        message: remainingCount > 0 ? null : 'Session terminee.',
-        result,
-        mode: modeList[0] || activeMode,
-        modes: modeList,
-        questionMode: activeMode,
-        filters,
-        fontSize: state.font_size || DEFAULT_TRAIN_PARAMS.font_size,
-        options: null,
-        themes,
-        remaining: remainingCount,
-        total: totalCount,
-        answered: answeredCount,
-        correct: correctCount,
-        nextUrl
-      });
-    }
-  } catch (e) {
-    console.error(e);
-    res.render('train', {
-      currentItemId,
-      currentFavorite,
-      fontSize: state.font_size || DEFAULT_TRAIN_PARAMS.font_size,
-      word: null,
-      message: 'Erreur serveur.',
-      result: null,
-      mode: modeList[0] || activeMode,
-      modes: modeList,
-      questionMode: activeMode,
-      filters,
-      options: null,
-      themes: [],
-      remaining: 0,
-      total: 0,
-      answered: 0,
-      correct: 0,
-      nextUrl: null
-    });
-  }
-});
-
-app.get('/my/words/new', requireAuth, async (req, res) => {
-  try {
-    const userId = req.session.user.id;
-    const themes = await all('SELECT * FROM themes WHERE user_id = ? AND active = 1 ORDER BY id ASC', [userId]);
-    const levels = await getOwnedLevels(userId);
-    res.render('my_word_form', {
-      word: null,
-      themes,
-      levels,
-      action: '/my/words'
-    });
-  } catch (e) {
-    console.error(e);
-    res.redirect('/my/words');
-  }
-});
-
-app.post('/my/words', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const { hebrew, transliteration, french, theme_id, level_id, difficulty, active } = req.body;
-  try {
-    const { levelId: normLevel, themeId: normTheme } = await normalizeLevelSelection(theme_id, level_id);
-    let themeId = null;
-    if (normTheme) {
-      const t = await get('SELECT id FROM themes WHERE id = ? AND user_id = ? AND active = 1', [normTheme, userId]);
-      if (t) themeId = t.id;
-    }
-    let levelId = null;
-    if (normLevel) {
-      const l = await get(
-        `SELECT tl.id, tl.theme_id, tl.active, t.user_id
-         FROM theme_levels tl
-         JOIN themes t ON t.id = tl.theme_id
-         WHERE tl.id = ?`,
-        [normLevel]
-      );
-      if (l && l.active && l.user_id === userId) {
-        if (themeId && themeId !== l.theme_id) {
-          levelId = null;
-        } else {
-          levelId = l.id;
-          themeId = themeId || l.theme_id;
-        }
-      }
-    }
-    const wordId = await findFirstAvailableId('words');
-    const position = await nextWordPosition(themeId || null, userId);
-    await run(
-      `INSERT INTO words (id, hebrew, transliteration, french, theme_id, level_id, difficulty, active, user_id, position)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      [
-        wordId,
-        hebrew,
-        transliteration || null,
-        french,
-        themeId || null,
-        levelId,
-        difficulty || 1,
-        active ? 1 : 0,
-        userId,
-        position
-      ]
+    // Themes active globally but hidden by user
+    const inactivePersonal = await all(
+      `SELECT t.* 
+       FROM themes t
+       JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
+       WHERE t.active = 1 AND uto.active = 0
+       ORDER BY t.id ASC`,
+      [userId]
     );
-    res.redirect('/my/words');
-  } catch (e) {
-    console.error(e);
-    res.redirect('/my/words');
-  }
-});
 
-app.get('/my/words/:id/edit', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  try {
-    const word = await get('SELECT * FROM words WHERE id = ? AND user_id = ?', [req.params.id, userId]);
-    if (!word) return res.redirect('/my/words');
-    const themes = await all('SELECT * FROM themes WHERE user_id = ? AND active = 1 ORDER BY id ASC', [userId]);
-    const levels = await getOwnedLevels(userId);
-    res.render('my_word_form', {
-      word,
-      themes,
-      levels,
-      action: `/my/words/${word.id}?_method=PUT`
-    });
-  } catch (e) {
-    console.error(e);
-    res.redirect('/my/words');
-  }
-});
-
-app.put('/my/words/:id', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const { hebrew, transliteration, french, theme_id, level_id, difficulty, active } = req.body;
-  try {
-    const { levelId: normLevel, themeId: normTheme } = await normalizeLevelSelection(theme_id, level_id);
-    let themeId = null;
-    if (normTheme) {
-      const t = await get('SELECT id FROM themes WHERE id = ? AND user_id = ? AND active = 1', [normTheme, userId]);
-      if (t) themeId = t.id;
-    }
-    let levelId = null;
-    if (normLevel) {
-      const l = await get(
-        `SELECT tl.id, tl.theme_id, tl.active, t.user_id
-         FROM theme_levels tl
-         JOIN themes t ON t.id = tl.theme_id
-         WHERE tl.id = ?`,
-        [normLevel]
-      );
-      if (l && l.active && l.user_id === userId) {
-        if (themeId && themeId !== l.theme_id) {
-          levelId = null;
-        } else {
-          levelId = l.id;
-          themeId = themeId || l.theme_id;
-        }
-      }
-    }
-    await run(
-      `UPDATE words
-       SET hebrew = ?, transliteration = ?, french = ?, theme_id = ?, level_id = ?, difficulty = ?, active = ?
-       WHERE id = ? AND user_id = ?`,
-      [
-        hebrew,
-        transliteration || null,
-        french,
-        themeId || null,
-        levelId,
-        difficulty || 1,
-        active ? 1 : 0,
-        req.params.id,
-        userId
-      ]
+    // Themes inactive globally (proposed/admin disabled)
+    const inactiveProposed = await all(
+      'SELECT * FROM themes WHERE active = 0 ORDER BY id ASC'
     );
-    res.redirect('/my/words');
+
+    res.render('themes', { activeThemes, inactivePersonal, inactiveProposed, isAdmin });
   } catch (e) {
     console.error(e);
-    res.redirect('/my/words');
+    res.render('themes', { activeThemes: [], inactivePersonal: [], inactiveProposed: [], isAdmin: false });
   }
 });
 
-app.delete('/my/words/:id', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const redirectTo = req.body.redirectTo;
-  const backUrl = redirectTo && redirectTo.startsWith('/') ? redirectTo : '/my/words';
+app.get('/themes/new', requireAdmin, (req, res) => {
+  res.render('theme_form', { theme: null, action: '/themes' });
+});
+
+app.post('/themes', requireAdmin, async (req, res) => {
+  const { name, parent_id } = req.body;
   try {
-    await run('DELETE FROM progress WHERE word_id = ? AND user_id = ?', [req.params.id, userId]);
-    await run('DELETE FROM favorites WHERE word_id = ? AND user_id = ?', [req.params.id, userId]);
-    await run('DELETE FROM words WHERE id = ? AND user_id = ?', [req.params.id, userId]);
-    res.redirect(backUrl);
+    const displayNo = await nextDisplayNo('themes', null);
+    const newId = await findFirstAvailableId('themes');
+    await run(
+      'INSERT INTO themes (id, name, active, user_id, created_at, display_no, parent_id) VALUES (?,?,1,NULL, CURRENT_TIMESTAMP, ?, ?)',
+      [newId, name, displayNo, parent_id || null]
+    );
+    res.redirect('/themes');
   } catch (e) {
     console.error(e);
-    res.redirect(backUrl);
+    res.redirect('/themes');
+  }
+});
+
+app.get('/themes/:id/edit', requireAdmin, async (req, res) => {
+  try {
+    const theme = await get('SELECT * FROM themes WHERE id = ?', [req.params.id]);
+    if (!theme) return res.redirect('/themes');
+    res.render('theme_form', { theme, action: `/themes/${theme.id}?_method=PUT` });
+  } catch (e) {
+    console.error(e);
+    res.redirect('/themes');
+  }
+});
+
+app.put('/themes/:id', requireAdmin, async (req, res) => {
+  const { name, parent_id } = req.body;
+  try {
+    await run('UPDATE themes SET name = ?, parent_id = ? WHERE id = ?', [name, parent_id || null, req.params.id]);
+    res.redirect('/themes');
+  } catch (e) {
+    console.error(e);
+    res.redirect('/themes');
+  }
+});
+
+app.delete('/themes/:id', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const isAdmin = req.session.user && req.session.user.role === 'admin';
+
+  // Only admin can delete global themes. Users can delete their own themes (if we allowed user themes).
+  // Assuming strict admin control for now based on previous context, but checking ownership is safer.
+
+  try {
+    const theme = await get('SELECT * FROM themes WHERE id = ?', [req.params.id]);
+    if (!theme) return res.redirect('/themes');
+
+    if (theme.user_id && theme.user_id !== userId) {
+      return res.status(403).send('Interdit');
+    }
+    if (!theme.user_id && !isAdmin) {
+      return res.status(403).send('Interdit');
+    }
+
+    // Delete content
+    await run(
+      'UPDATE words SET level_id = NULL WHERE level_id IN (SELECT id FROM theme_levels WHERE theme_id = ?) AND user_id = ?',
+      [theme.id, userId]
+    );
+    await run('UPDATE words SET theme_id = NULL WHERE theme_id = ? AND user_id = ?', [theme.id, userId]);
+    await run('DELETE FROM theme_levels WHERE theme_id = ?', [theme.id]);
+    await run('DELETE FROM user_theme_overrides WHERE theme_id = ?', [theme.id]);
+    await run('DELETE FROM themes WHERE id = ?', [theme.id]);
+
+    await renumberAllThemesAndSets();
+    res.redirect('/themes');
+  } catch (e) {
+    console.error(e);
+    res.redirect('/themes');
   }
 });
 
@@ -2238,8 +2923,9 @@ app.delete('/my/words/:id', requireAuth, async (req, res) => {
 app.get('/my/lists', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   try {
-    const sort = req.query.sort || 'created_asc';
-    let orderBy = 's.created_at ASC';
+    const sort = req.query.sort || 'custom';
+    let orderBy = 'COALESCE(s.display_no, s.id) ASC, s.id ASC';
+    if (sort === 'created_asc') orderBy = 's.created_at ASC';
     if (sort === 'created_desc') orderBy = 's.created_at DESC';
     if (sort === 'alpha') orderBy = 's.name COLLATE NOCASE ASC';
     const owned = await all(
@@ -2276,7 +2962,77 @@ app.get('/my/lists', requireAuth, async (req, res) => {
     res.render('my_lists', { sets: owned, sharedSets: shared, pageClass: 'page-compact', sort });
   } catch (e) {
     console.error(e);
-    res.render('my_lists', { sets: [], sharedSets: [], pageClass: 'page-compact', sort: req.query.sort || 'created_asc' });
+    res.render('my_lists', { sets: [], sharedSets: [], pageClass: 'page-compact', sort: req.query.sort || 'custom' });
+  }
+});
+
+app.post('/my/lists/reorder', requireAuth, express.json(), async (req, res) => {
+  const userId = req.session.user.id;
+  const requested = [...new Set(normalizeIds(req.body.ordered_ids))];
+  if (!requested.length) return res.status(400).json({ success: false, error: 'Aucun identifiant fourni.' });
+  try {
+    const ownedRows = await all('SELECT id FROM sets WHERE user_id = ?', [userId]);
+    const ownedIds = new Set(ownedRows.map(r => Number(r.id)));
+    const invalid = requested.filter(id => !ownedIds.has(id));
+    if (invalid.length > 0) {
+      return res.status(403).json({ success: false, error: 'Listes non autorisées.' });
+    }
+
+    const allRows = await all('SELECT id FROM sets ORDER BY id ASC');
+    const existingIds = allRows.map(r => Number(r.id));
+    if (existingIds.length === 0) return res.json({ success: true, changed: false });
+    const missing = requested.filter(id => !existingIds.includes(id));
+    if (missing.length > 0) {
+      return res.status(400).json({ success: false, error: 'Listes inconnues.' });
+    }
+
+    const remaining = existingIds.filter(id => !requested.includes(id));
+    const finalOrder = [...requested, ...remaining];
+    if (finalOrder.length !== existingIds.length) {
+      return res.status(400).json({ success: false, error: 'Ordre incomplet.' });
+    }
+
+    const mapping = new Map();
+    finalOrder.forEach((oldId, idx) => mapping.set(oldId, idx + 1));
+    const moves = finalOrder
+      .map(oldId => ({ oldId, newId: mapping.get(oldId) }))
+      .filter(move => move.newId !== move.oldId);
+
+    const moveEverywhere = async (fromId, toId) => {
+      await run('UPDATE cards SET set_id = ? WHERE set_id = ?', [toId, fromId]);
+      await run('UPDATE set_shares SET set_id = ? WHERE set_id = ?', [toId, fromId]);
+      await run('UPDATE user_set_overrides SET set_id = ? WHERE set_id = ?', [toId, fromId]);
+      await run('UPDATE sets SET id = ? WHERE id = ?', [toId, fromId]);
+    };
+
+    if (moves.length > 0) {
+      const maxRow = await get('SELECT MAX(id) AS max_id FROM sets');
+      const tempBase = (maxRow && maxRow.max_id ? Number(maxRow.max_id) : 0) + 100000;
+
+      for (const move of moves) {
+        const tempId = tempBase + move.newId;
+        await moveEverywhere(move.oldId, tempId);
+      }
+
+      for (const move of moves) {
+        const tempId = tempBase + move.newId;
+        await moveEverywhere(tempId, move.newId);
+      }
+    }
+
+    for (let i = 0; i < finalOrder.length; i++) {
+      const newId = i + 1;
+      await run('UPDATE sets SET display_no = ? WHERE id = ?', [newId, newId]);
+    }
+
+    res.json({
+      success: true,
+      changed: moves.length > 0,
+      mapping: Object.fromEntries(finalOrder.map((oldId, idx) => [oldId, idx + 1]))
+    });
+  } catch (e) {
+    console.error('Reorder lists error:', e);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
@@ -2326,556 +3082,6 @@ app.post('/my/lists/:id/leave', requireAuth, async (req, res) => {
   res.redirect('/my/lists');
 });
 
-app.get('/space', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  try {
-    const overallWords = await get(
-      `SELECT
-        COUNT(DISTINCT p.word_id) AS words_seen,
-        SUM(p.success_count) AS total_success,
-        SUM(p.fail_count) AS total_fail,
-        AVG(p.strength) AS avg_strength,
-        COUNT(*) AS progress_count
-       FROM progress p
-       WHERE p.user_id = ?`,
-      [userId]
-    );
-    const overallCards = await get(
-      `SELECT
-        COUNT(DISTINCT cp.card_id) AS cards_seen,
-        SUM(cp.success_count) AS total_success,
-        SUM(cp.fail_count) AS total_fail
-       FROM card_progress cp
-       JOIN cards c ON c.id = cp.card_id
-       JOIN sets s ON s.id = c.set_id AND s.active = 1
-       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
-       LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
-       WHERE cp.user_id = ? AND COALESCE(uso.active, s.active) = 1 AND (s.user_id = ? OR sh.id IS NOT NULL)`,
-      [userId, userId, userId, userId]
-    );
-    const overall = {
-      words_seen: overallWords?.words_seen || 0,
-      cards_seen: overallCards?.cards_seen || 0,
-      total_success: (overallWords?.total_success || 0) + (overallCards?.total_success || 0),
-      total_fail: (overallWords?.total_fail || 0) + (overallCards?.total_fail || 0),
-      avg_strength: 0
-    };
-    overall.total_seen = overall.words_seen + overall.cards_seen;
-    const allAttempts = overall.total_success + overall.total_fail;
-    if (allAttempts > 0) {
-      overall.avg_strength = Math.round((overall.total_success / allAttempts) * 100);
-    }
-
-    const themeRows = await all(
-      `SELECT t.id AS theme_id, t.name,
-              w.id AS word_id, w.hebrew, w.french, w.transliteration,
-              p.good_total, p.bad_total, p.streak, p.last_seen_at, p.last_seen, p.last_wrong_at, p.history_json, p.status
-       FROM themes t
-       LEFT JOIN words w ON w.theme_id = t.id AND w.active = 1
-       LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = ?
-       LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
-       WHERE t.user_id IS NULL
-         AND t.active = 1
-         AND COALESCE(uto.active, 1) = 1
-         AND NOT EXISTS (
-           SELECT 1 FROM themes child
-           WHERE child.parent_id = t.id AND child.active = 1
-         )
-       ORDER BY t.id ASC, w.id ASC`,
-      [userId, userId]
-    );
-    const themeMap = new Map();
-    for (const row of themeRows) {
-      if (!themeMap.has(row.theme_id)) {
-        themeMap.set(row.theme_id, {
-          id: row.theme_id,
-          name: row.name,
-          total_words: 0,
-          seen_words: 0,
-          memorized: 0,
-          learning: 0,
-          struggling: 0
-        });
-      }
-      if (row.word_id) {
-        const snap = normalizeProgressSnapshot(row);
-        const entry = themeMap.get(row.theme_id);
-        entry.total_words += 1;
-        if (snap.seen) entry.seen_words += 1;
-        if (snap.status === WORD_STATUS_MEMORIZED) entry.memorized += 1;
-        else if (snap.status === WORD_STATUS_STRUGGLING) entry.struggling += 1;
-        else entry.learning += 1;
-      }
-    }
-    const themeStats = Array.from(themeMap.values());
-
-    const setRows = await all(
-      `SELECT s.id AS set_id, s.name, owner.display_name AS owner_name,
-              c.id AS card_id, c.hebrew, c.french, c.transliteration,
-              cp.good_total, cp.bad_total, cp.streak, cp.last_seen_at, cp.last_seen, cp.last_wrong_at, cp.history_json, cp.status
-       FROM sets s
-       JOIN users owner ON owner.id = s.user_id
-       LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
-       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
-       LEFT JOIN cards c ON c.set_id = s.id AND c.active = 1
-       LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
-       LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = ?
-       WHERE s.active = 1
-         AND COALESCE(uso.active, s.active) = 1
-         AND (s.user_id = ? OR sh.id IS NOT NULL)
-         AND (c.id IS NULL OR COALESCE(co.active, c.active) = 1)
-       ORDER BY s.id ASC, c.position ASC, c.id ASC`,
-      [userId, userId, userId, userId, userId]
-    );
-    const setMap = new Map();
-    for (const row of setRows) {
-      if (!setMap.has(row.set_id)) {
-        setMap.set(row.set_id, {
-          id: row.set_id,
-          name: row.name,
-          owner_name: row.owner_name,
-          total_cards: 0,
-          seen_cards: 0,
-          memorized: 0,
-          learning: 0,
-          struggling: 0
-        });
-      }
-      if (row.card_id) {
-        const snap = normalizeProgressSnapshot(row);
-        const entry = setMap.get(row.set_id);
-        entry.total_cards += 1;
-        if (snap.seen) entry.seen_cards += 1;
-        if (snap.status === WORD_STATUS_MEMORIZED) entry.memorized += 1;
-        else if (snap.status === WORD_STATUS_STRUGGLING) entry.struggling += 1;
-        else entry.learning += 1;
-      }
-    }
-    const setStats = Array.from(setMap.values());
-
-    res.render('space', {
-      overall,
-      setStats,
-      themeStats,
-      pageClass: 'page-compact'
-    });
-  } catch (e) {
-    console.error(e);
-    res.render('space', {
-      overall: null,
-      setStats: [],
-      themeStats: [],
-      pageClass: 'page-compact'
-    });
-  }
-});
-
-app.get('/space/:slug', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const parsed = parseSpaceSlug(req.params.slug);
-  if (!parsed || !parsed.id) return res.redirect('/space');
-
-  try {
-    if (parsed.type === 'set') {
-      const set = await get(
-        `SELECT s.*, owner.display_name AS owner_name,
-                COALESCE(uso.active, s.active) AS effective_active,
-                sh.id AS shared_id
-         FROM sets s
-         JOIN users owner ON owner.id = s.user_id
-         LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
-         LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
-         WHERE s.id = ?`,
-        [userId, userId, parsed.id]
-      );
-      const isOwner = set && set.user_id === userId;
-      const isShared = set && set.shared_id;
-      const active = set && Number(set.effective_active) === 1 && Number(set.active) === 1;
-      if (!set || (!isOwner && !isShared) || !active) {
-        return res.redirect('/space');
-      }
-      const cardsRaw = await all(
-        `SELECT c.*, co.active AS override_active,
-                cp.good_total, cp.bad_total, cp.streak, cp.last_seen_at, cp.last_seen, cp.last_wrong_at, cp.history_json, cp.status
-         FROM cards c
-         LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
-         LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = ?
-         WHERE c.set_id = ? AND COALESCE(co.active, c.active) = 1
-         ORDER BY c.position ASC, c.id ASC`,
-        [userId, userId, set.id]
-      );
-      const cards = cardsRaw.map(c => {
-        const snap = normalizeProgressSnapshot(c);
-        return {
-          ...c,
-          ...snap,
-          status_label: statusLabel(snap.status),
-          last_seen_label: formatDateLabel(snap.last_seen_at),
-          last_wrong_label: formatDateLabel(snap.last_wrong_at)
-        };
-      });
-      const stats = {
-        total: cards.length,
-        seen: cards.filter(c => c.seen).length,
-        memorized: cards.filter(c => c.status === WORD_STATUS_MEMORIZED).length,
-        learning: cards.filter(c => c.status === WORD_STATUS_LEARNING).length,
-        struggling: cards.filter(c => c.status === WORD_STATUS_STRUGGLING).length
-      };
-      stats.progress_pct = stats.total ? Math.round((stats.seen / stats.total) * 100) : 0;
-      stats.memorized_pct = stats.total ? Math.round((stats.memorized / stats.total) * 100) : 0;
-      const weakest = pickWeakestItem(cards);
-      const lastError = pickLastError(cards);
-      const nextReviewDate =
-        cards
-          .map(c => c.nextReview)
-          .filter(Boolean)
-          .sort((a, b) => new Date(a) - new Date(b))[0] || null;
-      const nextReviewLabel = formatDateLabel(nextReviewDate);
-
-      return res.render('space_detail', {
-        type: 'set',
-        theme: null,
-        set,
-        stats,
-        items: cards,
-        weakest,
-        lastError,
-        nextReviewLabel,
-        pageClass: 'page-compact'
-      });
-    }
-
-    const theme = await get(
-      `SELECT t.*, COALESCE(uto.active, t.active) AS effective_active
-       FROM themes t
-       LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
-       WHERE t.id = ?`,
-      [userId, parsed.id]
-    );
-    const allowed =
-      theme &&
-      Number(theme.active) === 1 &&
-      Number(theme.effective_active ?? 1) === 1 &&
-      (!theme.user_id || theme.user_id === userId);
-    if (!allowed) return res.redirect('/space');
-
-    const wordsRaw = await all(
-      `SELECT w.id, w.hebrew, w.transliteration, w.french,
-              p.good_total, p.bad_total, p.streak, p.last_seen_at, p.last_seen, p.last_wrong_at, p.history_json, p.status
-       FROM words w
-       LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = ?
-       WHERE w.theme_id = ? AND w.active = 1 AND (w.user_id IS NULL OR w.user_id = ?)
-       ORDER BY w.id ASC`,
-      [userId, theme.id, userId]
-    );
-    const words = wordsRaw.map(w => {
-      const snap = normalizeProgressSnapshot(w);
-      return {
-        ...w,
-        ...snap,
-        status_label: statusLabel(snap.status),
-        last_seen_label: formatDateLabel(snap.last_seen_at),
-        last_wrong_label: formatDateLabel(snap.last_wrong_at)
-      };
-    });
-    const stats = {
-      total: words.length,
-      seen: words.filter(w => w.seen).length,
-      memorized: words.filter(w => w.status === WORD_STATUS_MEMORIZED).length,
-      learning: words.filter(w => w.status === WORD_STATUS_LEARNING).length,
-      struggling: words.filter(w => w.status === WORD_STATUS_STRUGGLING).length
-    };
-    stats.progress_pct = stats.total ? Math.round((stats.seen / stats.total) * 100) : 0;
-    stats.memorized_pct = stats.total ? Math.round((stats.memorized / stats.total) * 100) : 0;
-    const weakest = pickWeakestItem(words);
-    const lastError = pickLastError(words);
-    const nextReviewDate =
-      words
-        .map(w => w.nextReview)
-        .filter(Boolean)
-        .sort((a, b) => new Date(a) - new Date(b))[0] || null;
-    const nextReviewLabel = formatDateLabel(nextReviewDate);
-
-    return res.render('space_detail', {
-      type: 'theme',
-      theme,
-      set: null,
-      stats,
-      items: words,
-      weakest,
-      lastError,
-      nextReviewLabel,
-      pageClass: 'page-compact'
-    });
-  } catch (e) {
-    console.error('Space detail error', e);
-    return res.redirect('/space');
-  }
-});
-
-// ---------- Recherche globale ----------
-app.get('/search', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  try {
-    const themeWords = await all(
-      `SELECT w.id, w.hebrew, w.french, w.transliteration,
-              w.active AS word_active,
-              w.user_id,
-              w.theme_id,
-              w.level_id,
-              t.name AS theme_name,
-              t.user_id AS theme_owner_id,
-              t.active AS theme_active,
-              COALESCE(uto.active, t.active) AS theme_user_active,
-              l.name AS level_name,
-              l.active AS level_active,
-              uwo.active AS override_active
-         FROM words w
-         LEFT JOIN themes t ON t.id = w.theme_id
-         LEFT JOIN theme_levels l ON l.id = w.level_id
-         LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
-         LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
-        WHERE (w.user_id IS NULL OR w.user_id = ?)
-          AND (w.theme_id IS NULL OR t.user_id IS NULL OR t.user_id = ?)
-        ORDER BY w.id ASC`,
-      [userId, userId, userId, userId]
-    );
-
-    const listCards = await all(
-      `SELECT c.id, c.hebrew, c.french, c.transliteration,
-              c.active AS card_active,
-              c.set_id,
-              s.name AS set_name,
-              s.user_id AS owner_id,
-              owner.display_name AS owner_name,
-              s.active AS set_active,
-              COALESCE(uso.active, s.active) AS set_user_active,
-              co.active AS override_active,
-              sh.id AS share_id
-         FROM sets s
-         JOIN users owner ON owner.id = s.user_id
-         JOIN cards c ON c.set_id = s.id
-         LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
-         LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
-         LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
-        WHERE s.user_id = ? OR sh.id IS NOT NULL
-        ORDER BY s.created_at DESC, c.position ASC, c.id ASC`,
-      [userId, userId, userId, userId]
-    );
-
-    const searchItems = [];
-
-    for (const w of themeWords) {
-      const themeActive = w.theme_id ? (w.theme_user_active === null ? w.theme_active : w.theme_user_active) : 1;
-      const levelActive = w.level_id ? w.level_active : 1;
-      const containerActive = themeActive && levelActive ? 1 : 0;
-      const effectiveActive =
-        (w.word_active && containerActive)
-          ? (w.override_active === null ? w.word_active : w.override_active)
-          : 0;
-      searchItems.push({
-        id: `word-${w.id}`,
-        kind: 'theme',
-        hebrew: w.hebrew,
-        french: w.french,
-        transliteration: w.transliteration || '',
-        location: w.theme_name || 'Sans theme',
-        level: w.level_name || '',
-        origin: w.user_id ? 'mine' : 'global',
-        active: effectiveActive ? 1 : 0,
-        baseActive: w.word_active ? 1 : 0,
-        containerActive,
-        levelActive: levelActive ? 1 : 0
-      });
-    }
-
-    for (const c of listCards) {
-      const setActive = c.set_user_active === null ? c.set_active : c.set_user_active;
-      const cardActive = c.override_active === null ? c.card_active : c.override_active;
-      const effectiveActive = setActive && cardActive ? 1 : 0;
-      searchItems.push({
-        id: `card-${c.id}`,
-        kind: 'list',
-        hebrew: c.hebrew,
-        french: c.french,
-        transliteration: c.transliteration || '',
-        location: c.set_name,
-        owner: c.owner_name,
-        origin: c.owner_id === userId ? 'mine' : 'shared',
-        active: effectiveActive ? 1 : 0,
-        baseActive: c.card_active ? 1 : 0,
-        containerActive: setActive ? 1 : 0,
-        levelActive: 1
-      });
-    }
-
-    searchItems.sort((a, b) => {
-      return String(a.french || '').localeCompare(String(b.french || ''), 'fr', { sensitivity: 'base' });
-    });
-
-    res.render('search', {
-      searchItems,
-      counts: {
-        total: searchItems.length,
-        themes: themeWords.length,
-        lists: listCards.length
-      },
-      title: 'Recherche'
-    });
-  } catch (e) {
-    console.error('Search page error:', e);
-    res.render('search', { searchItems: [], counts: { total: 0, themes: 0, lists: 0 }, title: 'Recherche' });
-  }
-});
-
-app.get('/search/duplicates', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const isAdmin = req.session.user && req.session.user.role === 'admin';
-  try {
-    const ignoredRows = await all('SELECT dup_key FROM duplicate_ignores WHERE user_id = ?', [userId]);
-    const ignoredSet = new Set(ignoredRows.map(r => r.dup_key));
-
-    const themeWords = await all(
-      `SELECT w.id, w.hebrew, w.french, w.transliteration, w.user_id, w.theme_id, w.level_id,
-              w.active AS word_active,
-              t.name AS theme_name,
-              t.active AS theme_active,
-              COALESCE(uto.active, t.active) AS theme_user_active,
-              l.name AS level_name,
-              l.active AS level_active,
-              uwo.active AS override_active
-         FROM words w
-         LEFT JOIN themes t ON t.id = w.theme_id
-         LEFT JOIN theme_levels l ON l.id = w.level_id
-         LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
-         LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
-        WHERE w.user_id IS NULL OR w.user_id = ?`,
-      [userId, userId, userId]
-    );
-
-    const accessibleSetIds = await getAccessibleSetIds(userId);
-    let listCards = [];
-    if (accessibleSetIds.length > 0) {
-      const ph = accessibleSetIds.map(() => '?').join(',');
-      listCards = await all(
-        `SELECT c.id, c.hebrew, c.french, c.transliteration,
-                c.active AS card_active,
-                c.set_id,
-                s.name AS set_name,
-                s.user_id AS owner_id,
-                u.display_name AS owner_name,
-                s.active AS set_active,
-                COALESCE(uso.active, s.active) AS set_user_active,
-                co.active AS override_active,
-                sh.can_edit
-           FROM cards c
-           JOIN sets s ON s.id = c.set_id
-           JOIN users u ON u.id = s.user_id
-           LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
-           LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
-           LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
-          WHERE s.id IN (${ph})`,
-        [userId, userId, userId, ...accessibleSetIds]
-      );
-    }
-
-    const map = new Map();
-    const addItem = (key, item) => {
-      if (!key) return;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(item);
-    };
-
-    themeWords.forEach(w => {
-      const key = duplicateKey(w.hebrew, w.french);
-      const themeActive = w.theme_id ? (w.theme_user_active === null ? w.theme_active : w.theme_user_active) : 1;
-      const levelActive = w.level_id ? w.level_active : 1;
-      const containerActive = themeActive && levelActive ? 1 : 0;
-      const effectiveActive = containerActive ? (w.override_active === null ? w.word_active : w.override_active) : 0;
-      addItem(key, {
-        key,
-        kind: 'theme',
-        id: w.id,
-        hebrew: w.hebrew,
-        french: w.french,
-        transliteration: w.transliteration || '',
-        container: w.theme_name || 'Sans theme',
-        level: w.level_name || '',
-        themeId: w.theme_id || null,
-        active: effectiveActive ? 1 : 0,
-        baseActive: w.word_active ? 1 : 0,
-        containerActive,
-        levelActive: levelActive ? 1 : 0,
-        isOwner: w.user_id === userId,
-        isGlobal: !w.user_id
-      });
-    });
-
-    listCards.forEach(c => {
-      const key = duplicateKey(c.hebrew, c.french);
-      const setActive = c.set_user_active === null ? c.set_active : c.set_user_active;
-      const cardActive = c.override_active === null ? c.card_active : c.override_active;
-      const effectiveActive = setActive && cardActive ? 1 : 0;
-      const isOwner = c.owner_id === userId;
-      const canEdit = isOwner || Number(c.can_edit) === 1;
-      addItem(key, {
-        key,
-        kind: 'list',
-        id: c.id,
-        setId: c.set_id,
-        hebrew: c.hebrew,
-        french: c.french,
-        transliteration: c.transliteration || '',
-        container: c.set_name || 'Sans liste',
-        ownerName: c.owner_name || '',
-        active: effectiveActive ? 1 : 0,
-        baseActive: c.card_active ? 1 : 0,
-        containerActive: setActive ? 1 : 0,
-        isOwner,
-        canEdit
-      });
-    });
-
-    const groups = Array.from(map.entries())
-      .filter(([, items]) => items.length > 1)
-      .map(([key, items]) => ({
-        key,
-        items,
-        sample: items[0],
-        kind:
-          items.some(i => i.kind === 'theme') && items.some(i => i.kind === 'list')
-            ? 'cross'
-            : items[0].kind
-      }))
-      .sort((a, b) => String(a.sample.french || '').localeCompare(String(b.sample.french || ''), 'fr', { sensitivity: 'base' }));
-
-    const ignoredGroups = groups.filter(g => ignoredSet.has(g.key));
-    const activeGroups = groups.filter(g => !ignoredSet.has(g.key));
-
-    res.render('duplicates_user', { groups: activeGroups, ignoredGroups, title: 'Doublons', isAdmin });
-  } catch (e) {
-    console.error('User duplicate scan error:', e);
-    res.render('duplicates_user', { groups: [], ignoredGroups: [], title: 'Doublons', isAdmin: false });
-  }
-});
-
-app.post('/search/duplicates/ignore', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const { dup_key, action } = req.body;
-  const backUrl = '/search/duplicates';
-  if (!dup_key) return res.redirect(backUrl);
-  try {
-    if (action === 'ignore') {
-      await run('INSERT OR IGNORE INTO duplicate_ignores (user_id, dup_key) VALUES (?, ?)', [userId, dup_key]);
-    } else if (action === 'unignore') {
-      await run('DELETE FROM duplicate_ignores WHERE user_id = ? AND dup_key = ?', [userId, dup_key]);
-    }
-  } catch (e) {
-    console.error('Ignore duplicate toggle error:', e);
-  }
-  res.redirect(backUrl);
-});
-
 app.get('/my/lists/new', requireAuth, (req, res) => {
   res.render('my_list_form', {
     set: null,
@@ -2911,11 +3117,12 @@ app.get('/my/lists/:id', requireAuth, async (req, res) => {
        ORDER BY c.position ASC, c.id ASC`,
       [userId, set.id]
     );
-    const normalizedCards = cards.map(c => ({
+    const normalizedCards = cards.map((c, idx) => ({
       ...c,
       active: c.effective_active,
       favorite: c.effective_favorite,
-      memorized: c.effective_memorized
+      memorized: c.effective_memorized,
+      display_index: idx + 1
     }));
     const otherSets = await all(
       'SELECT id, name FROM sets WHERE user_id = ? AND id != ? AND active = 1 ORDER BY created_at DESC',
@@ -3030,7 +3237,7 @@ app.get('/my/lists/:id/cards/:cardId/edit', requireAuth, async (req, res) => {
     const shared = await get('SELECT can_edit FROM set_shares WHERE set_id = ? AND user_id = ?', [set.id, userId]);
     const canEdit = set.user_id === userId || (shared && Number(shared.can_edit) === 1);
     if (!canEdit) return res.redirect('/my/lists');
-    const card = await get('SELECT * FROM cards WHERE id = ? AND set_id = ?', [req.params.cardId, set.id]);
+    const card = await findCardInSet(set.id, req.params.cardId);
     if (!card) return res.redirect(`/my/lists/${set.id}`);
     res.render('my_card_form', {
       set,
@@ -3052,7 +3259,7 @@ app.put('/my/lists/:id/cards/:cardId', requireAuth, async (req, res) => {
     const shared = await get('SELECT can_edit FROM set_shares WHERE set_id = ? AND user_id = ?', [set.id, userId]);
     const canEdit = set.user_id === userId || (shared && Number(shared.can_edit) === 1);
     if (!canEdit) return res.redirect('/my/lists');
-    const card = await get('SELECT * FROM cards WHERE id = ? AND set_id = ?', [req.params.cardId, set.id]);
+    const card = await findCardInSet(set.id, req.params.cardId);
     if (!card) return res.redirect(`/my/lists/${set.id}`);
     const { hebrew, french, transliteration, active, favorite, memorized } = req.body;
     if (!hebrew || !french) {
@@ -3146,9 +3353,6 @@ app.post('/my/lists/:id/duplicate', requireAuth, async (req, res) => {
     if (!source) return res.redirect('/my/lists');
     let suffix = 1;
     let newName = `${source.name} (${suffix})`;
-    // Avoid name collisions similar to Windows
-    // Keep incrementing suffix until an available name is found
-    // Add small guard to avoid tight infinite loop
     while (suffix < 200) {
       const existing = await get('SELECT 1 FROM sets WHERE user_id = ? AND name = ?', [userId, newName]);
       if (!existing) break;
@@ -3279,6 +3483,7 @@ app.put('/my/lists/:id', requireAuth, async (req, res) => {
           await run('DELETE FROM cards WHERE id = ? AND set_id = ?', [id, set.id]);
         }
       }
+      await compactCards();
     }
 
     res.redirect('/my/lists');
@@ -3308,10 +3513,10 @@ app.post('/my/lists/:id/cards/:cardId/action', requireAuth, async (req, res) => 
     const shared = await get('SELECT can_edit FROM set_shares WHERE set_id = ? AND user_id = ?', [set.id, userId]);
     const isCollaborator = shared && Number(shared.can_edit) === 1;
     if (isAdmin) {
-      isOwner = true; // admin can agir comme proprio pour modifs
+      isOwner = true;
     }
     if (!isOwner && !shared && !isAdmin) return res.redirect(backUrl);
-    const card = await get('SELECT * FROM cards WHERE id = ? AND set_id = ?', [req.params.cardId, set.id]);
+    const card = await findCardInSet(set.id, req.params.cardId);
     if (!card) return res.redirect(backUrl);
     const existingOverride = await get('SELECT * FROM card_overrides WHERE card_id = ? AND user_id = ?', [card.id, userId]);
 
@@ -3328,6 +3533,7 @@ app.post('/my/lists/:id/cards/:cardId/action', requireAuth, async (req, res) => 
         for (let i = 0; i < remaining.length; i++) {
           await run('UPDATE cards SET position = ? WHERE id = ?', [i + 1, remaining[i].id]);
         }
+        await compactCards();
       }
     } else if (isCollaborator) {
       if (action === 'toggle_fav') {
@@ -3350,7 +3556,6 @@ app.post('/my/lists/:id/cards/:cardId/action', requireAuth, async (req, res) => 
         await run('UPDATE cards SET memorized = ? WHERE id = ?', [card.memorized ? 0 : 1, card.id]);
       }
     } else {
-      // Shared list: only overrides per user
       const base = {
         active: card.active,
         favorite: card.favorite,
@@ -3469,7 +3674,7 @@ app.post('/my/cards/batch-toggle-active', requireAuth, express.json(), async (re
       if (isOwner || isCollaborator) {
         const newStatus = card.active ? 0 : 1;
         await run('UPDATE cards SET active = ? WHERE id = ?', [newStatus, card.id]);
-      } else { // Shared read-only user
+      } else {
         const currentEffectiveStatus = card.override_active === null ? card.active : card.override_active;
         const newStatus = currentEffectiveStatus ? 0 : 1;
         await run(
@@ -3496,170 +3701,26 @@ app.delete('/my/lists/:id', requireAuth, async (req, res) => {
     await run('DELETE FROM user_set_overrides WHERE set_id = ?', [set.id]);
     await run('DELETE FROM cards WHERE set_id = ?', [set.id]);
     await run('DELETE FROM sets WHERE id = ?', [set.id]);
-    await renumberSets(userId);
+
+    // Shift IDs of subsequent sets to fill the gap (GLOBAL SHIFT)
+    const setsToShift = await all('SELECT id FROM sets WHERE id > ? ORDER BY id ASC', [set.id]);
+    for (const s of setsToShift) {
+      const newId = s.id - 1;
+      // Clean up potential orphans
+      await run('DELETE FROM user_set_overrides WHERE set_id = ?', [newId]);
+      await run('DELETE FROM set_shares WHERE set_id = ?', [newId]);
+
+      await run('UPDATE cards SET set_id = ? WHERE set_id = ?', [newId, s.id]);
+      await run('UPDATE set_shares SET set_id = ? WHERE set_id = ?', [newId, s.id]);
+      await run('UPDATE user_set_overrides SET set_id = ? WHERE set_id = ?', [newId, s.id]);
+      await run('UPDATE sets SET id = ? WHERE id = ?', [newId, s.id]);
+    }
+
+    await renumberAllThemesAndSets();
     res.redirect('/my/lists');
   } catch (e) {
     console.error(e);
     res.redirect('/my/lists');
-  }
-});
-
-// ---------- Themes utilisateur ----------
-async function renderThemeList(req, res) {
-  const userId = req.session.user.id;
-  const isAdmin = req.session.user && req.session.user.role === 'admin';
-  try {
-    const allThemes = await all(
-      `SELECT t.*,
-        COALESCE(uto.active, t.active) AS effective_active,
-        uto.active AS user_active,
-        (SELECT COUNT(*) FROM theme_levels l WHERE l.theme_id = t.id) AS level_count
-       FROM themes t
-       LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
-       WHERE t.user_id IS NULL
-       ORDER BY t.display_no ASC, t.id ASC`,
-      [userId]
-    );
-
-    // Build hierarchy
-    const themeMap = new Map();
-    const rootThemes = [];
-
-    // First pass: create nodes
-    allThemes.forEach(t => {
-      t.children = [];
-      themeMap.set(t.id, t);
-    });
-
-    // Second pass: link parents and children
-    allThemes.forEach(t => {
-      if (t.parent_id && themeMap.has(t.parent_id)) {
-        themeMap.get(t.parent_id).children.push(t);
-      } else {
-        rootThemes.push(t);
-      }
-    });
-
-    // Filter active/inactive based on root themes, but keep structure
-    // For the view, we might want to pass the whole tree and let the view decide visibility
-    // But existing logic separates active/inactive.
-    // Let's keep existing logic for roots, and children are properties of roots.
-
-    const activeThemes = rootThemes.filter(t => Number(t.effective_active) === 1 && Number(t.active) === 1);
-    const inactiveProposed = rootThemes.filter(t => Number(t.active) === 0);
-    const inactivePersonal = rootThemes.filter(t => Number(t.active) === 1 && Number(t.effective_active) === 0);
-
-    res.render('themes', {
-      activeThemes,
-      inactiveProposed,
-      inactivePersonal,
-      isAdmin,
-      pageClass: 'page-compact'
-    });
-  } catch (e) {
-    console.error(e);
-    res.render('themes', { activeThemes: [], inactiveProposed: [], inactivePersonal: [], isAdmin, pageClass: 'page-compact' });
-  }
-}
-
-app.get('/themes', requireAuth, renderThemeList);
-app.get('/my/themes', requireAuth, renderThemeList);
-
-app.post('/themes/:id/toggle-visibility', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const backUrl = req.get('referer') || '/themes';
-  try {
-    const theme = await get(
-      `SELECT t.*, COALESCE(uto.active, t.active) AS effective_active
-       FROM themes t
-       LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
-       WHERE t.id = ?`,
-      [userId, req.params.id]
-    );
-    if (!theme) return res.redirect('/themes');
-    if (theme.user_id && theme.user_id !== userId) return res.redirect('/themes');
-    if (!theme.active) return res.redirect(backUrl);
-    const nextStatus = theme.effective_active ? 0 : 1;
-
-    // Apply the same visibility to the theme and, if it's a parent, all direct subthemes.
-    const idsToUpdate = [theme.id];
-    if (!theme.parent_id) {
-      const children = await all('SELECT id FROM themes WHERE parent_id = ?', [theme.id]);
-      children.forEach(c => idsToUpdate.push(c.id));
-    }
-
-    for (const id of idsToUpdate) {
-      await run(
-        'INSERT INTO user_theme_overrides (theme_id, user_id, active) VALUES (?,?,?) ON CONFLICT(theme_id, user_id) DO UPDATE SET active=excluded.active',
-        [id, userId, nextStatus]
-      );
-    }
-  } catch (e) {
-    console.error('Toggle theme visibility error:', e);
-  }
-  res.redirect(backUrl);
-});
-
-// ---------- Sets (Quizlet-like) ----------
-app.get('/my/themes/new', requireAuth, async (req, res) => {
-  res.render('my_theme_form', { theme: null, action: '/my/themes' });
-});
-
-app.post('/my/themes', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const { name } = req.body;
-  if (!name) return res.redirect('/themes');
-  try {
-    const displayNo = await nextDisplayNo('themes', userId);
-    const newId = await findFirstAvailableId('themes');
-    await run('INSERT INTO themes (id, name, user_id, created_at, display_no) VALUES (?,?,?, CURRENT_TIMESTAMP, ?)', [newId, name, userId, displayNo]);
-    res.redirect('/themes');
-  } catch (e) {
-    console.error(e);
-    res.redirect('/themes');
-  }
-});
-
-app.get('/my/themes/:id/edit', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  try {
-    const theme = await get('SELECT * FROM themes WHERE id = ? AND user_id = ?', [req.params.id, userId]);
-    if (!theme) return res.redirect('/themes');
-    res.render('my_theme_form', { theme, action: `/my/themes/${theme.id}?_method=PUT` });
-  } catch (e) {
-    console.error(e);
-    res.redirect('/themes');
-  }
-});
-
-app.put('/my/themes/:id', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const { name } = req.body;
-  try {
-    await run('UPDATE themes SET name = ? WHERE id = ? AND user_id = ?', [name, req.params.id, userId]);
-    res.redirect('/themes');
-  } catch (e) {
-    console.error(e);
-    res.redirect('/themes');
-  }
-});
-
-app.delete('/my/themes/:id', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  try {
-    await run(
-      'UPDATE words SET level_id = NULL WHERE level_id IN (SELECT id FROM theme_levels WHERE theme_id = ?) AND user_id = ?',
-      [req.params.id, userId]
-    );
-    await run('UPDATE words SET theme_id = NULL WHERE theme_id = ? AND user_id = ?', [req.params.id, userId]);
-    await run('DELETE FROM theme_levels WHERE theme_id = ?', [req.params.id]);
-    await run('DELETE FROM user_theme_overrides WHERE theme_id = ?', [req.params.id]);
-    await run('DELETE FROM themes WHERE id = ? AND user_id = ?', [req.params.id, userId]);
-    await renumberThemes(userId);
-    res.redirect('/themes');
-  } catch (e) {
-    console.error(e);
-    res.redirect('/themes');
   }
 });
 
@@ -3801,6 +3862,7 @@ app.post('/train/session', requireAuth, async (req, res) => {
   const hasThemes = themeList.length > 0;
   const hasSets = setList.length > 0;
   const source = hasThemes && hasSets ? 'mixed' : hasSets ? 'cards' : 'words';
+  const reviewMode = (rev_mode || '').toLowerCase();
   let remain = remaining === 'all' ? null : Number(remaining || 10);
   const showPhonetic = String(show_phonetic) === '0' ? 0 : 1;
   const conflictChoice = req.body.conflict_choice;
@@ -3902,11 +3964,14 @@ app.post('/train/session', requireAuth, async (req, res) => {
   const setOrderMap = new Map(setList.map((id, idx) => [Number(id), idx]));
 
   // Preload pools when we need ordering
-  const needOrderedPools = (rev_mode || '').toLowerCase() === 'order';
+  const needOrderedPools = reviewMode === 'order';
   if (needOrderedPools) {
     if (hasSets) {
       const cards = await getEffectiveCardsForUser(req.session.user.id, setList);
-      poolCards = cards.map(c => ({
+      const effectiveCards = reviewMode === 'weak'
+        ? cards.filter(c => Number(c.memorized) !== 1)
+        : cards;
+      poolCards = effectiveCards.map(c => ({
         ...c,
         order_set: setOrderMap.has(Number(c.set_id)) ? setOrderMap.get(Number(c.set_id)) : Number.MAX_SAFE_INTEGER
       })).sort((a, b) => {
@@ -3948,6 +4013,9 @@ app.post('/train/session', requireAuth, async (req, res) => {
     };
     if (!poolCards && hasSets) {
       poolCards = await getEffectiveCardsForUser(req.session.user.id, setList);
+      if (reviewMode === 'weak') {
+        poolCards = poolCards.filter(c => Number(c.memorized) !== 1);
+      }
     }
     if (!poolWords && hasThemes) {
       poolWords = await getWordPoolForUser(req.session.user.id, baseFilters);
@@ -4144,7 +4212,10 @@ app.get('/train', requireAuth, async (req, res) => {
     if (filters.source === 'mixed') {
       const allowedSetIds = await getAccessibleSetIds(userId);
       const filteredIds = (filters.set_ids || []).filter(id => allowedSetIds.includes(Number(id)));
-      const cardsPool = filteredIds.length > 0 ? await getEffectiveCardsForUser(userId, filteredIds) : [];
+      const rawCardsPool = filteredIds.length > 0 ? await getEffectiveCardsForUser(userId, filteredIds) : [];
+      const cardsPool = reviewMode === 'weak'
+        ? rawCardsPool.filter(c => Number(c.memorized) !== 1)
+        : rawCardsPool;
       const usedCardSet = new Set(state.usedCardIds.map(id => Number(id)).filter(id => !Number.isNaN(id)));
       let availableCards = cardsPool.filter(c => !usedCardSet.has(Number(c.id)));
       if (availableCards.length === 0 && cardsPool.length > 0 && reviewMode !== 'order') {
@@ -4389,7 +4460,10 @@ app.get('/train', requireAuth, async (req, res) => {
           currentItemId = word.id;
           currentFavorite = word.favorite ? 1 : 0;
           const isReverse = questionMode === MODE_FLASHCARDS_REVERSE;
-          const cardsPool = await getEffectiveCardsForUser(userId, state.set_ids || []);
+          const rawCardsPool = await getEffectiveCardsForUser(userId, state.set_ids || []);
+          const cardsPool = reviewMode === 'weak'
+            ? rawCardsPool.filter(c => Number(c.memorized) !== 1)
+            : rawCardsPool;
           const poolCopy = cardsPool.filter(c => c.id !== cardId);
           const distractors = [];
           while (poolCopy.length > 0 && distractors.length < 3) {
@@ -4448,7 +4522,10 @@ app.get('/train', requireAuth, async (req, res) => {
           nextUrl: null
         });
       }
-      const cardsPool = await getEffectiveCardsForUser(userId, filteredIds);
+      const rawCardsPool = await getEffectiveCardsForUser(userId, filteredIds);
+      const cardsPool = reviewMode === 'weak'
+        ? rawCardsPool.filter(c => Number(c.memorized) !== 1)
+        : rawCardsPool;
       if (!cardsPool || cardsPool.length === 0) {
         req.session.trainState = state;
         return renderTrain({
@@ -4642,9 +4719,9 @@ app.get('/train', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/train/answer', requireAuth, async (req, res) => {
+const handleTrainAnswer = async (req, res) => {
   const userId = req.session.user.id;
-  const { word_id, user_answer, question_mode } = req.body;
+  const { word_id, user_answer, question_mode, choice_word_id } = req.body;
   const state = req.session.trainState;
   if (!state) return res.redirect('/train/setup');
 
@@ -4678,7 +4755,8 @@ app.post('/train/answer', requireAuth, async (req, res) => {
     ? prevAnswered + 1
     : Math.max(0, totalCount - remainingBefore) + 1;
   let correctCount = Number(state.correct || 0);
-  const normalizedAnswer = (user_answer || '').trim().toLowerCase();
+  const selectedChoice = typeof choice_word_id !== 'undefined' ? String(choice_word_id).trim() : '';
+  const hasChoice = selectedChoice.length > 0;
   let currentItemId = '';
   let currentFavorite = 0;
   const renderTrainAnswer = (payload) =>
@@ -4706,7 +4784,9 @@ app.post('/train/answer', requireAuth, async (req, res) => {
       if (!card) return res.redirect('/train');
       currentItemId = `card_${cardId}`;
       currentFavorite = card.effective_favorite ? 1 : 0;
-      const isCorrect = normalizedAnswer && normalizedAnswer === (card.french || '').trim().toLowerCase();
+      const isCorrect = hasChoice
+        ? selectedChoice === `card_${cardId}`
+        : isAnswerMatch(user_answer, card.french);
       if (isCorrect) correctCount += 1;
       await upsertCardProgress(userId, cardId, isCorrect);
       if (remainingCount > 0) {
@@ -4730,7 +4810,7 @@ app.post('/train/answer', requireAuth, async (req, res) => {
         result,
         mode: modeList[0] || activeMode,
         modes: modeList,
-        questionMode: MODE_WRITTEN,
+        questionMode: activeMode,
         filters,
         options: null,
         themes,
@@ -4748,7 +4828,9 @@ app.post('/train/answer', requireAuth, async (req, res) => {
     const favRow = await get('SELECT id FROM favorites WHERE user_id = ? AND word_id = ?', [userId, word_id]);
     currentFavorite = favRow ? 1 : 0;
 
-    const isCorrect = normalizedAnswer && normalizedAnswer === (word.french || '').trim().toLowerCase();
+    const isCorrect = hasChoice
+      ? selectedChoice === String(word_id)
+      : isAnswerMatch(user_answer, word.french);
     if (isCorrect) correctCount += 1;
 
     const progressUpdate = await upsertProgress(userId, word_id, isCorrect);
@@ -4774,7 +4856,7 @@ app.post('/train/answer', requireAuth, async (req, res) => {
       result,
       mode: modeList[0] || activeMode,
       modes: modeList,
-      questionMode: MODE_WRITTEN,
+      questionMode: activeMode,
       filters,
       options: null,
       themes,
@@ -4788,7 +4870,10 @@ app.post('/train/answer', requireAuth, async (req, res) => {
     console.error(e);
     return res.redirect('/train');
   }
-});
+};
+
+app.post('/train/answer', requireAuth, handleTrainAnswer);
+app.post('/train/flashcards', requireAuth, handleTrainAnswer);
 
 app.post('/train/favorite', requireAuth, express.json(), async (req, res) => {
   const userId = req.session.user.id;
@@ -5253,8 +5338,9 @@ app.post('/admin/users/:id/reset', requireAdmin, async (req, res) => {
 
 app.get('/admin/themes', requireAdmin, async (req, res) => {
   try {
-    const sort = req.query.sort || 'created_asc';
-    let orderBy = 'COALESCE(t.created_at, t.id) ASC';
+    const sort = req.query.sort || 'custom';
+    let orderBy = 'COALESCE(t.display_no, t.id) ASC, t.id ASC';
+    if (sort === 'created_asc') orderBy = 'COALESCE(t.created_at, t.id) ASC';
     if (sort === 'created_desc') orderBy = 'COALESCE(t.created_at, t.id) DESC';
     if (sort === 'alpha') orderBy = 't.name COLLATE NOCASE ASC';
     const themes = await all(
@@ -5291,7 +5377,73 @@ app.get('/admin/themes', requireAdmin, async (req, res) => {
     res.render('admin/themes', { themes: rootThemes, sort });
   } catch (e) {
     console.error(e);
-    res.render('admin/themes', { themes: [], sort: req.query.sort || 'created_asc' });
+    res.render('admin/themes', { themes: [], sort: req.query.sort || 'custom' });
+  }
+});
+
+app.post('/train/answer', requireAuth, handleTrainAnswer);
+app.post('/train/flashcards', requireAuth, handleTrainAnswer);
+
+app.post('/admin/themes/reorder', requireAdmin, express.json(), async (req, res) => {
+  const requested = [...new Set(normalizeIds(req.body.ordered_ids))];
+  if (!requested.length) return res.status(400).json({ success: false, error: 'Aucun identifiant fourni.' });
+
+  try {
+    const themeRows = await all('SELECT id FROM themes ORDER BY id ASC');
+    const allIds = themeRows.map(r => Number(r.id));
+    if (allIds.length === 0) return res.json({ success: true, changed: false });
+
+    const missing = requested.filter(id => !allIds.includes(id));
+    if (missing.length > 0) {
+      return res.status(400).json({ success: false, error: 'Thèmes inconnus.' });
+    }
+
+    const remaining = allIds.filter(id => !requested.includes(id));
+    const finalOrder = [...requested, ...remaining];
+    if (finalOrder.length !== allIds.length) {
+      return res.status(400).json({ success: false, error: 'Ordre incomplet.' });
+    }
+
+    const moves = finalOrder
+      .map((oldId, idx) => ({ oldId, newId: idx + 1 }))
+      .filter(move => move.oldId !== move.newId);
+
+    const moveThemeEverywhere = async (fromId, toId) => {
+      await run('UPDATE themes SET parent_id = ? WHERE parent_id = ?', [toId, fromId]);
+      await run('UPDATE words SET theme_id = ? WHERE theme_id = ?', [toId, fromId]);
+      await run('UPDATE theme_levels SET theme_id = ? WHERE theme_id = ?', [toId, fromId]);
+      await run('UPDATE user_theme_overrides SET theme_id = ? WHERE theme_id = ?', [toId, fromId]);
+      await run('UPDATE themes SET id = ? WHERE id = ?', [toId, fromId]);
+    };
+
+    if (moves.length > 0) {
+      const maxRow = await get('SELECT MAX(id) AS max_id FROM themes');
+      const tempBase = (maxRow && maxRow.max_id ? Number(maxRow.max_id) : 0) + 100000;
+
+      for (const move of moves) {
+        const tempId = tempBase + move.newId;
+        await moveThemeEverywhere(move.oldId, tempId);
+      }
+
+      for (const move of moves) {
+        const tempId = tempBase + move.newId;
+        await moveThemeEverywhere(tempId, move.newId);
+      }
+    }
+
+    for (let i = 0; i < finalOrder.length; i++) {
+      const newId = i + 1;
+      await run('UPDATE themes SET display_no = ? WHERE id = ?', [newId, newId]);
+    }
+
+    res.json({
+      success: true,
+      changed: moves.length > 0,
+      mapping: Object.fromEntries(finalOrder.map((oldId, idx) => [oldId, idx + 1]))
+    });
+  } catch (e) {
+    console.error('Reorder admin themes error:', e);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
@@ -5566,6 +5718,7 @@ app.put('/admin/themes/:id', requireAdmin, async (req, res) => {
       }
     }
 
+    await compactWords();
     res.redirect('/admin/themes');
   } catch (e) {
     console.error(e);
@@ -5609,6 +5762,7 @@ app.delete('/admin/themes/:id', requireAdmin, async (req, res) => {
       await run('DELETE FROM favorites WHERE word_id IN (SELECT id FROM words WHERE theme_id = ? AND user_id IS NULL)', [sub.id]);
       await run('DELETE FROM words WHERE theme_id = ? AND user_id IS NULL', [sub.id]);
       await run('DELETE FROM theme_levels WHERE theme_id = ?', [sub.id]);
+      await run('DELETE FROM user_theme_overrides WHERE theme_id = ?', [sub.id]);
       await run('DELETE FROM themes WHERE id = ?', [sub.id]);
     }
 
@@ -5617,8 +5771,9 @@ app.delete('/admin/themes/:id', requireAdmin, async (req, res) => {
     await run('DELETE FROM favorites WHERE word_id IN (SELECT id FROM words WHERE theme_id = ? AND user_id IS NULL)', [req.params.id]);
     await run('DELETE FROM words WHERE theme_id = ? AND user_id IS NULL', [req.params.id]);
     await run('DELETE FROM theme_levels WHERE theme_id = ?', [req.params.id]);
+    await run('DELETE FROM user_theme_overrides WHERE theme_id = ?', [req.params.id]);
     await run('DELETE FROM themes WHERE id = ? AND user_id IS NULL', [req.params.id]);
-    await renumberThemes(null);
+    await renumberAllThemesAndSets();
     res.redirect('/admin/themes');
   } catch (e) {
     console.error(e);
@@ -5779,6 +5934,7 @@ app.delete('/admin/words/:id', requireAdmin, async (req, res) => {
     await run('DELETE FROM progress WHERE word_id = ?', [req.params.id]);
     await run('DELETE FROM favorites WHERE word_id = ?', [req.params.id]);
     await run('DELETE FROM words WHERE id = ?', [req.params.id]);
+    await compactWords();
     res.redirect('/admin/words');
   } catch (e) {
     console.error(e);
