@@ -3017,15 +3017,35 @@ app.delete('/themes/:id', requireAuth, async (req, res) => {
       return res.status(403).send('Interdit');
     }
 
-    // Delete content
-    await run(
-      'UPDATE words SET level_id = NULL WHERE level_id IN (SELECT id FROM theme_levels WHERE theme_id = ?) AND user_id = ?',
-      [theme.id, userId]
-    );
-    await run('UPDATE words SET theme_id = NULL WHERE theme_id = ? AND user_id = ?', [theme.id, userId]);
-    await run('DELETE FROM theme_levels WHERE theme_id = ?', [theme.id]);
-    await run('DELETE FROM user_theme_overrides WHERE theme_id = ?', [theme.id]);
-    await run('DELETE FROM themes WHERE id = ?', [theme.id]);
+    if (!theme.user_id && isAdmin) {
+      // Admin deleting a default theme: remove words/progress/favorites as well
+      const subThemes = await all('SELECT id FROM themes WHERE parent_id = ?', [theme.id]);
+      for (const sub of subThemes) {
+        await run('DELETE FROM progress WHERE word_id IN (SELECT id FROM words WHERE theme_id = ? AND user_id IS NULL)', [sub.id]);
+        await run('DELETE FROM favorites WHERE word_id IN (SELECT id FROM words WHERE theme_id = ? AND user_id IS NULL)', [sub.id]);
+        await run('DELETE FROM words WHERE theme_id = ? AND user_id IS NULL', [sub.id]);
+        await run('DELETE FROM theme_levels WHERE theme_id = ?', [sub.id]);
+        await run('DELETE FROM user_theme_overrides WHERE theme_id = ?', [sub.id]);
+        await run('DELETE FROM themes WHERE id = ?', [sub.id]);
+      }
+
+      await run('DELETE FROM progress WHERE word_id IN (SELECT id FROM words WHERE theme_id = ? AND user_id IS NULL)', [theme.id]);
+      await run('DELETE FROM favorites WHERE word_id IN (SELECT id FROM words WHERE theme_id = ? AND user_id IS NULL)', [theme.id]);
+      await run('DELETE FROM words WHERE theme_id = ? AND user_id IS NULL', [theme.id]);
+      await run('DELETE FROM theme_levels WHERE theme_id = ?', [theme.id]);
+      await run('DELETE FROM user_theme_overrides WHERE theme_id = ?', [theme.id]);
+      await run('DELETE FROM themes WHERE id = ? AND user_id IS NULL', [theme.id]);
+    } else {
+      // Delete/clean user-owned content
+      await run(
+        'UPDATE words SET level_id = NULL WHERE level_id IN (SELECT id FROM theme_levels WHERE theme_id = ?) AND user_id = ?',
+        [theme.id, userId]
+      );
+      await run('UPDATE words SET theme_id = NULL WHERE theme_id = ? AND user_id = ?', [theme.id, userId]);
+      await run('DELETE FROM theme_levels WHERE theme_id = ?', [theme.id]);
+      await run('DELETE FROM user_theme_overrides WHERE theme_id = ?', [theme.id]);
+      await run('DELETE FROM themes WHERE id = ?', [theme.id]);
+    }
 
     await renumberAllThemesAndSets();
     res.redirect('/themes');
