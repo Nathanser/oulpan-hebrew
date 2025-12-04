@@ -2049,6 +2049,32 @@ app.get('/space', requireAuth, async (req, res) => {
   }
 });
 
+app.post('/space/:slug/reset', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const parsed = parseSpaceSlug(req.params.slug);
+  if (!parsed) return res.redirect('/space');
+  try {
+    if (parsed.type === 'set') {
+      const allowedSetIds = new Set(await getAccessibleSetIds(userId));
+      if (!allowedSetIds.has(parsed.id)) return res.redirect('/space');
+      await run('DELETE FROM card_progress WHERE user_id = ? AND card_id IN (SELECT id FROM cards WHERE set_id = ?)', [
+        userId,
+        parsed.id
+      ]);
+    } else {
+      const allowedThemeIds = new Set(await getActiveThemeIdsForUser(userId));
+      if (!allowedThemeIds.has(parsed.id)) return res.redirect('/space');
+      await run('DELETE FROM progress WHERE user_id = ? AND word_id IN (SELECT id FROM words WHERE theme_id = ?)', [
+        userId,
+        parsed.id
+      ]);
+    }
+  } catch (e) {
+    console.error('Space reset error:', e);
+  }
+  res.redirect('/space');
+});
+
 app.get('/space/:slug', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   const parsed = parseSpaceSlug(req.params.slug);

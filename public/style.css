@@ -393,13 +393,21 @@ main.container {
 .progress-card-actions {
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: 0.45rem;
   margin-top: 0.6rem;
   padding-top: 0.4rem;
   width: 100%;
   padding: 0 0.35rem;
+  flex-wrap: wrap;
 }
 
-.detail-btn {
+.progress-card-actions form {
+  margin: 0;
+}
+
+.detail-btn,
+button.detail-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -417,10 +425,22 @@ main.container {
   box-sizing: border-box;
 }
 
-.detail-btn:hover {
+.detail-btn:hover,
+button.detail-btn:hover {
   border-color: var(--text-link-hover);
   color: var(--text-link-hover);
   background: rgba(56, 189, 248, 0.08);
+}
+
+.reset-btn {
+  border-color: var(--accent-danger);
+  color: var(--accent-danger);
+}
+
+.reset-btn:hover {
+  border-color: var(--accent-danger);
+  color: var(--accent-danger);
+  background: rgba(239, 68, 68, 0.08);
 }
 
 .switch-filter {
@@ -452,7 +472,8 @@ main.container {
   .progress-card-actions {
     margin-top: 0.3rem;
   }
-  .detail-btn {
+  .detail-btn,
+  button.detail-btn {
     width: auto;
     max-width: 150px;
     min-width: 120px;
@@ -1383,13 +1404,25 @@ details.advanced summary {
 
 .set-list-top {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.8rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
 }
-.set-list-info {
-  flex: 1;
-  min-width: 0;
+.set-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.set-list-meta {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 0.5rem;
+  width: 100%;
+}
+.set-list-meta .muted {
+  margin: 0;
 }
 
 .set-list-actions {

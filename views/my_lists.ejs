@@ -105,53 +105,54 @@
                     <% sets.forEach(set=> { %>
                         <div class="card set-list-card" data-set-id="<%= set.id %>">
                             <div class="set-list-top">
-                                <div>
+                                <div class="set-list-header">
                                     <h3>
                                         <%= set.name %>
                                     </h3>
+                                    <div class="inline-actions">
+                                        <a class="btn ghost" href="/my/lists/<%= set.id %>">Ouvrir</a>
+
+                                        <button type="button" class="icon-btn ghost dots-btn" data-menu-btn
+                                            aria-label="Actions">&#8942;</button>
+                                        <div class="card-menu" data-menu>
+                                            <form action="/my/lists/<%= set.id %>/toggle-active" method="post">
+                                                <button type="submit" class="menu-item">
+                                                    <span>
+                                                        <%= Number(set.effective_active)===0 ? 'Afficher'
+                                                            : 'Masquer' %>
+                                                    </span>
+                                                    <span class="menu-icon">&#128065;</span>
+                                                </button>
+                                            </form>
+                                            <a href="/my/lists/<%= set.id %>/edit" class="menu-item">
+                                                <span>Modifier</span>
+                                                <span class="menu-icon">&#9998;</span>
+                                            </a>
+                                            <form action="/my/lists/<%= set.id %>/duplicate" method="post">
+                                                <button type="submit" class="menu-item">
+                                                    <span>Dupliquer</span>
+                                                    <span class="menu-icon">&#128203;</span>
+                                                </button>
+                                            </form>
+                                            <form action="/my/lists/<%= set.id %>?_method=DELETE" method="post"
+                                                onsubmit="return confirm('Supprimer cette liste ?');">
+                                                <button type="submit" class="menu-item danger">
+                                                    <span>Supprimer</span>
+                                                    <span class="menu-icon">&#128465;</span>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="set-list-meta">
                                     <p class="muted">
                                         <%= set.card_count %> carte<%= Number(set.card_count)> 1 ? 's' : '' %>
                                     </p>
-                                </div>
-                                <div class="inline-actions">
                                     <% if (Number(set.effective_active)===1) { %>
                                         <span class="pill success mini status-pill">Actif</span>
                                         <% } else { %>
-                                            <span class="pill muted mini status-pill">Masqué</span>
+                                            <span class="pill muted mini status-pill">Inactif</span>
                                             <% } %>
-
-                                                <a class="btn ghost" href="/my/lists/<%= set.id %>">Ouvrir</a>
-
-                                                <button type="button" class="icon-btn ghost dots-btn" data-menu-btn
-                                                    aria-label="Actions">&#8942;</button>
-                                                <div class="card-menu" data-menu>
-                                                    <form action="/my/lists/<%= set.id %>/toggle-active" method="post">
-                                                        <button type="submit" class="menu-item">
-                                                            <span>
-                                                                <%= Number(set.effective_active)===0 ? 'Afficher'
-                                                                    : 'Masquer' %>
-                                                            </span>
-                                                            <span class="menu-icon">&#128065;</span>
-                                                        </button>
-                                                    </form>
-                                                    <a href="/my/lists/<%= set.id %>/edit" class="menu-item">
-                                                        <span>Modifier</span>
-                                                        <span class="menu-icon">&#9998;</span>
-                                                    </a>
-                                                    <form action="/my/lists/<%= set.id %>/duplicate" method="post">
-                                                        <button type="submit" class="menu-item">
-                                                            <span>Dupliquer</span>
-                                                            <span class="menu-icon">&#128203;</span>
-                                                        </button>
-                                                    </form>
-                                                    <form action="/my/lists/<%= set.id %>?_method=DELETE" method="post"
-                                                        onsubmit="return confirm('Supprimer cette liste ?');">
-                                                        <button type="submit" class="menu-item danger">
-                                                            <span>Supprimer</span>
-                                                            <span class="menu-icon">&#128465;</span>
-                                                        </button>
-                                                    </form>
-                                                </div>
                                 </div>
                             </div>
                         </div>
@@ -338,3 +339,5 @@
 
     })();
 </script>
+
+
