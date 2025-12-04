@@ -3252,8 +3252,16 @@ input[type=range]::-moz-range-thumb:hover {
   padding: 0.75rem;
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 1rem;
   flex-wrap: wrap;
+  position: relative;
+  overflow: visible;
+}
+
+.detail-item.has-reset {
+  padding-right: 120px;
+  padding-bottom: 1.2rem;
 }
 
 .detail-item.hidden {
@@ -3271,12 +3279,48 @@ input[type=range]::-moz-range-thumb:hover {
   flex-wrap: wrap;
 }
 
+.item-actions {
+  position: absolute;
+  bottom: 0.6rem;
+  right: 0.85rem;
+  z-index: 2;
+}
+
+.reset-btn {
+  background: #22c55e;
+  color: #fff;
+  border: none;
+  border-radius: 0.6rem;
+  padding: 0.35rem 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 70px;
+  font-size: 0.95rem;
+}
+
+.reset-btn:hover {
+  background: #16a34a;
+}
+
 @media (max-width: 768px) {
   .detail-item {
     flex-direction: column;
+    padding-right: 110px;
+    padding-bottom: 0.8rem;
   }
   .space-detail .detail-visuals {
     flex-direction: column;
+  }
+  .item-actions {
+    top: 0.75rem;
+    bottom: auto;
+  }
+  .detail-item.has-reset {
+    padding-bottom: 0.9rem;
   }
 }
 

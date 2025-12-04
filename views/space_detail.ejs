@@ -1,4 +1,5 @@
 <section class="space-detail">
+  <% const slug = type === 'set' && set ? ('list-' + set.id) : (theme ? ('theme-' + theme.id) : ''); %>
   <div class="list-header">
     <div>
       <p class="eyebrow"><%= type === 'set' ? 'Liste perso' : 'Thème' %></p>
@@ -100,13 +101,20 @@
         <p class="muted">Pas encore de données.</p>
       <% } %>
       <% items.forEach(item => { %>
-        <div class="detail-item" data-status="<%= item.status %>">
+        <div class="detail-item <%= (item.id && slug) ? 'has-reset' : '' %>" data-status="<%= item.status %>">
           <div class="item-word">
             <p class="eyebrow mini"><%= item.status_label %></p>
             <h3><%= item.hebrew %></h3>
             <% if (item.transliteration) { %><p class="mini muted"><%= item.transliteration %></p><% } %>
             <p class="muted"><%= item.french %></p>
           </div>
+          <% if (item.id && slug) { %>
+            <div class="item-actions">
+              <form method="post" action="/space/<%= slug %>/reset-item/<%= item.id %>">
+                <button type="submit" class="reset-btn">Reset</button>
+              </form>
+            </div>
+          <% } %>
           <div class="item-stats">
             <span class="pill mini">+<%= item.good_total %> / -<%= item.bad_total %></span>
             <span class="pill mini">Streak <%= item.streak %></span>
