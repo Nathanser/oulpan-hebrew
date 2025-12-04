@@ -325,6 +325,151 @@ async function buildSearchItems(userId) {
   return { items, counts };
 }
 
+async function buildDuplicateGroupsForUser(userId) {
+  const map = new Map();
+
+  const themeRows = await all(
+    `SELECT w.*,
+            t.name AS theme_name,
+            t.active AS theme_active,
+            uto.active AS user_theme_active,
+            l.name AS level_name,
+            l.active AS level_active,
+            uwo.active AS override_word_active
+       FROM words w
+       LEFT JOIN themes t ON t.id = w.theme_id
+       LEFT JOIN theme_levels l ON l.id = w.level_id
+       LEFT JOIN user_theme_overrides uto ON uto.theme_id = w.theme_id AND uto.user_id = ?
+       LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
+      WHERE (w.user_id IS NULL OR w.user_id = ?)`,
+    [userId, userId, userId]
+  );
+
+  themeRows.forEach(row => {
+    const key = duplicateKey(row.hebrew, row.french);
+    if (!key) return;
+    const baseActive = Number(row.active || 0) === 1;
+    const effectiveWordActive =
+      row.override_word_active === null || typeof row.override_word_active === 'undefined'
+        ? baseActive
+        : Number(row.override_word_active) === 1;
+    const themeActive = Number(row.theme_active || 0) === 1;
+    const userThemeActive =
+      row.user_theme_active === null || typeof row.user_theme_active === 'undefined'
+        ? true
+        : Number(row.user_theme_active) === 1;
+    const levelActive =
+      row.level_active === null || typeof row.level_active === 'undefined'
+        ? true
+        : Number(row.level_active) === 1;
+    const containerActive = themeActive && userThemeActive;
+    const active = effectiveWordActive && containerActive && levelActive ? 1 : 0;
+    const item = {
+      kind: 'theme',
+      id: row.id,
+      themeId: row.theme_id,
+      french: row.french || '',
+      hebrew: row.hebrew || '',
+      transliteration: row.transliteration || '',
+      container: row.theme_name || 'Sans theme',
+      level: row.level_name || '',
+      active,
+      containerActive: containerActive ? 1 : 0,
+      isOwner: row.user_id === userId,
+      isGlobal: !row.user_id,
+      isShared: false,
+      canEdit: row.user_id === userId
+    };
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(item);
+  });
+
+  const cardRows = await all(
+    `SELECT c.*,
+            s.name AS set_name,
+            s.user_id AS set_user_id,
+            s.active AS set_active,
+            uso.active AS set_override_active,
+            co.active AS card_override_active,
+            u.display_name AS owner_name,
+            sh.can_edit AS share_can_edit,
+            sh.id AS share_id
+       FROM cards c
+       JOIN sets s ON s.id = c.set_id
+       LEFT JOIN set_shares sh ON sh.set_id = s.id AND sh.user_id = ?
+       LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+       LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+       LEFT JOIN users u ON u.id = s.user_id
+      WHERE s.user_id = ? OR sh.id IS NOT NULL`,
+    [userId, userId, userId, userId]
+  );
+
+  cardRows.forEach(row => {
+    const key = duplicateKey(row.hebrew, row.french);
+    if (!key) return;
+    const setActive = Number(row.set_active || 0) === 1;
+    const effectiveSetActive =
+      row.set_override_active === null || typeof row.set_override_active === 'undefined'
+        ? setActive
+        : Number(row.set_override_active) === 1;
+    const cardActive = Number(row.active || 0) === 1;
+    const effectiveCardActive =
+      row.card_override_active === null || typeof row.card_override_active === 'undefined'
+        ? cardActive
+        : Number(row.card_override_active) === 1;
+    const active = effectiveSetActive && effectiveCardActive ? 1 : 0;
+    const isOwner = row.set_user_id === userId;
+    const canEdit = isOwner || Number(row.share_can_edit || 0) === 1;
+    const item = {
+      kind: 'list',
+      id: row.id,
+      setId: row.set_id,
+      french: row.french || '',
+      hebrew: row.hebrew || '',
+      transliteration: row.transliteration || '',
+      container: row.set_name || 'Liste',
+      level: '',
+      ownerName: row.owner_name || '',
+      active,
+      containerActive: effectiveSetActive ? 1 : 0,
+      isOwner,
+      isGlobal: false,
+      isShared: !!row.share_id,
+      canEdit
+    };
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(item);
+  });
+
+  const rawGroups = Array.from(map.entries())
+    .filter(([, items]) => items.length > 1)
+    .map(([key, items]) => {
+      const sortedItems = [...items].sort((a, b) =>
+        String(a.french || '').localeCompare(String(b.french || ''), 'fr', { sensitivity: 'base' })
+      );
+      const kinds = new Set(sortedItems.map(i => i.kind));
+      const kind = kinds.size > 1 ? 'cross' : kinds.has('theme') ? 'theme' : 'list';
+      return { key, items: sortedItems, sample: sortedItems[0], kind };
+    })
+    .sort((a, b) =>
+      String(a.sample.french || '').localeCompare(String(b.sample.french || ''), 'fr', { sensitivity: 'base' })
+    );
+
+  const ignoredRows = await all('SELECT dup_key FROM duplicate_ignores WHERE user_id = ?', [userId]);
+  const ignoredSet = new Set(ignoredRows.map(r => r.dup_key));
+  const groups = [];
+  const ignoredGroups = [];
+  rawGroups.forEach(g => {
+    if (ignoredSet.has(g.key)) {
+      ignoredGroups.push(g);
+    } else {
+      groups.push(g);
+    }
+  });
+
+  return { groups, ignoredGroups };
+}
+
 function normalizeMode(raw) {
   const value = (raw || '').toLowerCase();
   if (value === 'quiz') return MODE_WRITTEN; // compat ancien nom
@@ -1886,6 +2031,80 @@ app.get('/app', requireAuth, async (req, res) => {
     console.error(e);
     res.render('app', { stats: null, themes: [], ongoing: null });
   }
+});
+
+// ---------- Mon espace ----------
+app.get('/space', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  try {
+    const [overall, setStats, themeStats] = await Promise.all([
+      buildSpaceOverview(userId),
+      getSpaceSetStats(userId),
+      getSpaceThemeStats(userId)
+    ]);
+    res.render('space', { overall, setStats, themeStats });
+  } catch (e) {
+    console.error('Space overview error:', e);
+    res.render('space', { overall: null, setStats: [], themeStats: [] });
+  }
+});
+
+app.get('/space/:slug', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const parsed = parseSpaceSlug(req.params.slug);
+  if (!parsed) return res.redirect('/space');
+  try {
+    const detail =
+      parsed.type === 'set'
+        ? await getSetDetailForSpace(userId, parsed.id)
+        : await getThemeDetailForSpace(userId, parsed.id);
+    if (!detail) return res.redirect('/space');
+    res.render('space_detail', detail);
+  } catch (e) {
+    console.error('Space detail error:', e);
+    res.redirect('/space');
+  }
+});
+
+app.get('/search', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  try {
+    const { items, counts } = await buildSearchItems(userId);
+    res.render('search', { searchItems: items, counts });
+  } catch (e) {
+    console.error('Search page error:', e);
+    res.render('search', { searchItems: [], counts: { total: 0, themes: 0, lists: 0 } });
+  }
+});
+
+app.get('/search/duplicates', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const isAdmin = req.session.user.role === 'admin';
+  try {
+    const { groups, ignoredGroups } = await buildDuplicateGroupsForUser(userId);
+    res.render('duplicates_user', { groups, ignoredGroups, isAdmin });
+  } catch (e) {
+    console.error('User duplicate scan error:', e);
+    res.render('duplicates_user', { groups: [], ignoredGroups: [], isAdmin });
+  }
+});
+
+app.post('/search/duplicates/ignore', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const { dup_key, action } = req.body;
+  if (!dup_key || !['ignore', 'unignore'].includes(action)) {
+    return res.redirect('/search/duplicates');
+  }
+  try {
+    if (action === 'ignore') {
+      await run('INSERT OR IGNORE INTO duplicate_ignores (user_id, dup_key) VALUES (?, ?)', [userId, dup_key]);
+    } else {
+      await run('DELETE FROM duplicate_ignores WHERE user_id = ? AND dup_key = ?', [userId, dup_key]);
+    }
+  } catch (e) {
+    console.error('Duplicate ignore toggle error:', e);
+  }
+  res.redirect('/search/duplicates');
 });
 
 // ---------- Profil ----------

@@ -1,440 +1,340 @@
-﻿
 <section>
- <div class="lists-topbar">
-  <h1>Mes listes</h1>
+    <div class="lists-topbar">
+        <h1>Mes listes</h1>
 
-  <div class="filter-row">
-    <label class="filter-label">
-      Filtrer par
-      <select style="background: #040616; min-width: 210px;" name="sort" onchange="this.form.submit()">
-        <option value="custom" <%= sort==='custom' ? 'selected' : '' %>>
-          Ordre personnalisé
-        </option>
-        <option value="created_asc" <%= sort==='created_asc' ? 'selected' : '' %>>
-          Date de création (plus anciennes)
-        </option>
-        <option value="created_desc" <%= sort==='created_desc' ? 'selected' : '' %>>
-          Date de création (plus récentes)
-        </option>
-        <option value="alpha" <%= sort==='alpha' ? 'selected' : '' %>>
-          Ordre alphabétique
-        </option>
-      </select>
-    </label>
+        <style>
+            .lists-topbar {
+                display: flex;
+                flex-direction: column;
+                gap: 0.5rem;
+                margin-bottom: 1rem;
+            }
 
-    <a class="btn small" href="/my/lists/new">Créer une liste</a>
-  </form>
-</div>
-<br> 
+            .filter-container {
+                display: flex;
+                flex-direction: column;
+                gap: 0.5rem;
+                width: 100%;
+            }
 
+            .filter-label-text {
+                font-size: 0.9rem;
+                color: var(--text-muted, #888);
+                margin-left: 2px;
+            }
 
-  <div style="display:flex; justify-content:center; margin-top:0.5rem;">
-    <div class="tab-row" style="display:flex; gap:0.5rem; align-items:center;">
-      <button type="button" class="tab-btn active" data-tab="personal">Liste personnelle</button>
-      <button type="button" class="tab-btn" data-tab="shared">Liste partagée</button>
-      <button type="button" class="icon-btn ghost" id="lists-reorder-toggle" aria-label="Réordonner mes listes"
-        title="Réordonner mes listes" style="padding:0.45rem 0.65rem; height:2.4rem;">
-        <span class="menu-icon">⇵</span>
-      </button>
+            .filter-controls {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                gap: 1rem;
+                width: 100%;
+            }
+
+            .sort-form {
+                flex: 1;
+                margin: 0;
+            }
+
+            .sort-select {
+                width: 100%;
+                padding: 0.6rem;
+                border-radius: 6px;
+                background-color: var(--bg-card, #1e1e1e);
+                color: var(--text-main, #fff);
+                border: 1px solid var(--border-color, #333);
+            }
+
+            .create-btn {
+                white-space: nowrap;
+                padding: 0.6rem 1.2rem;
+                background-color: #4CAF50;
+                color: white;
+                border-radius: 6px;
+                text-decoration: none;
+                font-weight: 500;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                height: 100%;
+            }
+
+            @media (max-width: 480px) {
+                .filter-controls {
+                    gap: 0.5rem;
+                }
+
+                .create-btn {
+                    padding: 0.6rem 0.8rem;
+                    font-size: 0.9rem;
+                }
+            }
+        </style>
+
+        <div class="filter-container">
+            <span class="filter-label-text">Filtrer par</span>
+            <div class="filter-controls">
+                <form method="get" action="/my/lists" class="sort-form">
+                    <select name="sort" onchange="this.form.submit()" class="sort-select">
+                        <option value="custom" <%=sort==='custom' ? "selected" : "" %>>
+                            Ordre personnalisé
+                        </option>
+                        <option value="created_asc" <%=sort==='created_asc' ? "selected" : "" %>>
+                            Date de création (plus anciennes)
+                        </option>
+                        <option value="created_desc" <%=sort==='created_desc' ? "selected" : "" %>>
+                            Date de création (plus récentes)
+                        </option>
+                        <option value="alpha" <%=sort==='alpha' ? "selected" : "" %>>
+                            Ordre alphabétique
+                        </option>
+                    </select>
+                </form>
+                <a class="create-btn" href="/my/lists/new">Créer une liste</a>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <br><br>
-
-  <div data-tab-content="personal">
-    <% if (!sets || sets.length===0) { %>
-      <div class="card set-list-empty">
-        <p>Pas encore de listes.</p>
-      </div>
-      <% } else { %>
-        <div class="grid set-list-grid">
-          <% sets.forEach(set=> { %>
-            <div class="card set-list-card" data-set-id="<%= set.id %>">
-              <div class="set-list-top">
-                <div>
-                  <h3>
-                    <%= set.name %>
-                  </h3>
-                  <p class="muted">
-                    <%= set.card_count %> carte<%= Number(set.card_count)> 1 ? 's' : '' %>
-                  </p>
-                  <% if (set.shared_with) { %>
-                    <p class="muted mini">Partage : <%= set.shared_with %>
-                    </p>
-                    <% } %>
-                      <% if (set.collaborators) { %>
-                        <p class="muted mini">Collaboration : <%= set.collaborators %>
-                        </p>
-                        <% } %>
-                          <p class="muted mini">Créée le <%= set.created_at ? new
-                              Date(set.created_at).toLocaleDateString('fr-FR') : '-' %>
-                          </p>
-                          <% if (Number(set.effective_active)===0) { %><br>
-                            <span style="font-size: small; font-weight: bold;" class="pill muted">Inactif</span>
-                          <% } else { %><br>
-                            <span style="font-size: small; font-weight: bold;" class="pill success">Actif</span>
-                          <% } %>
-                </div>
-                <div class="set-list-actions inline-actions">
-                  <button type="button" class="reorder-handle set-reorder-handle" data-drag-handle
-                    title="Réordonner cette liste">&#9776;</button>
-                  <a class="btn ghost" href="/my/lists/<%= set.id %>">Ouvrir</a>
-                  <button type="button" class="icon-btn ghost dots-btn" data-menu-btn
-                    aria-label="Actions">&#8942;</button>
-                  <div class="card-menu" data-menu>
-                    <a class="menu-item" href="/my/lists/<%= set.id %>/edit">
-                      <span style="font-size: medium; font-weight: bold;">Modifier</span>
-                      <span class="menu-icon">&#9998;</span>
-                    </a>
-                    <form action="/my/lists/<%= set.id %>/duplicate" method="post">
-                      <button type="submit" class="menu-item">
-                        <span style="font-size: medium; font-weight: bold;">Dupliquer</span>
-                        <span class="menu-icon">&#128203;</span>
-                      </button>
-                    </form>
-                    <form action="/my/lists/<%= set.id %>/toggle-active" method="post">
-                      <button type="submit" class="menu-item">
-                        <span style="font-size: medium; font-weight: bold;">
-                          <%= Number(set.effective_active)===0 ? 'Afficher' : 'Masquer' %>
-                        </span>
-                        <span class="menu-icon">&#128065;</span>
-                      </button>
-                    </form>
-                    <a class="menu-item" href="/my/lists/<%= set.id %>/share">
-                      <span style="font-size: medium; font-weight: bold;">Partager / Collaborer</span>
-                      <span class="menu-icon">&#128100;</span>
-                    </a>
-                    <form action="/my/lists/<%= set.id %>?_method=DELETE" method="post"
-                      onsubmit="return confirm('Supprimer cette liste ?');">
-                      <button type="submit" class="menu-item danger">
-                        <span style="font-size: medium; font-weight: bold;">Supprimer</span>
-                        <span class="menu-icon">&#128465;</span>
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              </div>
+    <div data-tab-content="personal">
+        <% if (!sets || sets.length===0) { %>
+            <div class="card set-list-empty">
+                <p>Pas encore de listes.</p>
             </div>
-            <% }) %>
-        </div>
-        <% } %>
-  </div>
+            <% } else { %>
+                <div class="grid set-list-grid" id="personal-grid">
+                    <% sets.forEach(set=> { %>
+                        <div class="card set-list-card" data-set-id="<%= set.id %>">
+                            <div class="set-list-top">
+                                <div>
+                                    <h3>
+                                        <%= set.name %>
+                                    </h3>
+                                    <p class="muted">
+                                        <%= set.card_count %> carte<%= Number(set.card_count)> 1 ? 's' : '' %>
+                                    </p>
+                                </div>
+                                <div class="inline-actions">
+                                    <% if (Number(set.effective_active)===1) { %>
+                                        <span class="pill success mini status-pill">Actif</span>
+                                        <% } else { %>
+                                            <span class="pill muted mini status-pill">Masqué</span>
+                                            <% } %>
 
-  <div data-tab-content="shared" style="display:none;">
-    <% if (!sharedSets || sharedSets.length===0) { %>
-      <div class="card set-list-empty">
-        <p>Aucune liste partagée.</p>
-      </div>
-      <% } else { %>
-        <div class="grid set-list-grid">
-          <% sharedSets.forEach(set=> { %>
-            <div class="card set-list-card" data-set-id="<%= set.id %>">
-              <div class="set-list-top">
-                <div>
-                  <h3>
-                    <%= set.name %>
-                  </h3>
-                  <p class="muted">
-                    <%= set.card_count %> carte<%= Number(set.card_count)> 1 ? 's' : '' %>
-                  </p>
-                  <p class="muted mini">Propriétaire : <%= set.owner_name %>
-                  </p>
-                  <p class="muted mini">Type : <%= Number(set.can_edit)===1 ? 'Collaboration' : 'Partage' %>
-                  </p>
-                  <p class="muted mini">Créée le <%= set.created_at ? new
-                      Date(set.created_at).toLocaleDateString('fr-FR') : '-' %>
-                  </p>
-                  <% if (Number(set.effective_active)===0) { %>
-                    <span style="font-size: small; font-weight: bold;" class="pill muted">Inactif</span>
-                  <% } else { %>
-                    <span style="font-size: small; font-weight: bold;" class="pill success">Actif</span>
-                  <% } %>
+                                                <a class="btn ghost" href="/my/lists/<%= set.id %>">Ouvrir</a>
+
+                                                <button type="button" class="icon-btn ghost dots-btn" data-menu-btn
+                                                    aria-label="Actions">&#8942;</button>
+                                                <div class="card-menu" data-menu>
+                                                    <form action="/my/lists/<%= set.id %>/toggle-active" method="post">
+                                                        <button type="submit" class="menu-item">
+                                                            <span>
+                                                                <%= Number(set.effective_active)===0 ? 'Afficher'
+                                                                    : 'Masquer' %>
+                                                            </span>
+                                                            <span class="menu-icon">&#128065;</span>
+                                                        </button>
+                                                    </form>
+                                                    <a href="/my/lists/<%= set.id %>/edit" class="menu-item">
+                                                        <span>Modifier</span>
+                                                        <span class="menu-icon">&#9998;</span>
+                                                    </a>
+                                                    <form action="/my/lists/<%= set.id %>/duplicate" method="post">
+                                                        <button type="submit" class="menu-item">
+                                                            <span>Dupliquer</span>
+                                                            <span class="menu-icon">&#128203;</span>
+                                                        </button>
+                                                    </form>
+                                                    <form action="/my/lists/<%= set.id %>?_method=DELETE" method="post"
+                                                        onsubmit="return confirm('Supprimer cette liste ?');">
+                                                        <button type="submit" class="menu-item danger">
+                                                            <span>Supprimer</span>
+                                                            <span class="menu-icon">&#128465;</span>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                </div>
+                            </div>
+                        </div>
+                        <% }) %>
                 </div>
-                <div class="set-list-actions inline-actions">
-                  <a class="btn ghost" href="/my/lists/<%= set.id %>">Ouvrir</a>
-                  <button type="button" class="icon-btn ghost dots-btn" data-menu-btn
-                    aria-label="Actions">&#8942;</button>
-                  <div class="card-menu" data-menu>
-                    <% if (Number(set.can_edit)===1) { %>
-                      <a class="menu-item" href="/my/lists/<%= set.id %>/edit">
-                        <span>Modifier</span>
-                        <span class="menu-icon">&#9998;</span>
-                      </a>
-                      <% } %>
-                        <form action="/my/lists/<%= set.id %>/toggle-active" method="post">
-                          <button type="submit" class="menu-item">
-                            <span>
-                              <%= Number(set.effective_active)===0 ? 'Afficher' : 'Masquer' %>
-                            </span>
-                            <span class="menu-icon">&#128065;</span>
-                          </button>
-                        </form>
-                        <form action="/my/lists/<%= set.id %>/leave" method="post"
-                          onsubmit="return confirm('Quitter cette liste partagée ?');">
-                          <button type="submit" class="menu-item danger">
-                            <span>Quitter le partage</span>
-                            <span class="menu-icon">&#10134;</span>
-                          </button>
-                        </form>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <% }) %>
-        </div>
-        <% } %>
-  </div>
+                <% } %>
+    </div>
 </section>
 
 <script>
-  (() => {
-    const HOLD_DELAY_MS = 300;
-    const AUTO_SCROLL_EDGE = 110;
-    const AUTO_SCROLL_STEP = 22;
-
-    const closeMenus = () => {
-      document.querySelectorAll('.card-menu.open').forEach(m => m.classList.remove('open'));
-    };
-
-    document.querySelectorAll('[data-menu-btn]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const menu = btn.parentElement.querySelector('[data-menu]');
-        if (!menu) return;
-        const isOpen = menu.classList.contains('open');
-        closeMenus();
-        if (!isOpen) menu.classList.add('open');
-      });
-    });
-
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('.inline-actions')) closeMenus();
-    });
-
-    const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
-    const tabContents = Array.from(document.querySelectorAll('[data-tab-content]'));
-
-    const reorderToggle = document.getElementById('lists-reorder-toggle');
-    const personalTabBtn = document.querySelector('.tab-btn[data-tab="personal"]');
-    const personalContent = document.querySelector('[data-tab-content="personal"]');
-    const personalGrid = personalContent ? personalContent.querySelector('.set-list-grid') : null;
-    let reorderMode = false;
-    let dragState = null;
-
-    const getOrder = () => {
-      if (!personalGrid) return [];
-      return Array.from(personalGrid.querySelectorAll('.set-list-card'))
-        .map(card => Number(card.dataset.setId))
-        .filter(id => Number.isInteger(id) && id > 0);
-    };
-
-    let lastOrder = getOrder();
-
-    const ordersEqual = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
-
-    const updateSelectLock = () => {
-      document.body.classList.toggle('no-text-select', reorderMode || !!dragState);
-    };
-
-    const setReorderMode = (active) => {
-      if (!personalGrid) return;
-      reorderMode = active;
-      if (active && personalTabBtn && !personalTabBtn.classList.contains('active')) {
-        personalTabBtn.click();
-      }
-      if (active) {
-        personalGrid.dataset.mode = 'reorder';
-      } else {
-        delete personalGrid.dataset.mode;
-      }
-      if (reorderToggle) {
-        reorderToggle.classList.toggle('is-active', active);
-        reorderToggle.innerHTML = active ? '&times;' : '<span class="menu-icon">⇵</span>';
-        reorderToggle.setAttribute('aria-pressed', active ? 'true' : 'false');
-      }
-      closeMenus();
-      updateSelectLock();
-    };
-
-    tabButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const target = btn.getAttribute('data-tab');
-        tabButtons.forEach(b => b.classList.toggle('active', b === btn));
-        tabContents.forEach(c => {
-          c.style.display = c.getAttribute('data-tab-content') === target ? '' : 'none';
+    (() => {
+        // Menu handling
+        const closeMenus = () => {
+            document.querySelectorAll('.card-menu.open').forEach(m => m.classList.remove('open'));
+        };
+        document.querySelectorAll('[data-menu-btn]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const menu = btn.parentElement.querySelector('[data-menu]');
+                if (!menu) return;
+                const isOpen = menu.classList.contains('open');
+                closeMenus();
+                if (!isOpen) menu.classList.add('open');
+            });
         });
-        if (reorderMode && target !== 'personal') {
-          setReorderMode(false);
-        }
-      });
-    });
-
-    if (reorderToggle && !personalGrid) {
-      reorderToggle.disabled = true;
-      reorderToggle.title = 'Aucune liste à réordonner';
-    }
-
-    const autoScroll = (clientY) => {
-      if (clientY < AUTO_SCROLL_EDGE) {
-        window.scrollBy({ top: -AUTO_SCROLL_STEP, behavior: 'auto' });
-      } else if (clientY > window.innerHeight - AUTO_SCROLL_EDGE) {
-        window.scrollBy({ top: AUTO_SCROLL_STEP, behavior: 'auto' });
-      }
-    };
-
-    const placePlaceholder = (pageY) => {
-      if (!dragState || !personalGrid) return;
-      const { card, placeholder } = dragState;
-      const siblings = Array.from(personalGrid.querySelectorAll('.set-list-card')).filter(el => el !== card);
-      let placed = false;
-      for (const sibling of siblings) {
-        const rect = sibling.getBoundingClientRect();
-        const middle = rect.top + window.scrollY + rect.height / 2;
-        if (pageY < middle) {
-          personalGrid.insertBefore(placeholder, sibling);
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) personalGrid.appendChild(placeholder);
-    };
-
-    const persistOrder = async (order) => {
-      if (!order || order.length === 0 || ordersEqual(order, lastOrder)) return;
-      try {
-        if (reorderToggle) {
-          reorderToggle.setAttribute('disabled', 'disabled');
-          reorderToggle.classList.add('loading');
-        }
-        const res = await fetch('/my/lists/reorder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ordered_ids: order })
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.inline-actions')) closeMenus();
         });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data || data.success !== true) {
-          throw new Error('save failed');
-        }
-        lastOrder = order.slice();
-        window.location.reload();
-      } catch (err) {
-        alert('Impossible de sauvegarder le nouvel ordre.');
-        console.error(err);
-      } finally {
-        if (reorderToggle && personalGrid) {
-          reorderToggle.removeAttribute('disabled');
-          reorderToggle.classList.remove('loading');
-        }
-      }
-    };
 
-    const finishDrag = () => {
-      if (!dragState || !personalGrid) return;
-      const { card, placeholder } = dragState;
-      card.classList.remove('dragging');
-      card.removeAttribute('style');
-      personalGrid.insertBefore(card, placeholder);
-      placeholder.remove();
-      dragState = null;
-      const order = getOrder();
-      updateSelectLock();
-      card.classList.add('drag-settled');
-      setTimeout(() => card.classList.remove('drag-settled'), 320);
-      persistOrder(order);
-    };
+        // Drag and Drop Logic
+        const personalGrid = document.getElementById('personal-grid');
+        // Only enable drag if sort is custom
+        const sortSelect = document.querySelector('select[name="sort"]');
+        const isCustomSort = sortSelect && sortSelect.value === 'custom';
 
-    const startDrag = (card, startEvt) => {
-      if (dragState || !reorderMode || !personalGrid) return;
-      const rect = card.getBoundingClientRect();
-      const placeholder = document.createElement('div');
-      placeholder.className = 'card-placeholder';
-      placeholder.style.height = `${rect.height}px`;
-      dragState = {
-        card,
-        placeholder,
-        offsetY: startEvt.clientY - rect.top,
-        left: rect.left
-      };
-      personalGrid.insertBefore(placeholder, card.nextElementSibling);
+        if (!isCustomSort) return;
 
-      card.classList.add('dragging');
-      updateSelectLock();
-      card.style.width = `${rect.width}px`;
-      card.style.height = `${rect.height}px`;
-      card.style.left = `${rect.left}px`;
-      card.style.top = `${rect.top}px`;
-      card.style.position = 'fixed';
-      card.style.pointerEvents = 'none';
-      card.style.zIndex = '60';
+        let dragState = null;
+        const HOLD_DELAY_MS = 150;
+        const AUTO_SCROLL_EDGE = 100;
+        const AUTO_SCROLL_STEP = 10;
 
-      const onMove = (e) => {
-        e.preventDefault();
-        const clientY = e.clientY;
-        if (!Number.isFinite(clientY)) return;
-        card.style.top = `${clientY - dragState.offsetY}px`;
-        card.style.left = `${dragState.left}px`;
-        autoScroll(clientY);
-        placePlaceholder(clientY + window.scrollY);
-      };
+        const startDrag = (card, startEvt) => {
+            // Prevent drag on buttons
+            if (startEvt.target.closest('button') || startEvt.target.closest('a') || startEvt.target.closest('.card-menu')) return;
 
-      const onUp = () => {
-        document.removeEventListener('pointermove', onMove);
-        document.removeEventListener('pointerup', onUp);
-        finishDrag();
-      };
+            const rect = card.getBoundingClientRect();
+            const placeholder = card.cloneNode(true);
+            placeholder.style.opacity = '0';
+            placeholder.classList.add('drag-placeholder');
 
-      document.addEventListener('pointermove', onMove);
-      document.addEventListener('pointerup', onUp);
-    };
+            card.style.position = 'fixed';
+            card.style.zIndex = '9999';
+            card.style.width = `${rect.width}px`;
+            card.style.height = `${rect.height}px`;
+            card.style.left = `${rect.left}px`;
+            card.style.top = `${rect.top}px`;
+            card.classList.add('dragging');
 
-    const attachDrag = (card) => {
-      card.addEventListener('pointerdown', (e) => {
-        if (!reorderMode) return;
-        if (!e.target.closest('[data-drag-handle]')) return;
-        if (e.button !== 0 && e.pointerType !== 'touch') return;
-        if (e.pointerType === 'touch') {
-          e.preventDefault();
-        }
+            card.parentNode.insertBefore(placeholder, card);
+            document.body.appendChild(card);
 
-        const startEvt = e;
-        let moved = false;
+            const offsetX = startEvt.clientX - rect.left;
+            const offsetY = startEvt.clientY - rect.top;
 
-        const detectMove = (moveEvt) => {
-          if (
-            Math.abs(moveEvt.clientY - startEvt.clientY) > 6 ||
-            Math.abs(moveEvt.clientX - startEvt.clientX) > 6
-          ) {
-            moved = true;
-          }
+            dragState = { card, placeholder, offsetX, offsetY, startX: startEvt.clientX, startY: startEvt.clientY };
+
+            const moveHandler = (e) => {
+                if (!dragState) return;
+                e.preventDefault();
+                const x = e.clientX - dragState.offsetX;
+                const y = e.clientY - dragState.offsetY;
+                card.style.left = `${x}px`;
+                card.style.top = `${y}px`;
+
+                // Auto scroll
+                if (e.clientY < AUTO_SCROLL_EDGE) {
+                    window.scrollBy(0, -AUTO_SCROLL_STEP);
+                } else if (e.clientY > window.innerHeight - AUTO_SCROLL_EDGE) {
+                    window.scrollBy(0, AUTO_SCROLL_STEP);
+                }
+
+                // Reorder logic
+                const siblings = Array.from(personalGrid.children).filter(c => c !== placeholder && c.style.display !== 'none');
+                const mouseY = e.clientY;
+
+                let inserted = false;
+                for (const sibling of siblings) {
+                    const sibRect = sibling.getBoundingClientRect();
+                    const middle = sibRect.top + sibRect.height / 2;
+                    if (mouseY < middle) {
+                        personalGrid.insertBefore(placeholder, sibling);
+                        inserted = true;
+                        break;
+                    }
+                }
+                if (!inserted) {
+                    personalGrid.appendChild(placeholder);
+                }
+            };
+
+            const upHandler = () => {
+                document.removeEventListener('pointermove', moveHandler);
+                document.removeEventListener('pointerup', upHandler);
+
+                if (!dragState) return;
+
+                // Finalize drop
+                const { card, placeholder } = dragState;
+
+                // Animate back to placeholder
+                const dest = placeholder.getBoundingClientRect();
+                card.style.transition = 'all 0.2s ease';
+                card.style.left = `${dest.left}px`;
+                card.style.top = `${dest.top}px`;
+
+                setTimeout(() => {
+                    card.style.position = '';
+                    card.style.zIndex = '';
+                    card.style.width = '';
+                    card.style.height = '';
+                    card.style.left = '';
+                    card.style.top = '';
+                    card.style.transition = '';
+                    card.classList.remove('dragging');
+
+                    if (placeholder.parentNode) {
+                        placeholder.parentNode.replaceChild(card, placeholder);
+                    } else {
+                        personalGrid.appendChild(card);
+                    }
+
+                    dragState = null;
+
+                    // Save order
+                    saveOrder();
+                }, 200);
+            };
+
+            document.addEventListener('pointermove', moveHandler);
+            document.addEventListener('pointerup', upHandler);
         };
 
-        const cancel = () => {
-          clearTimeout(timer);
-          document.removeEventListener('pointermove', detectMove);
-          document.removeEventListener('pointerup', cancel);
+        const attachDrag = (card) => {
+            card.addEventListener('pointerdown', (e) => {
+                if (e.button !== 0) return; // Only left click
+
+                // Delay to distinguish click from drag
+                let moved = false;
+                const startX = e.clientX;
+                const startY = e.clientY;
+
+                const checkMove = (m) => {
+                    if (Math.abs(m.clientX - startX) > 5 || Math.abs(m.clientY - startY) > 5) moved = true;
+                };
+                document.addEventListener('pointermove', checkMove);
+
+                const timer = setTimeout(() => {
+                    document.removeEventListener('pointermove', checkMove);
+                    if (!moved) startDrag(card, e);
+                }, HOLD_DELAY_MS);
+
+                const cancel = () => {
+                    clearTimeout(timer);
+                    document.removeEventListener('pointermove', checkMove);
+                    document.removeEventListener('pointerup', cancel);
+                };
+                document.addEventListener('pointerup', cancel);
+            });
         };
 
-        const timer = setTimeout(() => {
-          if (!moved) startDrag(card, startEvt);
-          cancel();
-        }, HOLD_DELAY_MS);
+        if (isCustomSort && personalGrid) {
+            personalGrid.querySelectorAll('.set-list-card').forEach(attachDrag);
+        }
 
-        document.addEventListener('pointermove', detectMove);
-        document.addEventListener('pointerup', cancel);
-      });
-    };
+        const saveOrder = () => {
+            const ids = Array.from(personalGrid.querySelectorAll('.set-list-card')).map(c => c.dataset.setId);
+            fetch('/my/lists/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids })
+            }).catch(err => console.error('Reorder failed', err));
+        };
 
-    if (personalGrid) {
-      personalGrid.querySelectorAll('.set-list-card').forEach(card => {
-        attachDrag(card);
-      });
-    }
-
-    if (reorderToggle) {
-      reorderToggle.addEventListener('click', () => {
-        if (!personalGrid) return;
-        setReorderMode(!reorderMode);
-      });
-    }
-  })();
+    })();
 </script>
