@@ -1643,6 +1643,77 @@ async function getSpaceThemeStats(userId) {
   );
 }
 
+async function getCompletedSetsForUser(userId, setIds = []) {
+  const ids = (setIds || []).map(id => Number(id)).filter(id => Number.isFinite(id));
+  if (!ids.length) return [];
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = await all(
+    `SELECT
+        s.id,
+        s.name,
+        COUNT(c.id) AS total_cards,
+        SUM(CASE WHEN cp.status = ? THEN 1 ELSE 0 END) AS memorized
+     FROM sets s
+     LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+     LEFT JOIN cards c ON c.set_id = s.id AND c.active = 1
+     LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
+     LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = ?
+     WHERE s.id IN (${placeholders})
+       AND s.active = 1
+       AND COALESCE(uso.active, s.active) = 1
+       AND (c.id IS NULL OR COALESCE(co.active, c.active, 1) = 1)
+     GROUP BY s.id`,
+    [WORD_STATUS_MEMORIZED, userId, userId, userId, ...ids]
+  );
+  return rows.filter(r => Number(r.total_cards) > 0 && Number(r.memorized) >= Number(r.total_cards));
+}
+
+async function getCompletedThemesForUser(userId, themeIds = []) {
+  const ids = (themeIds || []).map(id => Number(id)).filter(id => Number.isFinite(id));
+  if (!ids.length) return [];
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = await all(
+    `SELECT
+        t.id,
+        t.name,
+        COUNT(w.id) AS total_words,
+        SUM(CASE WHEN p.status = ? THEN 1 ELSE 0 END) AS memorized
+     FROM themes t
+     LEFT JOIN user_theme_overrides uto ON uto.theme_id = t.id AND uto.user_id = ?
+     LEFT JOIN words w ON w.theme_id = t.id AND w.active = 1 AND (w.user_id IS NULL OR w.user_id = ?)
+     LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
+     LEFT JOIN theme_levels l ON l.id = w.level_id
+     LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = ?
+     WHERE t.id IN (${placeholders})
+       AND t.active = 1
+       AND COALESCE(uto.active, 1) = 1
+       AND (w.id IS NULL OR COALESCE(uwo.active, 1) = 1)
+       AND (w.id IS NULL OR w.level_id IS NULL OR l.active = 1)
+     GROUP BY t.id`,
+    [WORD_STATUS_MEMORIZED, userId, userId, userId, userId, ...ids]
+  );
+  return rows.filter(r => Number(r.total_words) > 0 && Number(r.memorized) >= Number(r.total_words));
+}
+
+async function resetProgressForUserSelections(userId, { themeIds = [], setIds = [] } = {}) {
+  const themeList = (themeIds || []).map(id => Number(id)).filter(id => Number.isFinite(id));
+  const setList = (setIds || []).map(id => Number(id)).filter(id => Number.isFinite(id));
+  if (setList.length > 0) {
+    const placeholders = setList.map(() => '?').join(',');
+    await run(
+      `DELETE FROM card_progress WHERE user_id = ? AND card_id IN (SELECT id FROM cards WHERE set_id IN (${placeholders}))`,
+      [userId, ...setList]
+    );
+  }
+  if (themeList.length > 0) {
+    const placeholders = themeList.map(() => '?').join(',');
+    await run(
+      `DELETE FROM progress WHERE user_id = ? AND word_id IN (SELECT id FROM words WHERE theme_id IN (${placeholders}))`,
+      [userId, ...themeList]
+    );
+  }
+}
+
 function buildDetailItems(rows = []) {
   return rows.map(row => {
     const snap = normalizeProgressSnapshot(row);
@@ -2057,17 +2128,11 @@ app.post('/space/:slug/reset', requireAuth, async (req, res) => {
     if (parsed.type === 'set') {
       const allowedSetIds = new Set(await getAccessibleSetIds(userId));
       if (!allowedSetIds.has(parsed.id)) return res.redirect('/space');
-      await run('DELETE FROM card_progress WHERE user_id = ? AND card_id IN (SELECT id FROM cards WHERE set_id = ?)', [
-        userId,
-        parsed.id
-      ]);
+      await resetProgressForUserSelections(userId, { setIds: [parsed.id] });
     } else {
       const allowedThemeIds = new Set(await getActiveThemeIdsForUser(userId));
       if (!allowedThemeIds.has(parsed.id)) return res.redirect('/space');
-      await run('DELETE FROM progress WHERE user_id = ? AND word_id IN (SELECT id FROM words WHERE theme_id = ?)', [
-        userId,
-        parsed.id
-      ]);
+      await resetProgressForUserSelections(userId, { themeIds: [parsed.id] });
     }
   } catch (e) {
     console.error('Space reset error:', e);
@@ -3917,6 +3982,7 @@ app.post('/train/session', requireAuth, async (req, res) => {
   let remain = remaining === 'all' ? null : Number(remaining || 10);
   const showPhonetic = String(show_phonetic) === '0' ? 0 : 1;
   const conflictChoice = req.body.conflict_choice;
+  const completedChoice = req.body.completed_choice;
   const requestedRemaining = remaining === 'all' ? 'all' : remain || DEFAULT_TRAIN_PARAMS.remaining;
   const requestedTotal = total === 'all' ? 'all' : requestedRemaining;
 
@@ -4006,6 +4072,79 @@ app.post('/train/session', requireAuth, async (req, res) => {
           }
         });
       }
+    }
+  }
+
+  const completedThemes = await getCompletedThemesForUser(userId, themeList);
+  const completedSets = await getCompletedSetsForUser(userId, setList);
+  const hasCompletedSelection = completedThemes.length > 0 || completedSets.length > 0;
+  if (hasCompletedSelection) {
+    if (completedChoice === 'reset') {
+      await resetProgressForUserSelections(userId, {
+        themeIds: completedThemes.map(t => t.id),
+        setIds: completedSets.map(s => s.id)
+      });
+    } else if (completedChoice === 'keep') {
+      const themes = await getActiveThemeTreeForUser(userId);
+      const levels = await getLevelsForUser(userId);
+      const sets = await all(
+        `SELECT s.id, s.name
+         FROM sets s
+         LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+         WHERE s.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
+         ORDER BY s.id ASC`,
+        [userId, userId]
+      );
+      const sharedSets = await all(
+        `SELECT s.id, s.name, owner.display_name AS owner_name
+         FROM set_shares sh
+         JOIN sets s ON s.id = sh.set_id
+         LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
+         JOIN users owner ON owner.id = s.user_id
+         WHERE sh.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
+         ORDER BY s.id ASC`,
+        [userId, userId]
+      );
+      const completedNames = [...completedThemes.map(t => t.name), ...completedSets.map(s => s.name)];
+      return res.render('train_setup', {
+        themes,
+        levels,
+        sets,
+        sharedSets,
+        warning:
+          completedNames.length > 1
+            ? `Ces thèmes/listes sont déjà terminés : ${completedNames.join(', ')}`
+            : `Le thème ou la liste "${completedNames[0]}" est déjà terminé(e).`,
+        params: {
+          modes: modeList,
+          rev_mode: rev_mode || 'order',
+          theme_ids: themeList,
+          set_ids: setList,
+          level_id: level_id || '',
+          scope: 'all',
+          remaining: requestedRemaining,
+          total: requestedTotal,
+          show_phonetic: showPhonetic,
+          font_size: fontSize
+        }
+      });
+    } else {
+      return res.render('train_reset_completed', {
+        completedThemes,
+        completedSets,
+        params: {
+          modes: modeList,
+          rev_mode: rev_mode || 'order',
+          theme_ids: themeList,
+          set_ids: setList,
+          level_id: level_id || '',
+          scope: 'all',
+          remaining: requestedRemaining,
+          total: requestedTotal,
+          show_phonetic: showPhonetic,
+          font_size: fontSize
+        }
+      });
     }
   }
 
@@ -4841,11 +4980,15 @@ const handleTrainAnswer = async (req, res) => {
         : normalizedAnswer && normalizedAnswer === (card.french || '').trim().toLowerCase();
       if (isCorrect) correctCount += 1;
       await upsertCardProgress(userId, cardId, isCorrect);
-      if (remainingCount > 0) {
-        req.session.trainState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount, modes: modeList };
-      } else {
-        delete req.session.trainState;
-      }
+      req.session.trainState = {
+        ...state,
+        correct: correctCount,
+        answered: answeredCount,
+        remaining: remainingCount,
+        total: totalCount,
+        modes: modeList,
+        replay: null
+      };
 
       const result = {
         isCorrect,
@@ -4886,11 +5029,15 @@ const handleTrainAnswer = async (req, res) => {
     if (isCorrect) correctCount += 1;
 
     const progressUpdate = await upsertProgress(userId, word_id, isCorrect);
-    if (remainingCount > 0) {
-      req.session.trainState = { ...state, correct: correctCount, answered: answeredCount, remaining: remainingCount, total: totalCount, modes: modeList, replay: null };
-    } else {
-      delete req.session.trainState;
-    }
+    req.session.trainState = {
+      ...state,
+      correct: correctCount,
+      answered: answeredCount,
+      remaining: remainingCount,
+      total: totalCount,
+      modes: modeList,
+      replay: null
+    };
 
     const result = {
       isCorrect,

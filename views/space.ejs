@@ -85,9 +85,11 @@
           
           <div class="progress-card-actions">
             <a class="detail-btn" href="/space/list-<%= s.id %>">Détails</a>
-            <form method="post" action="/space/list-<%= s.id %>/reset" data-confirm="Réinitialiser les stats de cette liste ?">
-              <button type="submit" class="detail-btn reset-btn">Recommencer</button>
-            </form>
+            <% if (state !== 'todo') { %>
+              <form method="post" action="/space/list-<%= s.id %>/reset" data-confirm="Réinitialiser les stats de cette liste ?">
+                <button type="submit" class="detail-btn reset-btn">Recommencer</button>
+              </form>
+            <% } %>
           </div>
         </div>
         <% }) %>
@@ -144,9 +146,11 @@
           
           <div class="progress-card-actions">
             <a class="detail-btn" href="/space/theme-<%= t.id %>">Détails</a>
-            <form method="post" action="/space/theme-<%= t.id %>/reset" data-confirm="Réinitialiser les stats de ce thème ?">
-              <button type="submit" class="detail-btn reset-btn">Recommencer</button>
-            </form>
+            <% if (state !== 'todo') { %>
+              <form method="post" action="/space/theme-<%= t.id %>/reset" data-confirm="Réinitialiser les stats de ce thème ?">
+                <button type="submit" class="detail-btn reset-btn">Recommencer</button>
+              </form>
+            <% } %>
           </div>
         </div>
         <% }) %>

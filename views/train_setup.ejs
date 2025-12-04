@@ -39,6 +39,11 @@
           <%= error %>
         </div>
         <% } %>
+      <% if (typeof warning !=='undefined' && warning) { %>
+        <div class="alert">
+          <%= warning %>
+        </div>
+      <% } %>
 
           <div class="field-block">
             <div class="field-title">Modes de révision</div>

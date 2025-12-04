@@ -1,0 +1,72 @@
+<section class="card">
+  <div class="list-header">
+    <div>
+      <p class="eyebrow">Progression terminée</p>
+      <h2>Redémarrer ?</h2>
+      <% const totalCompleted = (completedThemes?.length || 0) + (completedSets?.length || 0); %>
+      <% const label = totalCompleted > 1 ? 'les thèmes/listes sélectionnés' : 'le thème ou la liste sélectionné(e)'; %>
+      <p class="muted">Vous avez déjà terminé <%= label %>. Voulez-vous supprimer la progression et repartir de zéro ?</p>
+    </div>
+  </div>
+
+  <div class="detail-list">
+    <% if (completedThemes && completedThemes.length) { %>
+      <p class="eyebrow mini">Thèmes</p>
+      <ul class="custom-select-container">
+        <% completedThemes.forEach(t => { %>
+          <li><span class="theme-label"><%= t.name %></span></li>
+        <% }) %>
+      </ul>
+    <% } %>
+    <% if (completedSets && completedSets.length) { %>
+      <p class="eyebrow mini">Listes</p>
+      <ul class="custom-select-container">
+        <% completedSets.forEach(s => { %>
+          <li><span class="theme-label"><%= s.name %></span></li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+
+  <div class="inline-actions" style="margin-top: 1rem; gap: 0.75rem;">
+    <form method="post" action="/train/session" style="margin:0;">
+      <input type="hidden" name="completed_choice" value="reset">
+      <% if (params && Array.isArray(params.modes)) { params.modes.forEach(m => { %>
+        <input type="hidden" name="modes[]" value="<%= m %>">
+      <% }) } %>
+      <% if (params && Array.isArray(params.theme_ids)) { params.theme_ids.forEach(id => { %>
+        <input type="hidden" name="theme_ids[]" value="<%= id %>">
+      <% }) } %>
+      <% if (params && Array.isArray(params.set_ids)) { params.set_ids.forEach(id => { %>
+        <input type="hidden" name="set_ids[]" value="<%= id %>">
+      <% }) } %>
+      <input type="hidden" name="rev_mode" value="<%= params && params.rev_mode ? params.rev_mode : 'order' %>">
+      <input type="hidden" name="level_id" value="<%= params && params.level_id ? params.level_id : '' %>">
+      <input type="hidden" name="remaining" value="<%= params && typeof params.remaining !== 'undefined' ? params.remaining : 'all' %>">
+      <input type="hidden" name="total" value="<%= params && typeof params.total !== 'undefined' ? params.total : 'all' %>">
+      <input type="hidden" name="show_phonetic" value="<%= params && typeof params.show_phonetic !== 'undefined' ? params.show_phonetic : 1 %>">
+      <input type="hidden" name="font_size" value="<%= params && params.font_size ? params.font_size : 'x-large' %>">
+      <button type="submit" class="btn danger">Oui, recommencer</button>
+    </form>
+
+    <form method="post" action="/train/session" style="margin:0;">
+      <input type="hidden" name="completed_choice" value="keep">
+      <% if (params && Array.isArray(params.modes)) { params.modes.forEach(m => { %>
+        <input type="hidden" name="modes[]" value="<%= m %>">
+      <% }) } %>
+      <% if (params && Array.isArray(params.theme_ids)) { params.theme_ids.forEach(id => { %>
+        <input type="hidden" name="theme_ids[]" value="<%= id %>">
+      <% }) } %>
+      <% if (params && Array.isArray(params.set_ids)) { params.set_ids.forEach(id => { %>
+        <input type="hidden" name="set_ids[]" value="<%= id %>">
+      <% }) } %>
+      <input type="hidden" name="rev_mode" value="<%= params && params.rev_mode ? params.rev_mode : 'order' %>">
+      <input type="hidden" name="level_id" value="<%= params && params.level_id ? params.level_id : '' %>">
+      <input type="hidden" name="remaining" value="<%= params && typeof params.remaining !== 'undefined' ? params.remaining : 'all' %>">
+      <input type="hidden" name="total" value="<%= params && typeof params.total !== 'undefined' ? params.total : 'all' %>">
+      <input type="hidden" name="show_phonetic" value="<%= params && typeof params.show_phonetic !== 'undefined' ? params.show_phonetic : 1 %>">
+      <input type="hidden" name="font_size" value="<%= params && params.font_size ? params.font_size : 'x-large' %>">
+      <button type="submit" class="btn secondary">Non, revenir au choix</button>
+    </form>
+  </div>
+</section>
