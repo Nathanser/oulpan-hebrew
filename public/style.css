@@ -3252,7 +3252,6 @@ input[type=range]::-moz-range-thumb:hover {
   padding: 0.75rem;
   display: flex;
   justify-content: space-between;
-  align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
 }
@@ -3270,18 +3269,6 @@ input[type=range]::-moz-range-thumb:hover {
   gap: 0.5rem;
   align-items: center;
   flex-wrap: wrap;
-}
-
-.item-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-}
-
-.icon-btn.mini {
-  width: 2rem;
-  height: 2rem;
-  font-size: 0.95rem;
 }
 
 @media (max-width: 768px) {

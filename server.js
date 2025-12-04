@@ -1718,7 +1718,6 @@ function buildDetailItems(rows = []) {
   return rows.map(row => {
     const snap = normalizeProgressSnapshot(row);
     return {
-      id: row.word_id || row.card_id || row.id,
       hebrew: row.hebrew || '',
       french: row.french || '',
       transliteration: row.transliteration || null,
@@ -1752,7 +1751,7 @@ async function getSetDetailForSpace(userId, setId) {
   if (!set) return null;
 
   const cards = await all(
-    `SELECT c.id AS card_id, c.*, cp.*, COALESCE(co.active, c.active, 1) AS effective_active
+    `SELECT c.*, cp.*, COALESCE(co.active, c.active, 1) AS effective_active
      FROM cards c
      LEFT JOIN card_overrides co ON co.card_id = c.id AND co.user_id = ?
      LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = ?
@@ -1797,7 +1796,7 @@ async function getThemeDetailForSpace(userId, themeId) {
   const theme = await get('SELECT * FROM themes WHERE id = ?', [themeId]);
   if (!theme) return null;
   const words = await all(
-    `SELECT w.id AS word_id, w.*, p.*
+    `SELECT w.*, p.*
      FROM words w
      LEFT JOIN user_word_overrides uwo ON uwo.word_id = w.id AND uwo.user_id = ?
      LEFT JOIN theme_levels l ON l.id = w.level_id
@@ -2139,32 +2138,6 @@ app.post('/space/:slug/reset', requireAuth, async (req, res) => {
     console.error('Space reset error:', e);
   }
   res.redirect('/space');
-});
-
-app.post('/space/:slug/reset-item/:itemId', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const parsed = parseSpaceSlug(req.params.slug);
-  const itemId = Number(req.params.itemId);
-  if (!parsed || Number.isNaN(itemId)) return res.redirect('/space');
-  const backUrl = `/space/${req.params.slug}`;
-  try {
-    if (parsed.type === 'set') {
-      const allowedSetIds = new Set(await getAccessibleSetIds(userId));
-      if (!allowedSetIds.has(parsed.id)) return res.redirect(backUrl);
-      const card = await get('SELECT id, set_id FROM cards WHERE id = ?', [itemId]);
-      if (!card || Number(card.set_id) !== Number(parsed.id)) return res.redirect(backUrl);
-      await run('DELETE FROM card_progress WHERE user_id = ? AND card_id = ?', [userId, card.id]);
-    } else {
-      const allowedThemeIds = new Set(await getActiveThemeIdsForUser(userId));
-      if (!allowedThemeIds.has(parsed.id)) return res.redirect(backUrl);
-      const word = await get('SELECT id, theme_id FROM words WHERE id = ?', [itemId]);
-      if (!word || Number(word.theme_id) !== Number(parsed.id)) return res.redirect(backUrl);
-      await run('DELETE FROM progress WHERE user_id = ? AND word_id = ?', [userId, word.id]);
-    }
-  } catch (e) {
-    console.error('Space item reset error:', e);
-  }
-  res.redirect(backUrl);
 });
 
 app.get('/space/:slug', requireAuth, async (req, res) => {

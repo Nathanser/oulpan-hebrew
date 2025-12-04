@@ -1,5 +1,4 @@
 <section class="space-detail">
-  <% const slug = type === 'set' && set ? ('list-' + set.id) : (theme ? ('theme-' + theme.id) : ''); %>
   <div class="list-header">
     <div>
       <p class="eyebrow"><%= type === 'set' ? 'Liste perso' : 'Thème' %></p>
@@ -114,13 +113,6 @@
             <p class="mini muted">Vu : <%= item.last_seen_label %></p>
             <p class="mini muted">Dernière erreur : <%= item.last_wrong_label %></p>
           </div>
-          <% if (item.status === 'struggling' && item.id && slug) { %>
-            <div class="item-actions">
-              <form method="post" action="/space/<%= slug %>/reset-item/<%= item.id %>" onsubmit="return confirm('Réinitialiser les stats de cet élément ?');">
-                <button type="submit" class="icon-btn ghost mini" title="Réinitialiser les stats">&#8635;</button>
-              </form>
-            </div>
-          <% } %>
         </div>
       <% }) %>
     </div>
