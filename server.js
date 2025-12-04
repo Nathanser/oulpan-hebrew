@@ -4781,6 +4781,8 @@ const handleTrainAnswer = async (req, res) => {
     : Math.max(0, totalCount - remainingBefore) + 1;
   let correctCount = Number(state.correct || 0);
   const normalizedAnswer = (user_answer || '').trim().toLowerCase();
+  const isChoiceMode = activeMode === MODE_FLASHCARDS || activeMode === MODE_FLASHCARDS_REVERSE;
+  const selectedChoice = (choice_word_id || '').toString().trim();
   let currentItemId = '';
   let currentFavorite = 0;
   const renderTrainAnswer = (payload) =>
@@ -4808,7 +4810,9 @@ const handleTrainAnswer = async (req, res) => {
       if (!card) return res.redirect('/train');
       currentItemId = `card_${cardId}`;
       currentFavorite = card.effective_favorite ? 1 : 0;
-      const isCorrect = normalizedAnswer && normalizedAnswer === (card.french || '').trim().toLowerCase();
+      const isCorrect = isChoiceMode
+        ? selectedChoice && selectedChoice === `card_${cardId}`
+        : normalizedAnswer && normalizedAnswer === (card.french || '').trim().toLowerCase();
       if (isCorrect) correctCount += 1;
       await upsertCardProgress(userId, cardId, isCorrect);
       if (remainingCount > 0) {
@@ -4850,7 +4854,9 @@ const handleTrainAnswer = async (req, res) => {
     const favRow = await get('SELECT id FROM favorites WHERE user_id = ? AND word_id = ?', [userId, word_id]);
     currentFavorite = favRow ? 1 : 0;
 
-    const isCorrect = normalizedAnswer && normalizedAnswer === (word.french || '').trim().toLowerCase();
+    const isCorrect = isChoiceMode
+      ? selectedChoice && selectedChoice === String(word_id)
+      : normalizedAnswer && normalizedAnswer === (word.french || '').trim().toLowerCase();
     if (isCorrect) correctCount += 1;
 
     const progressUpdate = await upsertProgress(userId, word_id, isCorrect);
