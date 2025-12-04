@@ -47,6 +47,12 @@
                               <span class="menu-icon">&#9940;</span>
                             </button>
                           </form>
+                          <form action="/themes/<%= t.id %>?_method=DELETE" method="post" onsubmit="return confirm('Supprimer ce thème et décaler les IDs ?');">
+                            <button type="submit" class="menu-item danger">
+                              <span>Supprimer (admin)</span>
+                              <span class="menu-icon">&#128465;</span>
+                            </button>
+                          </form>
                           <% } %>
                       </div>
                     </div>
@@ -97,6 +103,12 @@
                                             <span class="menu-icon">&#9940;</span>
                                           </button>
                                         </form>
+                                        <form action="/themes/<%= child.id %>?_method=DELETE" method="post" onsubmit="return confirm('Supprimer ce thème et décaler les IDs ?');">
+                                          <button type="submit" class="menu-item danger">
+                                            <span>Supprimer (admin)</span>
+                                            <span class="menu-icon">&#128465;</span>
+                                          </button>
+                                        </form>
                                         <% } %>
                                           <% } %>
                           </div>
@@ -127,6 +139,12 @@
                               <button type="submit" class="menu-item">
                                 <span>Désactiver (admin)</span>
                                 <span class="menu-icon">&#9940;</span>
+                              </button>
+                            </form>
+                            <form action="/themes/<%= t.id %>?_method=DELETE" method="post" onsubmit="return confirm('Supprimer ce thème et décaler les IDs ?');">
+                              <button type="submit" class="menu-item danger">
+                                <span>Supprimer (admin)</span>
+                                <span class="menu-icon">&#128465;</span>
                               </button>
                             </form>
                           <% } %>

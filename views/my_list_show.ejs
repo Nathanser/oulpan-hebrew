@@ -59,10 +59,10 @@
                 <% if ((typeof isOwner==='undefined' || isOwner) || isCollaborator) { %>
                   <div class="word-card-top">
                     <div class="word-card-actions">
-                      <a class="icon-btn ghost" href="/my/lists/<%= set.id %>/cards/<%= card.id %>/edit"
+                      <a class="icon-btn ghost" href="/my/lists/<%= set.id %>/cards/<%= card.display_index %>/edit"
                         title="Modifier la carte">&#9998;</a>
                       <% if (typeof isOwner==='undefined' || isOwner) { %>
-                        <form method="post" action="/my/lists/<%= set.id %>/cards/<%= card.id %>/action">
+                        <form method="post" action="/my/lists/<%= set.id %>/cards/<%= card.display_index %>/action">
                           <input type="hidden" name="action" value="toggle_fav" />
                           <input type="hidden" name="redirectTo" value="/my/lists/<%= set.id %>" />
                           <button type="submit" class="icon-btn heart <%= card.favorite ? 'active' : '' %>"
@@ -92,19 +92,19 @@
                     </div>
                     <div class="word-card-inline-actions">
                       <% if ((typeof isOwner==='undefined' || isOwner) || isCollaborator) { %>
-                        <form method="post" action="/my/lists/<%= set.id %>/cards/<%= card.id %>/action">
+                        <form method="post" action="/my/lists/<%= set.id %>/cards/<%= card.display_index %>/action">
                           <input type="hidden" name="action" value="toggle_active" />
                           <input type="hidden" name="redirectTo" value="/my/lists/<%= set.id %>" />
                           <button type="submit" class="icon-btn ghost"
                             title="<%= card.active ? 'Masquer' : 'Rendre actif' %>">&#128065;</button>
                         </form>
-                        <form method="post" action="/my/lists/<%= set.id %>/cards/<%= card.id %>/action">
+                        <form method="post" action="/my/lists/<%= set.id %>/cards/<%= card.display_index %>/action">
                           <input type="hidden" name="action" value="toggle_memorized" />
                           <input type="hidden" name="redirectTo" value="/my/lists/<%= set.id %>" />
                           <button type="submit" class="icon-btn ghost" title="Marquer mémorisé">&#129504;</button>
                         </form>
                         <% if (! (typeof isOwner==='undefined' || isOwner) && isCollaborator) { %>
-                          <form method="post" action="/my/lists/<%= set.id %>/cards/<%= card.id %>/action">
+                          <form method="post" action="/my/lists/<%= set.id %>/cards/<%= card.display_index %>/action">
                             <input type="hidden" name="action" value="toggle_fav" />
                             <input type="hidden" name="redirectTo" value="/my/lists/<%= set.id %>" />
                             <button type="submit" class="icon-btn heart <%= card.favorite ? 'active' : '' %>"
@@ -115,7 +115,7 @@
 
                               <% } %>
                                 <% } else { %>
-                                  <form method="post" action="/my/lists/<%= set.id %>/cards/<%= card.id %>/action">
+                                  <form method="post" action="/my/lists/<%= set.id %>/cards/<%= card.display_index %>/action">
                                     <input type="hidden" name="action" value="toggle_fav" />
                                     <input type="hidden" name="redirectTo" value="/my/lists/<%= set.id %>" />
                                     <button type="submit" class="icon-btn heart <%= card.favorite ? 'active' : '' %>"

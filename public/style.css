@@ -1399,6 +1399,39 @@ details.advanced summary {
   justify-content: flex-end;
 }
 
+.set-list-grid[data-mode="reorder"] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.set-list-grid[data-mode="reorder"] .set-list-card {
+  width: 100%;
+  cursor: grab;
+}
+
+.set-list-grid[data-mode="reorder"] .set-list-card.dragging {
+  cursor: grabbing;
+}
+
+.set-list-grid[data-mode="reorder"] .set-list-actions .btn,
+.set-list-grid[data-mode="reorder"] .set-list-actions .icon-btn:not(.set-reorder-handle) {
+  display: none;
+}
+
+.set-list-grid[data-mode="reorder"] .set-reorder-handle {
+  display: inline-flex;
+}
+
+.set-list-grid[data-mode="reorder"] .set-list-card,
+.set-list-grid[data-mode="reorder"] .set-reorder-handle {
+  touch-action: none;
+}
+
+.set-list-card.drag-settled {
+  animation: settle-card 0.2s ease;
+}
+
 .set-list-empty {
   display: flex;
   flex-direction: column;
