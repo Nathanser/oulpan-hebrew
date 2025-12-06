@@ -1119,10 +1119,10 @@ function duplicateKey(hebrew, french) {
   return `${fr}|${he}`;
 }
 
-// Normalization used for written revision answers to make comparisons resilient to accents, hyphens, and optional hints.
-function normalizeWrittenAnswer(str = '') {
+// Helpers for written revision answer matching
+function normalizeWrittenToken(str = '') {
   let normalized = String(str || '');
-  normalized = normalized.replace(/\([^)]*\)/g, ' '); // drop parenthetical hints
+  normalized = normalized.replace(/[()]/g, ' ');
   normalized = normalized.replace(/œ/g, 'oe').replace(/æ/g, 'ae');
   normalized = normalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   normalized = normalized.toLowerCase();
@@ -1132,11 +1132,69 @@ function normalizeWrittenAnswer(str = '') {
   return normalized;
 }
 
+function splitTopLevelSlash(str = '') {
+  const parts = [];
+  let depth = 0;
+  let current = '';
+  for (const ch of String(str || '')) {
+    if (ch === '(') depth += 1;
+    if (ch === ')') depth = Math.max(0, depth - 1);
+    if (ch === '/' && depth === 0) {
+      parts.push(current);
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  parts.push(current);
+  return parts;
+}
+
+function getWrittenExpectedVariants(expected = '') {
+  const variants = new Set();
+  const add = (val) => {
+    const norm = normalizeWrittenToken(val);
+    if (norm) variants.add(norm);
+  };
+
+  const expectedStr = String(expected || '');
+
+  // Base answer without parenthetical hints.
+  add(expectedStr.replace(/\([^)]*\)/g, ' '));
+
+  // Alternatives inside parentheses, split by slash if present.
+  const parenMatches = expectedStr.match(/\(([^)]*)\)/g) || [];
+  parenMatches.forEach((raw) => {
+    const inner = raw.slice(1, -1);
+    splitTopLevelSlash(inner).forEach(add);
+  });
+
+  // Top-level slash-separated options.
+  splitTopLevelSlash(expectedStr).forEach((part) => add(part.replace(/\([^)]*\)/g, ' ')));
+
+  return variants;
+}
+
+function getWrittenUserCandidates(userAnswer = '') {
+  const candidates = new Set();
+  const add = (val) => {
+    const norm = normalizeWrittenToken(val);
+    if (norm) candidates.add(norm);
+  };
+  const userStr = String(userAnswer || '');
+  add(userStr);
+  splitTopLevelSlash(userStr).forEach(add);
+  return candidates;
+}
+
 function isWrittenAnswerCorrect(userAnswer = '', expectedAnswer = '') {
-  const user = normalizeWrittenAnswer(userAnswer);
-  const expected = normalizeWrittenAnswer(expectedAnswer);
-  if (!user || !expected) return false;
-  return user === expected;
+  const expectedVariants = getWrittenExpectedVariants(expectedAnswer);
+  if (expectedVariants.size === 0) return false;
+  const userVariants = getWrittenUserCandidates(userAnswer);
+  for (const candidate of userVariants) {
+    if (expectedVariants.has(candidate)) return true;
+  }
+  return false;
 }
 
 function normalizeAnswerString(str = '') {
@@ -4073,7 +4131,7 @@ app.post('/train/session', requireAuth, async (req, res) => {
   const setList = setListRaw.filter(id => allowedSetSet.has(id));
   const hasThemes = themeList.length > 0;
   const hasSets = setList.length > 0;
-  const source = hasThemes && hasSets ? 'mixed' : hasSets ? 'cards' : 'words';
+  const source = hasSets ? 'cards' : 'words';
   const reviewMode = (rev_mode || '').toLowerCase();
   let remain = remaining === 'all' ? null : Number(remaining || 10);
   const showPhonetic = String(show_phonetic) === '0' ? 0 : 1;
@@ -4441,10 +4499,10 @@ app.get('/train', requireAuth, async (req, res) => {
   const hasSets = selectedSetIds.length > 0;
   let source = state.source || (hasSets ? 'cards' : 'words');
   const setOrder = new Map(selectedSetIds.map((id, idx) => [Number(id), idx]));
-  if (source === 'mixed' && !hasSets) {
-    source = hasThemes ? 'words' : 'cards';
-  } else if (source === 'mixed' && !hasThemes) {
+  if (hasSets) {
     source = 'cards';
+  } else if (source === 'mixed') {
+    source = hasThemes ? 'words' : 'cards';
   }
   state.source = source;
 
@@ -4836,14 +4894,11 @@ app.get('/train', requireAuth, async (req, res) => {
       const cardQueue = Array.isArray(state.cardQueue) ? state.cardQueue : [];
 
       if (reviewMode === 'order') {
-        // Advance strictly following queue order; once queue is exhausted, stop picking cards
-        if (state.cardQueueIndex < cardQueue.length) {
-          const nextId = cardQueue[state.cardQueueIndex];
-          pick = cardsPool.find(c => Number(c.id) === Number(nextId));
-          state.cardQueueIndex += 1;
-        } else {
-          state.cardQueueIndex = 0;
-          pick = null;
+        if (cardQueue.length > 0) {
+          const nextIndex = state.cardQueueIndex % cardQueue.length;
+          const nextId = cardQueue[nextIndex];
+          pick = cardsPool.find(c => Number(c.id) === Number(nextId)) || cardsPool[0];
+          state.cardQueueIndex = nextIndex + 1;
         }
       } else {
         let availableCards = cardsPool;
@@ -4856,6 +4911,25 @@ app.get('/train', requireAuth, async (req, res) => {
           availableCards = cardsPool;
         }
         pick = availableCards[Math.floor(Math.random() * availableCards.length)];
+      }
+      if (!pick) {
+        req.session.trainState = state;
+        return renderTrain({
+          word: null,
+          message: 'Aucune carte dans ces listes.',
+          result: null,
+          mode,
+          modes: modeList,
+          questionMode,
+          filters,
+          options: null,
+          themes,
+          remaining: remainingCount,
+          total: totalCount,
+          answered: answeredCount,
+          correct: correctCount,
+          nextUrl: null
+        });
       }
       if (pick) {
         const cardId = Number(pick.id);
