@@ -1,6 +1,6 @@
 <section class="card">
   <div class="list-header">
-    <h2>Choix de la révision</h2>
+    <h1>Choix de la révision</h2>
   </div>
 
   <% let selectedModes=['flashcards']; if (params && params.modes) { selectedModes=Array.isArray(params.modes) ?
@@ -45,8 +45,8 @@
             </div>
             <% } %>
 
-              <div class="field-block">
-                <div class="field-title">Modes de révision</div>
+              <fieldset class="check-row">
+                <legend style="margin-bottom:0.35rem;">Modes de révision</legend>
                 <div class="mode-grid">
                   <label class="check-row">
                     <input type="checkbox" name="modes[]" value="flashcards" <%=selectedModes.includes('flashcards')
@@ -64,111 +64,110 @@
                     <span>Révision par écrit</span>
                   </label>
                 </div>
-              </div>
+              </fieldset>
 
-              <div class="field-block">
-                <div class="field-title">Thèmes et listes</div>
-                <div class="theme-toggles inline">
+              <fieldset class="check-row">
+                <legend style="margin-bottom:0.35rem;">Thèmes et listes</legend>
+                <div class="mode-grid">
                   <label class="check-row"><input type="checkbox" id="toggle-public" <%=selectedThemes.size> 0 ?
-                    'checked' :
-                    '' %>> <span>Thèmes en ligne</span></label>
+                    'checked' : '' %>> <span>Thèmes en ligne</span></label>
                   <label class="check-row"><input type="checkbox" id="toggle-lists" <%=(sets || []).some(s=>
                     selectedSets.has(String(s.id))) ? 'checked' : '' %>> <span>Mes listes</span></label>
                   <label class="check-row"><input type="checkbox" id="toggle-shared" <%=(sharedSets || []).some(s=>
                     selectedSets.has(String(s.id))) ? 'checked' : '' %>> <span>Listes partagées</span></label>
                 </div>
+              </fieldset>
 
-                <div class="theme-groups">
-                  <div class="theme-group" id="public-group" style="display:none;">
-                    <p class="muted mini" style="margin:0 0 0.2rem;">Thèmes en ligne</p>
-                    <% if (!themes || themes.length===0) { %>
-                      <p class="muted mini">Aucun thème en ligne disponible.</p>
-                      <% } else { %>
-                        <ul class="custom-select-container">
-                          <% themes.forEach(t=> { %>
-                            <% if (t.children && t.children.length> 0) { %>
-                              <li>
-                                <div class="theme-row parent-row">
-                                  <button type="button" class="icon-btn ghost toggle-subthemes-btn"
-                                    data-target="subthemes-<%= t.id %>" aria-expanded="false">
-                                    <span class="chevron-icon">&#9654;</span>
-                                  </button>
-                                  <span class="theme-label">
-                                    <%= t.name %>
-                                  </span>
-                                </div>
-                                <ul id="subthemes-<%= t.id %>" style="display:none;">
-                                  <% t.children.forEach(child=> { %>
-                                    <li>
-                                      <div class="theme-row">
-                                        <input type="checkbox" name="theme_ids[]" value="<%= child.id %>"
-                                          id="theme-<%= child.id %>" <%=selectedThemes.has(String(child.id)) ? 'checked'
-                                          : '' %>>
-                                        <label for="theme-<%= child.id %>">
-                                          <%= child.name %>
-                                        </label>
-                                      </div>
-                                    </li>
-                                    <% }) %>
-                                </ul>
-                              </li>
-                              <% } else { %>
-                                <li>
-                                  <div class="theme-row">
-                                    <input type="checkbox" name="theme_ids[]" value="<%= t.id %>" id="theme-<%= t.id %>"
-                                      <%=selectedThemes.has(String(t.id)) ? 'checked' : '' %>>
-                                    <label for="theme-<%= t.id %>">
-                                      <%= t.name %>
-                                    </label>
-                                  </div>
-                                </li>
-                                <% } %>
+              <div class="theme-groups">
+                <div class="theme-group" id="public-group" style="display:none;">
+                  <p class="muted mini" style="margin:0 0 0.2rem;">Thèmes en ligne</p>
+                  <% if (!themes || themes.length===0) { %>
+                    <p class="muted mini">Aucun thème en ligne disponible.</p>
+                    <% } else { %>
+                      <ul class="custom-select-container">
+                        <% themes.forEach(t=> { %>
+                          <% if (t.children && t.children.length> 0) { %>
+                            <li>
+                              <div class="theme-row parent-row">
+                                <button type="button" class="icon-btn ghost toggle-subthemes-btn"
+                                  data-target="subthemes-<%= t.id %>" aria-expanded="false">
+                                  <span class="chevron-icon">&#9654;</span>
+                                </button>
+                                <span class="theme-label">
+                                  <%= t.name %>
+                                </span>
+                              </div>
+                              <ul id="subthemes-<%= t.id %>" style="display:none;">
+                                <% t.children.forEach(child=> { %>
+                                  <li>
+                                    <div class="theme-row">
+                                      <input type="checkbox" name="theme_ids[]" value="<%= child.id %>"
+                                        id="theme-<%= child.id %>" <%=selectedThemes.has(String(child.id)) ? 'checked'
+                                        : '' %>>
+                                      <label for="theme-<%= child.id %>">
+                                        <%= child.name %>
+                                      </label>
+                                    </div>
+                                  </li>
                                   <% }) %>
-                        </ul>
-                        <% } %>
-                  </div>
-
-                  <div class="theme-group" id="list-group" style="display:none;">
-                    <p class="muted mini" style="margin:0 0 0.2rem;">Mes Listes</p>
-                    <% if (!sets || sets.length===0) { %>
-                      <p class="muted mini">Aucune liste pour le moment.</p>
-                      <% } else { %>
-                        <ul class="custom-select-container">
-                          <% sets.forEach(s=> { %>
-                            <li>
-                              <div class="theme-row">
-                                <input type="checkbox" name="set_ids[]" value="<%= s.id %>" id="set-<%= s.id %>"
-                                  <%=selectedSets.has(String(s.id)) ? 'checked' : '' %>>
-                                <label for="set-<%= s.id %>">
-                                  <%= s.name %>
-                                </label>
-                              </div>
+                              </ul>
                             </li>
-                            <% }) %>
-                        </ul>
-                        <% } %>
-                  </div>
+                            <% } else { %>
+                              <li>
+                                <div class="theme-row">
+                                  <input type="checkbox" name="theme_ids[]" value="<%= t.id %>" id="theme-<%= t.id %>"
+                                    <%=selectedThemes.has(String(t.id)) ? 'checked' : '' %>>
+                                  <label for="theme-<%= t.id %>">
+                                    <%= t.name %>
+                                  </label>
+                                </div>
+                              </li>
+                              <% } %>
+                                <% }) %>
+                      </ul>
+                      <% } %>
+                </div>
 
-                  <div class="theme-group" id="shared-list-group" style="display:none;">
-                    <p class="muted mini" style="margin:0 0 0.2rem;">Listes partagées</p>
-                    <% if (!sharedSets || sharedSets.length===0) { %>
-                      <p class="muted mini">Aucune liste partagée.</p>
-                      <% } else { %>
-                        <ul class="custom-select-container">
-                          <% sharedSets.forEach(s=> { %>
-                            <li>
-                              <div class="theme-row">
-                                <input type="checkbox" name="set_ids[]" value="<%= s.id %>" id="shared-set-<%= s.id %>"
-                                  <%=selectedSets.has(String(s.id)) ? 'checked' : '' %>>
-                                <label for="shared-set-<%= s.id %>">
-                                  <%= s.name %> (<%= s.owner_name %>)
-                                </label>
-                              </div>
-                            </li>
-                            <% }) %>
-                        </ul>
-                        <% } %>
-                  </div>
+                <div class="theme-group" id="list-group" style="display:none;">
+                  <p class="muted mini" style="margin:0 0 0.2rem;">Mes Listes</p>
+                  <% if (!sets || sets.length===0) { %>
+                    <p class="muted mini">Aucune liste pour le moment.</p>
+                    <% } else { %>
+                      <ul class="custom-select-container">
+                        <% sets.forEach(s=> { %>
+                          <li>
+                            <div class="theme-row">
+                              <input type="checkbox" name="set_ids[]" value="<%= s.id %>" id="set-<%= s.id %>"
+                                <%=selectedSets.has(String(s.id)) ? 'checked' : '' %>>
+                              <label for="set-<%= s.id %>">
+                                <%= s.name %>
+                              </label>
+                            </div>
+                          </li>
+                          <% }) %>
+                      </ul>
+                      <% } %>
+                </div>
+
+                <div class="theme-group" id="shared-list-group" style="display:none;">
+                  <p class="muted mini" style="margin:0 0 0.2rem;">Listes partagées</p>
+                  <% if (!sharedSets || sharedSets.length===0) { %>
+                    <p class="muted mini">Aucune liste partagée.</p>
+                    <% } else { %>
+                      <ul class="custom-select-container">
+                        <% sharedSets.forEach(s=> { %>
+                          <li>
+                            <div class="theme-row">
+                              <input type="checkbox" name="set_ids[]" value="<%= s.id %>" id="shared-set-<%= s.id %>"
+                                <%=selectedSets.has(String(s.id)) ? 'checked' : '' %>>
+                              <label for="shared-set-<%= s.id %>">
+                                <%= s.name %> (<%= s.owner_name %>)
+                              </label>
+                            </div>
+                          </li>
+                          <% }) %>
+                      </ul>
+                      <% } %>
                 </div>
               </div>
 
@@ -180,8 +179,8 @@
                 </label>
               </div>
 
-              <div class="field-block">
-                <div class="field-title">Nombre de mots</div>
+              <fieldset class="check-row" style="display: block;">
+                <legend style="margin-bottom:0.35rem;">Nombre de mots</legend>
                 <div class="mode-grid">
                   <label class="check-row">
                     <input type="radio" name="remaining_mode" value="all" id="rm-all" <%=selectedRemaining==='all'
@@ -194,7 +193,7 @@
                     <span style="white-space: nowrap;">Nombre défini</span>
                   </label>
                 </div>
-                <div id="slider-container" style="display:none; margin-top:0.5rem; padding-left:0.5rem;">
+                <div id="slider-container" style="display:none; margin-top:0.5rem;">
                   <div style="display:flex; align-items:center; gap:0.75rem;">
                     <input type="range" min="1" max="50"
                       value="<%= selectedRemaining !== 'all' ? selectedRemaining : '10' %>" id="remaining-slider"
@@ -207,13 +206,13 @@
                 <input type="hidden" name="remaining" id="remaining-input" value="<%= selectedRemaining %>">
                 <input type="hidden" name="total"
                   value="<%= (params && typeof params.total !== 'undefined') ? params.total : 10 %>">
-              </div>
+              </fieldset>
 
               <% const selectedWeakOnly=(params && params.weak_only==='1' ) ? true : false; %>
                 <details class="advanced">
-                  <summary style="padding-bottom: 0.3rem">Options avancées</summary>
+                  <summary style="padding-bottom: 0.3rem; font-size:x-large;">Options avancées</summary>
                   <div class="advanced-grid">
-                    <label>Mode de révision
+                    <label style="color: white; font-size: 1.2rem; font-weight: 600;">Mode de révision
                       <select name="rev_mode">
                         <option value="order" <%=selectedRevMode==='order' ? 'selected' : '' %>>Dans l'ordre</option>
                         <option value="random" <%=selectedRevMode==='random' ? 'selected' : '' %>>Aléatoire</option>
