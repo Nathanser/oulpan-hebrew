@@ -1,53 +1,67 @@
 <section>
-  <h1>Bienvenue, <%= currentUser.display_name %></h1>
+  <h1>Bienvenue, <%= currentUser.display_name %>
+  </h1>
 
   <div class="grid">
     <div class="card">
       <h2>Progression globale</h2>
       <ul class="stats">
-        <li><strong>Mots vus :</strong> <%= stats && stats.total_seen || 0 %></li>
-        <li><strong>Réussites :</strong> <%= stats && stats.total_success || 0 %></li>
-        <li><strong>Échecs :</strong> <%= stats && stats.total_fail || 0 %></li>
-        <li><strong>Maîtrise moyenne :</strong> <%= stats && stats.avg_strength ? stats.avg_strength : 0 %>%</li>
+        <li><strong>Mots vus :</strong>
+          <%= stats && stats.total_seen || 0 %>
+        </li>
+        <li><strong>Réussites :</strong>
+          <%= stats && stats.total_success || 0 %>
+        </li>
+        <li><strong>Échecs :</strong>
+          <%= stats && stats.total_fail || 0 %>
+        </li>
+        <li><strong>Maîtrise moyenne :</strong>
+          <%= stats && stats.avg_strength ? stats.avg_strength : 0 %>%
+        </li>
       </ul>
-      <a class="btn" href="/train/setup" style="font-size: small; display: block; width: fit-content; margin: 0 auto;">Commencer une session de révision </a>
+      <a class="btn" href="/train/setup"
+        style="font-size: small; display: block; width: fit-content; margin: 0 auto; font-size: large;">Commencer une
+        session de révision </a>
     </div>
 
     <div class="card">
       <h2>Révision en cours</h2>
       <% if (!ongoing) { %>
         <p>Aucune session en cours. Lance une révision.</p>
-      <% } else { %>
-        <div class="list">
-          <div class="list-header" style="margin-bottom:0.5rem;">
-            <div>
-              <% const modeLabels = { flashcards: 'Flashcards classique', flashcards_reverse: 'Flashcards reverse', written: 'Révision par écrit' }; %>
-              <% const displayModes = (ongoing.modes && ongoing.modes.length ? ongoing.modes : [ongoing.mode || 'flashcards']).map(m => modeLabels[m] || 'Flashcards').join(' + '); %>
-              <p class="muted mini">Mode : <%= displayModes %></p>
-              <p class="muted mini">Progression : <%= Number(ongoing.answered || 0) %>/<%= ongoing.total === 'all' ? 'total' : ongoing.total %></p>
+        <% } else { %>
+          <div class="list">
+            <div class="list-header" style="margin-bottom:0.5rem;">
+              <div>
+                <% const modeLabels={ flashcards: 'Flashcards classique' , flashcards_reverse: 'Flashcards reverse' ,
+                  written: 'Révision par écrit' }; %>
+                  <% const displayModes=(ongoing.modes && ongoing.modes.length ? ongoing.modes : [ongoing.mode
+                    || 'flashcards' ]).map(m=> modeLabels[m] || 'Flashcards').join(' + '); %>
+                    <p class="muted mini">Mode : <%= displayModes %>
+                    </p>
+                    <p class="muted mini">Progression : <%= Number(ongoing.answered || 0) %>/<%= ongoing.total==='all'
+                          ? 'total' : ongoing.total %>
+                    </p>
+              </div>
+              <div class="inline-actions">
+                <form method="post" action="/train/session/clear" style="display:inline;">
+                  <button class="icon-btn danger" type="submit" title="Supprimer la session">&#128465;</button>
+                </form>
+              </div>
             </div>
-            <div class="inline-actions">
-              <form method="post" action="/train/session/clear" style="display:inline;">
-                <button class="icon-btn danger" type="submit" title="Supprimer la session">&#128465;</button>
-              </form>
-            </div>
+            <% if (ongoing.themes && ongoing.themes.length> 0) { %>
+              <p class="muted mini">Thèmes : <%= ongoing.themes.map(t=> t.name).join(', ') %></p>
+              <% } %>
+                <% if (ongoing.sets && ongoing.sets.length> 0) { %>
+                  <p class="muted mini">Listes : <%= ongoing.sets.map(s=> s.name).join(', ') %></p>
+                  <% } %>
+                    <br>
+                    <div class="mode-switch" style="margin-top:0.5rem;">
+                      <a class="btn" href="/train/resume?choice=resume" style="font-size: medium;">Reprendre</a>
+                      <a class="btn ghost" href="/train/resume?choice=restart"
+                        style="font-size: medium;">Recommencer</a>
+                    </div>
           </div>
-          <% if (ongoing.themes && ongoing.themes.length > 0) { %>
-            <p class="muted mini">Thèmes : <%= ongoing.themes.map(t => t.name).join(', ') %></p>
           <% } %>
-          <% if (ongoing.sets && ongoing.sets.length > 0) { %>
-            <p class="muted mini">Listes : <%= ongoing.sets.map(s => s.name).join(', ') %></p>
-          <% } %>
-          <br>
-          <div class="mode-switch" style="margin-top:0.5rem;">
-            <a class="btn" href="/train/resume?choice=resume" style="font-size: medium;">Reprendre</a>
-            <a class="btn ghost" href="/train/resume?choice=restart" style="font-size: medium;">Recommencer</a>
-          </div>
-        </div>
-      <% } %>
     </div>
   </div>
 </section>
-
-
-
