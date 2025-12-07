@@ -1,15 +1,16 @@
 <section class="search-page">
   <div class="list-header">
-    <div>
-      <h1>Doublons</h1>
-      <p class="muted">Retrouve les mots en double entre thèmes et listes auxquels tu as accès.</p>
-    </div>
-    <div class="inline-actions">
-      <a class="btn ghost" href="/search">Retour à la recherche</a>
+    <div style="width: 100%;">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <h1 style="margin: 0;">Doublons</h1>
+        <a class="btn ghost" href="/search">← Retour</a>
+      </div>
+      <p class="muted" style="margin-top: 0.5rem;">Retrouve les mots en double entre thèmes et listes auxquels tu as
+        accès.</p>
     </div>
   </div>
 
-  <div class="mode-switch">
+  <div class="mode-switch" style="justify-content: center;">
     <button type="button" class="tab-btn active" data-target="tab-actif">Actifs</button>
     <button type="button" class="tab-btn" data-target="tab-inactif">Inactifs</button>
   </div>
@@ -28,158 +29,195 @@
     </div>
   </div>
 
-  <% const hasGroups = groups && groups.length>0; const hasIgnored = ignoredGroups && ignoredGroups.length>0; %>
+  <% const hasGroups=groups && groups.length>0; const hasIgnored = ignoredGroups && ignoredGroups.length>0; %>
 
-  <div id="tab-actif" class="tab-panel">
-    <% if (hasGroups) { %>
-      <div class="card">
-        <div class="list-header">
-          <h3>Doublons actifs (<%= groups.length %>)</h3>
-        </div>
+    <div id="tab-actif" class="tab-panel">
+      <% if (hasGroups) { %>
+        <div class="card">
+          <div class="list-header">
+            <h3>Doublons actifs (<%= groups.length %>)</h3>
+          </div>
 
-        <div class="search-results-grid">
-          <% groups.forEach(group => { %>
-            <div class="search-card dup-group" data-kind="<%= group.kind %>">
-              <div class="search-card-top">
-                <span class="pill muted mini">Clé: <%= group.key %></span>
-                <span class="pill mini"><%= group.items.length %> occurrences</span>
-              </div>
-              <div class="search-card-body">
-                <p class="french-word"><%= group.sample.french %></p>
-                <p class="hebrew-word"><%= group.sample.hebrew %></p>
-                <% if (group.sample.transliteration) { %>
-                  <p class="translit"><%= group.sample.transliteration %></p>
-                <% } %>
-              </div>
-              <div class="search-card-meta">
-                <div class="meta-row">
-                  <span class="meta-label">Type</span>
-                  <span class="meta-value">
-                    <%= group.kind === 'cross' ? 'Thème + Liste' : (group.kind === 'theme' ? 'Thème' : 'Liste') %>
+          <div class="search-results-grid">
+            <% groups.forEach(group=> { %>
+              <div class="search-card dup-group" data-kind="<%= group.kind %>">
+                <div class="search-card-top">
+                  <span class="pill muted mini">Clé: <%= group.key %></span>
+                  <span class="pill mini">
+                    <%= group.items.length %> occurrences
                   </span>
                 </div>
-              </div>
-
-              <form method="post" action="/search/duplicates/ignore" class="inline-form" style="margin:0.3rem 0 0.5rem;">
-                <input type="hidden" name="dup_key" value="<%= group.key %>">
-                <input type="hidden" name="action" value="ignore">
-                <button class="btn ghost mini" type="submit">Ignorer ce doublon</button>
-              </form>
-
-              <div class="dup-actions">
-                <% group.items.forEach(item => { %>
-                  <div class="dup-item">
-                    <div class="dup-meta">
-                      <span class="pill mini"><%= item.kind === 'theme' ? 'Thème' : 'Liste' %></span>
-                      <strong><%= item.french %></strong>
-                      <span class="muted mini"><%= item.hebrew %></span>
-                      <div class="muted mini">
-                        <% if (item.kind === 'theme') { %>
-                          <%= item.container %><%= item.level ? ' - ' + item.level : '' %>
-                        <% } else { %>
-                          <%= item.container %><%= item.ownerName ? ' (' + item.ownerName + ')' : '' %>
-                        <% } %>
-                      </div>
-                      <div class="pill-row" style="margin-top:0.3rem;">
-                        <span class="pill <%= item.active ? 'success' : 'muted' %> mini"><%= item.active ? 'Actif' : 'Inactif' %></span>
-                        <% if (!item.containerActive) { %><span class="pill muted mini">Contenant inactif</span><% } %>
-                      </div>
-                    </div>
-                    <div class="dup-buttons">
-                      <% if (item.kind === 'theme') { %>
-                        <% if (item.isOwner || (isAdmin && item.isGlobal)) { %>
-                          <form method="post" action="/words/<%= item.id %>/toggle" class="inline-form">
-                            <input type="hidden" name="redirectTo" value="/search/duplicates">
-                            <button class="btn ghost mini" type="submit"><%= item.active ? 'Rendre inactif' : 'Activer' %></button>
-                          </form>
-                        <% } else if (item.isGlobal) { %>
-                          <form method="post" action="/words/<%= item.id %>/toggle-self" class="inline-form">
-                            <input type="hidden" name="redirectTo" value="/search/duplicates">
-                            <button class="btn ghost mini" type="submit"><%= item.active ? 'Masquer pour moi' : 'Réafficher pour moi' %></button>
-                          </form>
-                        <% } %>
-                        <% if (item.isOwner) { %>
-                          <form method="post" action="/my/words/<%= item.id %>?_method=DELETE" class="inline-form"
-                            data-confirm="Supprimer ce mot ?">
-                            <input type="hidden" name="redirectTo" value="/search/duplicates">
-                            <button class="btn ghost danger mini" type="submit">Supprimer</button>
-                          </form>
-                        <% } else if (isAdmin && item.isGlobal && item.themeId) { %>
-                          <form method="post" action="/admin/themes/<%= item.themeId %>/words/<%= item.id %>/action" class="inline-form"
-                            data-confirm="Supprimer ce mot global ?">
-                            <input type="hidden" name="action" value="delete">
-                            <button class="btn ghost danger mini" type="submit">Supprimer</button>
-                          </form>
-                        <% } %>
-                        <% if (!item.isOwner && !item.isGlobal && !isAdmin) { %>
-                          <span class="pill muted mini">Lecture seule</span>
-                        <% } %>
-                      <% } else { %>
-                        <% if (item.canEdit || isAdmin) { %>
-                          <form method="post" action="/my/lists/<%= item.setId %>/cards/<%= item.id %>/action" class="inline-form">
-                            <input type="hidden" name="action" value="toggle_active">
-                            <input type="hidden" name="redirectTo" value="/search/duplicates">
-                            <button class="btn ghost mini" type="submit"><%= item.active ? 'Rendre inactif' : 'Activer' %></button>
-                          </form>
-                          <% if (item.isOwner || isAdmin) { %>
-                            <form method="post" action="/my/lists/<%= item.setId %>/cards/<%= item.id %>/action" class="inline-form"
-                              data-confirm="Supprimer cette carte ?">
-                              <input type="hidden" name="action" value="delete">
-                              <input type="hidden" name="redirectTo" value="/search/duplicates">
-                              <button class="btn ghost danger mini" type="submit">Supprimer</button>
-                            </form>
-                          <% } %>
-                        <% } else { %>
-                          <span class="pill muted mini">Pas de droits</span>
-                        <% } %>
-                      <% } %>
-                    </div>
+                <div class="search-card-body">
+                  <p class="french-word">
+                    <%= group.sample.french %>
+                  </p>
+                  <p class="hebrew-word">
+                    <%= group.sample.hebrew %>
+                  </p>
+                  <% if (group.sample.transliteration) { %>
+                    <p class="translit">
+                      <%= group.sample.transliteration %>
+                    </p>
+                    <% } %>
+                </div>
+                <div class="search-card-meta">
+                  <div class="meta-row">
+                    <span class="meta-label">Type</span>
+                    <span class="meta-value">
+                      <%= group.kind==='cross' ? 'Thème + Liste' : (group.kind==='theme' ? 'Thème' : 'Liste' ) %>
+                    </span>
                   </div>
-                <% }) %>
-              </div>
-            </div>
-          <% }) %>
-        </div>
-      </div>
-    <% } else { %>
-      <div class="card">
-        <p class="muted">Aucun doublon actif détecté.</p>
-      </div>
-    <% } %>
-  </div>
+                </div>
 
-  <div id="tab-inactif" class="tab-panel" style="display:none;">
-    <% if (hasIgnored) { %>
-      <div class="card">
-        <div class="list-header">
-          <h3>Doublons ignorés (<%= ignoredGroups.length %>)</h3>
-        </div>
-        <div class="search-results-grid">
-          <% ignoredGroups.forEach(group => { %>
-            <div class="search-card dup-group" data-kind="<%= group.kind %>">
-              <div class="search-card-top">
-                <span class="pill muted mini">Clé: <%= group.key %></span>
-                <span class="pill mini"><%= group.items.length %> occurrences</span>
+                <form method="post" action="/search/duplicates/ignore" class="inline-form"
+                  style="margin:0.3rem 0 0.5rem;">
+                  <input type="hidden" name="dup_key" value="<%= group.key %>">
+                  <input type="hidden" name="action" value="ignore">
+                  <button class="btn ghost mini" type="submit">Ignorer ce doublon</button>
+                </form>
+
+                <div class="dup-actions">
+                  <% group.items.forEach(item=> { %>
+                    <div class="dup-item">
+                      <div class="dup-meta">
+                        <span class="pill mini">
+                          <%= item.kind==='theme' ? 'Thème' : 'Liste' %>
+                        </span>
+                        <strong>
+                          <%= item.french %>
+                        </strong>
+                        <span class="muted mini">
+                          <%= item.hebrew %>
+                        </span>
+                        <div class="muted mini">
+                          <% if (item.kind==='theme' ) { %>
+                            <%= item.container %>
+                              <%= item.level ? ' - ' + item.level : '' %>
+                                <% } else { %>
+                                  <%= item.container %>
+                                    <%= item.ownerName ? ' (' + item.ownerName + ')' : '' %>
+                                      <% } %>
+                        </div>
+                        <div class="pill-row" style="margin-top:0.3rem;">
+                          <span class="pill <%= item.active ? 'success' : 'muted' %> mini">
+                            <%= item.active ? 'Actif' : 'Inactif' %>
+                          </span>
+                          <% if (!item.containerActive) { %><span class="pill muted mini">Contenant inactif</span>
+                            <% } %>
+                        </div>
+                      </div>
+                      <div class="dup-buttons">
+                        <% if (item.kind==='theme' ) { %>
+                          <% if (item.isOwner || (isAdmin && item.isGlobal)) { %>
+                            <form method="post" action="/words/<%= item.id %>/toggle" class="inline-form">
+                              <input type="hidden" name="redirectTo" value="/search/duplicates">
+                              <button class="btn ghost mini" type="submit">
+                                <%= item.active ? 'Rendre inactif' : 'Activer' %>
+                              </button>
+                            </form>
+                            <% } else if (item.isGlobal) { %>
+                              <form method="post" action="/words/<%= item.id %>/toggle-self" class="inline-form">
+                                <input type="hidden" name="redirectTo" value="/search/duplicates">
+                                <button class="btn ghost mini" type="submit">
+                                  <%= item.active ? 'Masquer pour moi' : 'Réafficher pour moi' %>
+                                </button>
+                              </form>
+                              <% } %>
+                                <% if (item.isOwner) { %>
+                                  <form method="post" action="/my/words/<%= item.id %>?_method=DELETE"
+                                    class="inline-form" data-confirm="Supprimer ce mot ?">
+                                    <input type="hidden" name="redirectTo" value="/search/duplicates">
+                                    <button class="btn ghost danger mini" type="submit">Supprimer</button>
+                                  </form>
+                                  <% } else if (isAdmin && item.isGlobal && item.themeId) { %>
+                                    <form method="post"
+                                      action="/admin/themes/<%= item.themeId %>/words/<%= item.id %>/action"
+                                      class="inline-form" data-confirm="Supprimer ce mot global ?">
+                                      <input type="hidden" name="action" value="delete">
+                                      <button class="btn ghost danger mini" type="submit">Supprimer</button>
+                                    </form>
+                                    <% } %>
+                                      <% if (!item.isOwner && !item.isGlobal && !isAdmin) { %>
+                                        <span class="pill muted mini">Lecture seule</span>
+                                        <% } %>
+                                          <% } else { %>
+                                            <% if (item.canEdit || isAdmin) { %>
+                                              <form method="post"
+                                                action="/my/lists/<%= item.setId %>/cards/<%= item.id %>/action"
+                                                class="inline-form">
+                                                <input type="hidden" name="action" value="toggle_active">
+                                                <input type="hidden" name="redirectTo" value="/search/duplicates">
+                                                <button class="btn ghost mini" type="submit">
+                                                  <%= item.active ? 'Rendre inactif' : 'Activer' %>
+                                                </button>
+                                              </form>
+                                              <% if (item.isOwner || isAdmin) { %>
+                                                <form method="post"
+                                                  action="/my/lists/<%= item.setId %>/cards/<%= item.id %>/action"
+                                                  class="inline-form" data-confirm="Supprimer cette carte ?">
+                                                  <input type="hidden" name="action" value="delete">
+                                                  <input type="hidden" name="redirectTo" value="/search/duplicates">
+                                                  <button class="btn ghost danger mini" type="submit">Supprimer</button>
+                                                </form>
+                                                <% } %>
+                                                  <% } else { %>
+                                                    <span class="pill muted mini">Pas de droits</span>
+                                                    <% } %>
+                                                      <% } %>
+                      </div>
+                    </div>
+                    <% }) %>
+                </div>
               </div>
-              <div class="search-card-body">
-                <p class="french-word"><%= group.sample.french %></p>
-                <p class="hebrew-word"><%= group.sample.hebrew %></p>
-              </div>
-              <form method="post" action="/search/duplicates/ignore" class="inline-form" style="margin:0.3rem 0 0.5rem;">
-                <input type="hidden" name="dup_key" value="<%= group.key %>">
-                <input type="hidden" name="action" value="unignore">
-                <button class="btn ghost mini" type="submit">Retirer des ignorés</button>
-              </form>
-            </div>
-          <% }) %>
+              <% }) %>
+          </div>
         </div>
-      </div>
-    <% } else { %>
-      <div class="card">
-        <p class="muted">Aucun doublon ignoré.</p>
-      </div>
-    <% } %>
-  </div>
+        <% } else { %>
+          <div class="card">
+            <p class="muted">Aucun doublon actif détecté.</p>
+          </div>
+          <% } %>
+    </div>
+
+    <div id="tab-inactif" class="tab-panel" style="display:none;">
+      <% if (hasIgnored) { %>
+        <div class="card">
+          <div class="list-header">
+            <h3>Doublons ignorés (<%= ignoredGroups.length %>)</h3>
+          </div>
+          <div class="search-results-grid">
+            <% ignoredGroups.forEach(group=> { %>
+              <div class="search-card dup-group" data-kind="<%= group.kind %>">
+                <div class="search-card-top">
+                  <span class="pill muted mini">Clé: <%= group.key %></span>
+                  <span class="pill mini">
+                    <%= group.items.length %> occurrences
+                  </span>
+                </div>
+                <div class="search-card-body">
+                  <p class="french-word">
+                    <%= group.sample.french %>
+                  </p>
+                  <p class="hebrew-word">
+                    <%= group.sample.hebrew %>
+                  </p>
+                </div>
+                <form method="post" action="/search/duplicates/ignore" class="inline-form"
+                  style="margin:0.3rem 0 0.5rem;">
+                  <input type="hidden" name="dup_key" value="<%= group.key %>">
+                  <input type="hidden" name="action" value="unignore">
+                  <button class="btn ghost mini" type="submit">Retirer des ignorés</button>
+                </form>
+              </div>
+              <% }) %>
+          </div>
+        </div>
+        <% } else { %>
+          <div class="card">
+            <p class="muted">Aucun doublon ignoré.</p>
+          </div>
+          <% } %>
+    </div>
 </section>
 
 <script>
@@ -218,4 +256,3 @@
     apply();
   })();
 </script>
-

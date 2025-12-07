@@ -87,6 +87,7 @@
             const defRevMode = defParams.rev_mode || 'order';
             const defPhonetic = typeof defParams.show_phonetic !== 'undefined' ? String(defParams.show_phonetic) : '1';
             const defLevel = defParams.level_id ? String(defParams.level_id) : '';
+            const defWeakOnly = defParams.weak_only === '1' ? true : false;
             %>
             <p class="muted mini">Ces réglages seront pré-remplis dans la configuration de révision. Tu pourras toujours
               les modifier avant de lancer une session.</p>
@@ -261,11 +262,17 @@
                     <option value="order" <%=defRevMode==='order' ? 'selected' : '' %>>Dans l'ordre</option>
                     <option value="random" <%=defRevMode==='random' ? 'selected' : '' %>>Aléatoire</option>
                     <option value="favorites" <%=defRevMode==='favorites' ? 'selected' : '' %>>Favoris</option>
-                    <option value="new" <%=defRevMode==='new' ? 'selected' : '' %>>Nouveaux mots</option>
-                    <option value="weak" <%=defRevMode==='weak' ? 'selected' : '' %>>Mots faibles / Non maîtrisés
-                    </option>
                   </select>
                 </label>
+                <fieldset class="check-row" style="margin-top:0.5rem;">
+                  <legend style="margin-bottom:0.35rem;">Choix spécifiques</legend>
+                  <label
+                    style="display: inline-flex; flex-direction: row; align-items: center; gap: 0.5rem; white-space: nowrap;">
+                    <input type="checkbox" name="weak_only" value="1" style="margin: 0; flex-shrink: 0;" <%=defWeakOnly
+                      ? 'checked' : '' %>>
+                    <span>Mots faibles / Non maîtrisés</span>
+                  </label>
+                </fieldset>
                 <fieldset class="check-row" style="margin-top:0.5rem;">
                   <legend style="margin-bottom:0.35rem;">Phonétique ?</legend>
                   <label class="check-row">
@@ -293,30 +300,33 @@
     <div class="alert alert-success">
       <%= fontPrefMessage %>
     </div>
-  <% } %>
-  <% if (fontPrefError) { %>
-    <div class="alert alert-error">
-      <%= fontPrefError %>
-    </div>
-  <% } %>
-  <% const selectedFontSize = (defaultParams && defaultParams.font_size) ? defaultParams.font_size : 'x-large'; %>
-  <form method="post" action="/profile/train-font" class="form">
-    <div class="mode-grid">
-      <label class="check-row">
-        <input type="radio" name="font_size" value="large" <%= selectedFontSize==='large' ? 'checked' : '' %>>
-        <span>Normale</span>
-      </label>
-      <label class="check-row">
-        <input type="radio" name="font_size" value="x-large" <%= selectedFontSize==='x-large' ? 'checked' : '' %>>
-        <span>Grande</span>
-      </label>
-      <label class="check-row">
-        <input type="radio" name="font_size" value="xx-large" <%= selectedFontSize==='xx-large' ? 'checked' : '' %>>
-        <span>Tr&egrave;s grande</span>
-      </label>
-    </div>
-    <button type="submit" class="btn ghost" style="margin-top:0.5rem;">Enregistrer</button>
-  </form>
+    <% } %>
+      <% if (fontPrefError) { %>
+        <div class="alert alert-error">
+          <%= fontPrefError %>
+        </div>
+        <% } %>
+          <% const selectedFontSize=(defaultParams && defaultParams.font_size) ? defaultParams.font_size : 'x-large' ;
+            %>
+            <form method="post" action="/profile/train-font" class="form">
+              <div class="mode-grid">
+                <label class="check-row">
+                  <input type="radio" name="font_size" value="large" <%=selectedFontSize==='large' ? 'checked' : '' %>>
+                  <span>Normale</span>
+                </label>
+                <label class="check-row">
+                  <input type="radio" name="font_size" value="x-large" <%=selectedFontSize==='x-large' ? 'checked' : ''
+                    %>>
+                  <span>Grande</span>
+                </label>
+                <label class="check-row">
+                  <input type="radio" name="font_size" value="xx-large" <%=selectedFontSize==='xx-large' ? 'checked'
+                    : '' %>>
+                  <span>Tr&egrave;s grande</span>
+                </label>
+              </div>
+              <button type="submit" class="btn ghost" style="margin-top:0.5rem;">Enregistrer</button>
+            </form>
 </section>
 <section class="card">
   <h2>Sécurité</h2>
@@ -602,4 +612,3 @@
     font-weight: 600;
   }
 </style>
-

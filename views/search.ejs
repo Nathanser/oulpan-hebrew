@@ -5,9 +5,15 @@
       <h1>Explorer tous les mots</h1>
       <p class="muted">Parcourt en direct l'ensemble des thèmes et listes disponibles pour ton compte.</p>
       <div class="search-stats">
-        <span class="stat-chip">Total <strong><%= counts.total %></strong></span>
-        <span class="stat-chip">Thèmes <strong><%= counts.themes %></strong></span>
-        <span class="stat-chip">Listes <strong><%= counts.lists %></strong></span>
+        <span class="stat-chip">Total <strong>
+            <%= counts.total %>
+          </strong></span>
+        <span class="stat-chip">Thèmes <strong>
+            <%= counts.themes %>
+          </strong></span>
+        <span class="stat-chip">Listes <strong>
+            <%= counts.lists %>
+          </strong></span>
       </div>
     </div>
   </div>
@@ -45,55 +51,65 @@
     <div class="list-header">
       <div>
         <p class="eyebrow">Résultats</p>
-        <h2><span id="result-count"><%= searchItems.length %></span> mot<%= searchItems.length > 1 ? 's' : '' %></h2>
+        <h2><span id="result-count">
+            <%= searchItems.length %>
+          </span> mot<%= searchItems.length> 1 ? 's' : '' %></h2>
       </div>
     </div>
 
     <div class="search-results-grid" id="search-results">
-      <% searchItems.forEach(item => { 
-        const typeLabel = item.kind === 'theme' ? 'Thème' : 'Liste';
-        const originLabel = item.origin === 'global' ? 'Proposé' : item.origin === 'shared' ? 'Partagé' : 'Perso';
-        const locationText = item.kind === 'theme'
-          ? (item.location + (item.level ? ' - ' + item.level : ''))
-          : item.location;
-        const searchStr = (item.hebrew + ' ' + item.french + ' ' + (item.transliteration || '') + ' ' + locationText + ' ' + (item.owner || '')).toLowerCase();
-      %>
-        <div class="search-card" data-kind="<%= item.kind %>" data-origin="<%= item.origin %>" data-active="<%= item.active %>"
-          data-search="<%= searchStr %>">
+      <% searchItems.forEach(item=> { const typeLabel = item.kind === 'theme' ? 'Thème' : 'Liste'; const originLabel =
+        item.origin === 'global' ? 'Proposé' : item.origin === 'shared' ? 'Partagé' : 'Perso'; const locationText =
+        item.kind === 'theme' ? (item.location + (item.level ? ' - ' + item.level : '')) : item.location; const
+        searchStr = (item.hebrew + ' ' + item.french + ' ' + (item.transliteration || '') + ' ' + locationText + ' ' +
+        (item.owner || '')).toLowerCase(); %>
+        <div class="search-card" data-kind="<%= item.kind %>" data-origin="<%= item.origin %>"
+          data-active="<%= item.active %>" data-search="<%= searchStr %>">
           <div class="search-card-top">
-            <span class="pill muted mini"><%= typeLabel %></span>
-            <span class="pill <%= item.active ? 'success' : 'muted' %> mini"><%= item.active ? 'Actif pour toi' : 'Inactif' %></span>
+            <span class="pill muted mini">
+              <%= typeLabel %>
+            </span>
+            <span class="pill <%= item.active ? 'success' : 'muted' %> mini">
+              <%= item.active ? 'Actif pour toi' : 'Inactif' %>
+            </span>
           </div>
           <div class="search-card-body">
-            <p class="hebrew-word"><%= item.hebrew %></p>
-            <p class="french-word"><%= item.french %></p>
+            <p class="hebrew-word">
+              <%= item.hebrew %>
+            </p>
+            <p class="french-word">
+              <%= item.french %>
+            </p>
             <% if (item.transliteration) { %>
-              <p class="translit"><%= item.transliteration %></p>
+              <p class="translit">
+                <%= item.transliteration %>
+              </p>
               <% } %>
           </div>
           <div class="search-card-meta">
             <div class="meta-row">
-              <span class="meta-label">Origine</span>
-              <span class="meta-value"><%= originLabel %></span>
-            </div>
-            <div class="meta-row">
-              <span class="meta-label"><%= typeLabel %></span>
+              <span class="meta-label">
+                <%= typeLabel %>
+              </span>
               <span class="meta-value">
                 <%= locationText %>
-                <% if (item.kind === 'list' && item.owner) { %>
-                  <span class="muted">- <%= item.owner %></span>
-                  <% } %>
+                  <% if (item.kind==='list' && item.owner) { %>
+                    <span class="muted">- <%= item.owner %></span>
+                    <% } %>
               </span>
             </div>
             <div class="meta-tags">
-              <% if (!item.baseActive) { %><span class="pill muted mini">Entrée inactive</span><% } %>
-              <% if (item.kind === 'theme' && item.level && item.levelActive === 0) { %>
-                <span class="pill muted mini">Niveau inactif</span>
-              <% } %>
-              <% const hideContainerTag = (item.kind === 'theme' && item.levelActive === 0); %>
-              <% if (!item.containerActive && !hideContainerTag) { %>
-                <span class="pill muted mini"><%= item.kind === 'list' ? 'Liste masquée' : 'Thème masquée' %></span>
-              <% } %>
+              <% if (!item.baseActive) { %><span class="pill muted mini">Entrée inactive</span>
+                <% } %>
+                  <% if (item.kind==='theme' && item.level && item.levelActive===0) { %>
+                    <span class="pill muted mini">Niveau inactif</span>
+                    <% } %>
+                      <% const hideContainerTag=(item.kind==='theme' && item.levelActive===0); %>
+                        <% if (!item.containerActive && !hideContainerTag) { %>
+                          <span class="pill muted mini">
+                            <%= item.kind==='list' ? 'Liste masquée' : 'Thème masquée' %>
+                          </span>
+                          <% } %>
             </div>
           </div>
         </div>
@@ -146,4 +162,3 @@
     applyFilters();
   })();
 </script>
-
