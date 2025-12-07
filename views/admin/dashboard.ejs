@@ -4,19 +4,25 @@
   <div class="grid">
     <div class="card">
       <h2>Utilisateurs</h2>
-      <p><strong><%= userCount %></strong> comptes</p>
+      <p><strong>
+          <%= userCount %>
+        </strong> comptes</p>
       <a class="btn" href="/admin/users">Gérer les utilisateurs</a>
     </div>
 
     <div class="card">
       <h2>Mots</h2>
-      <p><strong><%= wordCount %></strong> entrées</p>
+      <p><strong>
+          <%= wordCount %>
+        </strong> entrées</p>
       <a class="btn" href="/admin/words">Gérer les mots</a>
     </div>
 
     <div class="card">
       <h2>Thèmes par défaut</h2>
-      <p><strong><%= themeCount %></strong> thèmes</p>
+      <p><strong>
+          <%= themeCount %>
+        </strong> thèmes</p>
       <a class="btn" href="/admin/themes">Gérer les thèmes par défaut</a>
     </div>
 
@@ -25,6 +31,11 @@
       <p>Mots en double sur les thèmes et les listes.</p>
       <a class="btn" href="/admin/duplicates">Voir les doublons</a>
     </div>
+
+    <div class="card" style="border-color: var(--error);">
+      <h2 style="color: var(--error);">⚠️ Reset Complet</h2>
+      <p>Supprimer <strong>tous</strong> les thèmes, listes, mots et stats utilisateurs.</p>
+      <a class="btn" href="/admin/reset" style="background: rgb(185, 1, 1);">Réinitialiser le site</a>
+    </div>
   </div>
 </section>
-

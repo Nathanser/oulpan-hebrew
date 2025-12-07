@@ -1,0 +1,148 @@
+<section>
+    <h1 style="color: var(--error); white-space: nowrap;">⚠️ Reset Complet du Site</h1>
+
+    <div class="alert alert-warning" style="margin-bottom: 1.5rem;">
+        <strong>ATTENTION :</strong> Cette action est irréversible !
+    </div>
+
+    <form method="post" action="/admin/reset"
+        onsubmit="return confirm('DERNIÈRE CONFIRMATION : Voulez-vous vraiment supprimer les éléments sélectionnés ?');">
+        <input type="hidden" name="confirm" value="yes" />
+
+        <!-- Mode de suppression -->
+        <div class="card" style="margin-bottom: 1rem;">
+            <h2>Mode de suppression</h2>
+            <label style="display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0; cursor: pointer;">
+                <input type="radio" name="mode" value="all" checked onchange="toggleSections()">
+                <span><strong>Tout supprimer</strong> — Supprime tous les thèmes, listes et stats</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0; cursor: pointer;">
+                <input type="radio" name="mode" value="themes_only" onchange="toggleSections()">
+                <span><strong>Thèmes seulement</strong> — Supprimer des thèmes spécifiques</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0; cursor: pointer;">
+                <input type="radio" name="mode" value="lists_only" onchange="toggleSections()">
+                <span><strong>Listes seulement</strong> — Supprimer des listes par utilisateur</span>
+            </label>
+        </div>
+
+        <!-- Section Thèmes -->
+        <div id="themes-section" class="card" style="margin-bottom: 1rem; display: none; border-color: var(--error);">
+            <h2>Sélectionner les thèmes à supprimer</h2>
+            <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; cursor: pointer;">
+                <input type="checkbox" id="select-all-themes" onchange="toggleAllThemes()">
+                <strong>Tout sélectionner</strong>
+            </label>
+            <div
+                style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-main); border-radius: 0.5rem; padding: 0.5rem;">
+                <% themes.forEach(t=> { %>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin: 0.3rem 0; cursor: pointer;">
+                        <input type="checkbox" name="theme_ids" value="<%= t.id %>" class="theme-checkbox">
+                        <span>
+                            <% if (t.parent_name) { %><small class="muted">
+                                    <%= t.parent_name %> ›
+                                </small>
+                                <% } %>
+                                    <%= t.name %> <small class="muted">(<%= t.word_count %> mots)</small>
+                        </span>
+                    </label>
+                    <% }) %>
+                        <% if (themes.length===0) { %>
+                            <p class="muted">Aucun thème</p>
+                            <% } %>
+            </div>
+        </div>
+
+        <!-- Section Listes par User -->
+        <div id="lists-section" class="card" style="margin-bottom: 1rem; display: none; border-color: var(--error);">
+            <h2>Sélectionner les listes à supprimer</h2>
+            <% users.forEach(user=> {
+                const userSets = allSets.filter(s => s.user_id === user.id);
+                if (userSets.length === 0) return;
+                %>
+                <div
+                    style="margin-bottom: 1rem; padding: 0.5rem; border: 1px solid var(--border-main); border-radius: 0.5rem;">
+                    <label
+                        style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.5rem;">
+                        <input type="checkbox" class="user-checkbox" data-user="<%= user.id %>"
+                            onchange="toggleUserLists(<%= user.id %>)">
+                        <strong>
+                            <%= user.display_name %>
+                        </strong>
+                        <small class="muted">(<%= userSets.length %> listes, <%= user.card_count %> cartes)</small>
+                    </label>
+                    <div style="padding-left: 1.5rem;">
+                        <% userSets.forEach(s=> { %>
+                            <label
+                                style="display: flex; align-items: center; gap: 0.5rem; margin: 0.2rem 0; cursor: pointer;">
+                                <input type="checkbox" name="set_ids" value="<%= s.id %>" class="set-checkbox"
+                                    data-user="<%= user.id %>">
+                                <span>
+                                    <%= s.name %> <small class="muted">(<%= s.card_count %> cartes)</small>
+                                </span>
+                            </label>
+                            <% }) %>
+                    </div>
+                </div>
+                <% }) %>
+                    <% if (users.length===0 || allSets.length===0) { %>
+                        <p class="muted">Aucune liste utilisateur</p>
+                        <% } %>
+        </div>
+
+        <!-- Résumé -->
+        <div class="card" style="border-color: var(--error);">
+            <h2>Résumé</h2>
+            <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                <li><strong>
+                        <%= themeCount %>
+                    </strong> thèmes (<strong>
+                        <%= wordCount %>
+                    </strong> mots)</li>
+                <li><strong>
+                        <%= setCount %>
+                    </strong> listes (<strong>
+                        <%= cardCount %>
+                    </strong> cartes)</li>
+            </ul>
+            <p class="muted" style="margin: 0.5rem 0;">Les comptes utilisateurs seront conservés.</p>
+
+            <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-top: 1rem;">
+                <button type="submit" class="btn" style="background: rgb(185, 1, 1);">
+                    🗑️ Supprimer
+                </button>
+                <a class="btn ghost" href="/admin">Annuler</a>
+            </div>
+        </div>
+    </form>
+</section>
+
+<script>
+    function toggleSections() {
+        const mode = document.querySelector('input[name="mode"]:checked').value;
+        document.getElementById('themes-section').style.display = (mode === 'themes_only') ? '' : 'none';
+        document.getElementById('lists-section').style.display = (mode === 'lists_only') ? '' : 'none';
+    }
+
+    function toggleAllThemes() {
+        const checked = document.getElementById('select-all-themes').checked;
+        document.querySelectorAll('.theme-checkbox').forEach(cb => cb.checked = checked);
+    }
+
+    function toggleUserLists(userId) {
+        const userCb = document.querySelector(`.user-checkbox[data-user="${userId}"]`);
+        const checked = userCb.checked;
+        document.querySelectorAll(`.set-checkbox[data-user="${userId}"]`).forEach(cb => cb.checked = checked);
+    }
+
+    // Update user checkbox when individual sets are toggled
+    document.querySelectorAll('.set-checkbox').forEach(cb => {
+        cb.addEventListener('change', function () {
+            const userId = this.dataset.user;
+            const userCb = document.querySelector(`.user-checkbox[data-user="${userId}"]`);
+            const allSets = document.querySelectorAll(`.set-checkbox[data-user="${userId}"]`);
+            const allChecked = Array.from(allSets).every(s => s.checked);
+            userCb.checked = allChecked;
+        });
+    });
+</script>

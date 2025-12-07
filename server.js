@@ -2961,7 +2961,37 @@ app.post('/export', requireAuth, async (req, res) => {
     }
 
     if (singleFile) {
-      const filename = isAdmin ? 'export-admin.json' : 'export-mes-listes.json';
+      // Admin mode: 1 fichier themes + 1 fichier par user pour ses listes
+      if (isAdmin) {
+        const singleFiles = [];
+        if (allPayload.themes.length > 0) {
+          singleFiles.push({
+            path: 'themes.json',
+            content: JSON.stringify({ themes: allPayload.themes }, null, 2)
+          });
+        }
+        // Grouper les listes par user
+        const listsByUser = new Map();
+        for (const list of allPayload.lists) {
+          const key = `${list.owner_id}_${slugify(list.owner_name || '')}`;
+          if (!listsByUser.has(key)) {
+            listsByUser.set(key, { owner_id: list.owner_id, owner_name: list.owner_name, lists: [] });
+          }
+          listsByUser.get(key).lists.push(list);
+        }
+        for (const [key, userData] of listsByUser.entries()) {
+          singleFiles.push({
+            path: `lists_user_${key}.json`,
+            content: JSON.stringify({ lists: userData.lists }, null, 2)
+          });
+        }
+        const zipBuf = createZip(singleFiles);
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', 'attachment; filename="export-admin.zip"');
+        return res.end(zipBuf);
+      }
+      // Mode non-admin : un seul fichier avec mes listes
+      const filename = 'export-mes-listes.json';
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       return res.end(JSON.stringify(allPayload, null, 2));
@@ -6312,6 +6342,126 @@ app.delete('/admin/words/:id', requireAdmin, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.redirect('/admin/words');
+  }
+});
+
+// ---------- Admin Reset Complet ----------
+app.get('/admin/reset', requireAdmin, async (req, res) => {
+  try {
+    const themeRow = await get('SELECT COUNT(*) AS cnt FROM themes WHERE user_id IS NULL');
+    const wordRow = await get('SELECT COUNT(*) AS cnt FROM words WHERE user_id IS NULL');
+    const setRow = await get('SELECT COUNT(*) AS cnt FROM sets');
+    const cardRow = await get('SELECT COUNT(*) AS cnt FROM cards');
+
+    // Charger les thèmes pour sélection
+    const themes = await all(`
+      SELECT t.id, t.name, p.name AS parent_name,
+        (SELECT COUNT(*) FROM words w WHERE w.theme_id = t.id) AS word_count
+      FROM themes t
+      LEFT JOIN themes p ON p.id = t.parent_id
+      WHERE t.user_id IS NULL
+      ORDER BY COALESCE(t.display_no, t.id) ASC
+    `);
+
+    // Charger les utilisateurs avec leurs listes
+    const users = await all(`
+      SELECT u.id, u.display_name,
+        (SELECT COUNT(*) FROM sets s WHERE s.user_id = u.id) AS set_count,
+        (SELECT COUNT(*) FROM cards c JOIN sets s ON s.id = c.set_id WHERE s.user_id = u.id) AS card_count
+      FROM users u
+      WHERE u.role != 'admin'
+      ORDER BY u.display_name ASC
+    `);
+
+    // Charger toutes les listes groupées par user
+    const allSets = await all(`
+      SELECT s.id, s.name, s.user_id,
+        (SELECT COUNT(*) FROM cards c WHERE c.set_id = s.id) AS card_count
+      FROM sets s
+      ORDER BY s.user_id, COALESCE(s.display_no, s.id) ASC
+    `);
+
+    res.render('admin/reset', {
+      themeCount: themeRow ? themeRow.cnt : 0,
+      wordCount: wordRow ? wordRow.cnt : 0,
+      setCount: setRow ? setRow.cnt : 0,
+      cardCount: cardRow ? cardRow.cnt : 0,
+      themes,
+      users,
+      allSets
+    });
+  } catch (e) {
+    console.error(e);
+    res.redirect('/admin');
+  }
+});
+
+app.post('/admin/reset', requireAdmin, async (req, res) => {
+  if (req.body.confirm !== 'yes') {
+    return res.redirect('/admin/reset');
+  }
+
+  const mode = req.body.mode || 'all';
+  const themeIds = normalizeIds(req.body.theme_ids || []);
+  const setIds = normalizeIds(req.body.set_ids || []);
+
+  try {
+    if (mode === 'all') {
+      // Supprimer TOUT
+      await run('DELETE FROM progress');
+      await run('DELETE FROM card_progress');
+      await run('DELETE FROM favorites');
+      await run('DELETE FROM cards');
+      await run('DELETE FROM set_shares');
+      await run('DELETE FROM user_set_overrides');
+      await run('DELETE FROM sets');
+      await run('DELETE FROM words WHERE user_id IS NULL');
+      await run('DELETE FROM theme_levels');
+      await run('DELETE FROM user_theme_overrides');
+      await run('DELETE FROM user_word_overrides');
+      await run('DELETE FROM card_overrides');
+      await run('DELETE FROM themes WHERE user_id IS NULL');
+
+    } else if (mode === 'themes_only' && themeIds.length > 0) {
+      // Supprimer les thèmes sélectionnés
+      for (const themeId of themeIds) {
+        // Supprimer les sous-thèmes
+        const subThemes = await all('SELECT id FROM themes WHERE parent_id = ?', [themeId]);
+        for (const sub of subThemes) {
+          await run('DELETE FROM progress WHERE word_id IN (SELECT id FROM words WHERE theme_id = ?)', [sub.id]);
+          await run('DELETE FROM favorites WHERE word_id IN (SELECT id FROM words WHERE theme_id = ?)', [sub.id]);
+          await run('DELETE FROM words WHERE theme_id = ?', [sub.id]);
+          await run('DELETE FROM theme_levels WHERE theme_id = ?', [sub.id]);
+          await run('DELETE FROM user_theme_overrides WHERE theme_id = ?', [sub.id]);
+          await run('DELETE FROM themes WHERE id = ?', [sub.id]);
+        }
+        // Supprimer le thème principal
+        await run('DELETE FROM progress WHERE word_id IN (SELECT id FROM words WHERE theme_id = ?)', [themeId]);
+        await run('DELETE FROM favorites WHERE word_id IN (SELECT id FROM words WHERE theme_id = ?)', [themeId]);
+        await run('DELETE FROM words WHERE theme_id = ?', [themeId]);
+        await run('DELETE FROM theme_levels WHERE theme_id = ?', [themeId]);
+        await run('DELETE FROM user_theme_overrides WHERE theme_id = ?', [themeId]);
+        await run('DELETE FROM themes WHERE id = ?', [themeId]);
+      }
+      await renumberAllThemesAndSets();
+
+    } else if (mode === 'lists_only' && setIds.length > 0) {
+      // Supprimer les listes sélectionnées
+      for (const setId of setIds) {
+        await run('DELETE FROM card_progress WHERE card_id IN (SELECT id FROM cards WHERE set_id = ?)', [setId]);
+        await run('DELETE FROM card_overrides WHERE card_id IN (SELECT id FROM cards WHERE set_id = ?)', [setId]);
+        await run('DELETE FROM cards WHERE set_id = ?', [setId]);
+        await run('DELETE FROM set_shares WHERE set_id = ?', [setId]);
+        await run('DELETE FROM user_set_overrides WHERE set_id = ?', [setId]);
+        await run('DELETE FROM sets WHERE id = ?', [setId]);
+      }
+      await renumberAllThemesAndSets();
+    }
+
+    res.redirect('/admin?reset=success');
+  } catch (e) {
+    console.error('Reset error:', e);
+    res.redirect('/admin?reset=error');
   }
 });
 
