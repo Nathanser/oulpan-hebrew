@@ -1,26 +1,20 @@
-<%
-  const f = filters || {};
-  const themeIdsString = (f.theme_ids || []).join(',');
-  const setIdsString = (f.set_ids || []).join(',');
-  const isAll = total === 'all' || remaining === 'all';
-  const remainingCount = isAll ? 'all' : (typeof remaining !== 'undefined' ? Number(remaining) : 10);
-  const totalCount = isAll ? 'all' : (typeof total !== 'undefined' ? Number(total) : remainingCount);
-  const answeredCount = typeof answered !== 'undefined' ? Number(answered) : (isAll ? 0 : (totalCount - remainingCount + (word ? 1 : 0)));
-  const correctCount = typeof correct !== 'undefined' ? Number(correct) : 0;
-  const currentStep = isAll ? (answeredCount + (word ? 1 : 0)) : (totalCount - remainingCount + (word ? 1 : 0));
-  const totalLabel = isAll ? 'tout' : totalCount;
-  const selectedModes = Array.isArray(modes) ? modes : (modes ? [modes] : []);
-  const qMode = typeof questionMode !== 'undefined' ? questionMode : mode;
-  const isFlashcard = qMode === 'flashcards' || qMode === 'flashcards_reverse';
-  const isReverse = qMode === 'flashcards_reverse';
-  const isWritten = qMode === 'written';
-  const showPhonetic = !(filters && (filters.show_phonetic === 0 || filters.show_phonetic === '0' || String(filters.show_phonetic).toLowerCase() === 'false'));
-  const modeLabels = { flashcards: 'Flashcards classique', flashcards_reverse: 'Flashcards reverse', written: 'Révision par écrit' };
-  const chosenModes = selectedModes.length > 0 ? selectedModes : [qMode || mode];
+<% const f=filters || {}; const themeIdsString=(f.theme_ids || []).join(','); const setIdsString=(f.set_ids ||
+  []).join(','); const isAll=total==='all' || remaining==='all' ; const remainingCount=isAll ? 'all' : (typeof remaining
+  !=='undefined' ? Number(remaining) : 10); const totalCount=isAll ? 'all' : (typeof total !=='undefined' ?
+  Number(total) : remainingCount); const answeredCount=typeof answered !=='undefined' ? Number(answered) : (isAll ? 0 :
+  (totalCount - remainingCount + (word ? 1 : 0))); const correctCount=typeof correct !=='undefined' ? Number(correct) :
+  0; const currentStep=isAll ? (answeredCount + (word ? 1 : 0)) : (totalCount - remainingCount + (word ? 1 : 0)); const
+  totalLabel=isAll ? 'tout' : totalCount; const selectedModes=Array.isArray(modes) ? modes : (modes ? [modes] : []);
+  const qMode=typeof questionMode !=='undefined' ? questionMode : mode; const isFlashcard=qMode==='flashcards' ||
+  qMode==='flashcards_reverse' ; const isReverse=qMode==='flashcards_reverse' ; const isWritten=qMode==='written' ;
+  const showPhonetic=!(filters && (filters.show_phonetic===0 || filters.show_phonetic==='0' ||
+  String(filters.show_phonetic).toLowerCase()==='false' )); const modeLabels={ flashcards: 'Flashcards classique' ,
+  flashcards_reverse: 'Flashcards reverse' , written: 'Révision par écrit' }; const chosenModes=selectedModes.length> 0
+  ? selectedModes : [qMode || mode];
   const chosenLabels = chosenModes.map(m => modeLabels[m] || 'Révision');
   const uiFontSize = (typeof fontSize !== 'undefined' && fontSize) ? fontSize
-    : (filters && filters.font_size ? filters.font_size : 'x-large');
-%>
+  : (filters && filters.font_size ? filters.font_size : 'x-large');
+  %>
 
   <section class="card session-card" data-current-id="<%= currentItemId || '' %>"
     data-current-fav="<%= currentFavorite ? 1 : 0 %>">
@@ -35,16 +29,18 @@
     </div>
     <br>
     <div class="session-mode-line session-mode-rows">
-      <% chosenLabels.forEach(lbl => { %>
+      <% chosenLabels.forEach(lbl=> { %>
         <div class="session-mode-pills single-pill-row">
-          <span style="font-size:medium;"class="pill session-mode-pill"><%= lbl %></span>
+          <span style="font-size:medium;" class="pill session-mode-pill">
+            <%= lbl %>
+          </span>
         </div>
-      <% }) %>
+        <% }) %>
     </div>
     <br>
 
     <% if (message) { %>
-      
+
       <% } %>
 
         <% if (word && isWritten) { %>
@@ -68,7 +64,7 @@
                   <button type="submit">Valider</button>
                 </form>
           </div>
-        
+
           <% } %>
 
             <% if (word && isFlashcard) { %>
@@ -82,7 +78,7 @@
                 <p class="flashcard-label">
                   <%= isReverse ? 'Français' : 'Hébreu' %>
                 </p>
-                <p class="flashcard-word">
+                <p class="flashcard-word <%= isReverse ? 'french' : '' %>">
                   <%= isReverse ? word.french : word.hebrew %>
                 </p>
                 <% if (!isReverse && showPhonetic && word.transliteration) { %>
@@ -101,17 +97,20 @@
                 <input type="hidden" name="question_mode" value="<%= qMode %>" />
                 <br>
                 <div class="options-grid">
-                  <% (options || []).forEach(opt=> { const label = opt.label || opt.french || opt.hebrew; const isHeb = /[\u0590-\u05FF]/.test(label || ''); %>
-                    <button style="font-size:<%= uiFontSize %>;" type="submit" name="choice_word_id" value="<%= opt.id %>" class="option-btn <%= isHeb ? 'heb-label' : '' %>">
+                  <% (options || []).forEach(opt=> { const label = opt.label || opt.french || opt.hebrew; const isHeb =
+                    /[\u0590-\u05FF]/.test(label || ''); %>
+                    <button style="font-size:<%= uiFontSize %>;" type="submit" name="choice_word_id"
+                      value="<%= opt.id %>" class="option-btn <%= isHeb ? 'heb-label' : '' %>">
                       <%= label %>
                     </button>
-                  <% }) %>
+                    <% }) %>
                 </div>
               </form>
               <% } %>
 
                 <% if (result) { %>
-                  <div style="font-size:<%= uiFontSize %>;" class="result <%= result.isCorrect ? 'success' : 'error' %>">
+                  <div style="font-size:<%= uiFontSize %>;"
+                    class="result <%= result.isCorrect ? 'success' : 'error' %>">
                     <% if (result.isCorrect) { %>
                       <p>Bonne réponse !</p>
                       <% } else { %>
@@ -145,21 +144,22 @@
                         <p>Session terminée.</p>
                         <p>Score : <strong>
                             <%= correctCount %>/<%= totalLabel %>
-                          </strong></p>                        
+                          </strong></p>
                       </div>
                       <div class="session-actions" style="justify-content: center; gap: 0.6rem;">
-                          <a class="btn ghost" href="/train/resume?choice=restart" style="font-size: large;">Recommencer</a>
-                          <form method="post" action="/train/session/clear" style="margin: 0; padding: 0;">
-                            <input type="hidden" name="redirectTo" value="/train/setup">
-                            <button type="submit" class="btn danger" style="font-size: large;">Quitter</button>
-                          </form>
-                        </div>
+                        <a class="btn ghost" href="/train/resume?choice=restart"
+                          style="font-size: large;">Recommencer</a>
+                        <form method="post" action="/train/session/clear" style="margin: 0; padding: 0;">
+                          <input type="hidden" name="redirectTo" value="/train/setup">
+                          <button type="submit" class="btn danger" style="font-size: large;">Quitter</button>
+                        </form>
+                      </div>
                       <% } %>
-                  <% } %>
+                        <% } %>
 
-                              <% if (!word && !result && !message) { %>
-                                <p>Aucun mot à réviser avec ces paramètres.</p>
-                                <% } %>
+                          <% if (!word && !result && !message) { %>
+                            <p>Aucun mot à réviser avec ces paramètres.</p>
+                            <% } %>
   </section>
 
 
@@ -210,6 +210,3 @@
       });
     })();
   </script>
-
-
-

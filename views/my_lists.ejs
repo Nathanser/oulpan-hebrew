@@ -95,6 +95,17 @@
         </div>
     </div>
 
+    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+        <div class="segmented-control status-toggle" style="flex: 1;">
+            <button type="button" class="seg-btn active" data-status-filter="active">Actives</button>
+            <button type="button" class="seg-btn" data-status-filter="inactive">Inactives</button>
+        </div>
+        <button type="button" class="icon-btn ghost" id="lists-reorder-toggle" aria-label="Réordonner les listes"
+            title="Réordonner les listes" style="height:2.3rem; width:2.4rem;" aria-pressed="false">
+            <span class="menu-icon">⇵</span>
+        </button>
+    </div>
+
     <div data-tab-content="personal">
         <% if (!sets || sets.length===0) { %>
             <div class="card set-list-empty">
@@ -103,13 +114,16 @@
             <% } else { %>
                 <div class="grid set-list-grid" id="personal-grid">
                     <% sets.forEach(set=> { %>
-                        <div class="card set-list-card" data-set-id="<%= set.id %>">
+                        <div class="card set-list-card" data-set-id="<%= set.id %>"
+                            data-active="<%= Number(set.effective_active) === 1 ? '1' : '0' %>">
                             <div class="set-list-top">
                                 <div class="set-list-header">
                                     <h3>
                                         <%= set.name %>
                                     </h3>
                                     <div class="inline-actions">
+                                        <button type="button" class="reorder-handle set-reorder-handle" data-drag-handle
+                                            title="Réordonner cette liste" style="display:none;">&#9776;</button>
                                         <a class="btn ghost" href="/my/lists/<%= set.id %>">Ouvrir</a>
 
                                         <button type="button" class="icon-btn ghost dots-btn" data-menu-btn
@@ -118,14 +132,13 @@
                                             <form action="/my/lists/<%= set.id %>/toggle-active" method="post">
                                                 <button type="submit" class="menu-item">
                                                     <span>
-                                                        <%= Number(set.effective_active)===0 ? 'Afficher'
-                                                            : 'Masquer' %>
+                                                        <%= Number(set.effective_active)===0 ? 'Afficher' : 'Masquer' %>
                                                     </span>
                                                     <span class="menu-icon">&#128065;</span>
                                                 </button>
                                             </form>
                                             <a href="/my/lists/<%= set.id %>/edit" class="menu-item">
-                                                <span>Modifier</span>
+                                                <span><strong>Modifier</strong></span>
                                                 <span class="menu-icon">&#9998;</span>
                                             </a>
                                             <form action="/my/lists/<%= set.id %>/duplicate" method="post">
@@ -182,162 +195,249 @@
             if (!e.target.closest('.inline-actions')) closeMenus();
         });
 
-        // Drag and Drop Logic
-        const personalGrid = document.getElementById('personal-grid');
-        // Only enable drag if sort is custom
-        const sortSelect = document.querySelector('select[name="sort"]');
-        const isCustomSort = sortSelect && sortSelect.value === 'custom';
+        // Status filter toggle (Active/Inactive)
+        const statusButtons = document.querySelectorAll('[data-status-filter]');
+        const listCards = document.querySelectorAll('.set-list-card');
+        let currentFilter = 'active';
 
-        if (!isCustomSort) return;
+        const applyStatusFilter = () => {
+            listCards.forEach(card => {
+                const isActive = card.dataset.active === '1';
+                if (currentFilter === 'active') {
+                    card.style.display = isActive ? '' : 'none';
+                } else {
+                    card.style.display = isActive ? 'none' : '';
+                }
+            });
+        };
 
+        statusButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                statusButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFilter = btn.dataset.statusFilter;
+                applyStatusFilter();
+            });
+        });
+
+        // Apply default filter on load
+        applyStatusFilter();
+
+        // Reorder Logic (similar to admin/themes)
+        const HOLD_DELAY_MS = 300;
+        const AUTO_SCROLL_EDGE = 110;
+        const AUTO_SCROLL_STEP = 22;
+
+        const reorderToggle = document.getElementById('lists-reorder-toggle');
+        const grid = document.getElementById('personal-grid');
+        let reorderMode = false;
         let dragState = null;
-        const HOLD_DELAY_MS = 150;
-        const AUTO_SCROLL_EDGE = 100;
-        const AUTO_SCROLL_STEP = 10;
+
+        const getOrder = () => {
+            if (!grid) return [];
+            return Array.from(grid.querySelectorAll('.set-list-card'))
+                .map(card => Number(card.dataset.setId))
+                .filter(id => Number.isInteger(id) && id > 0);
+        };
+
+        let lastOrder = getOrder();
+
+        const ordersEqual = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+
+        const updateSelectLock = () => {
+            document.body.classList.toggle('no-text-select', reorderMode || !!dragState);
+        };
+
+        const setReorderMode = (active) => {
+            if (!grid) return;
+            reorderMode = active;
+            if (active) {
+                grid.dataset.mode = 'reorder';
+            } else {
+                delete grid.dataset.mode;
+            }
+            if (reorderToggle) {
+                reorderToggle.classList.toggle('is-active', active);
+                reorderToggle.innerHTML = active ? '&times;' : '<span class="menu-icon">⇵</span>';
+                reorderToggle.setAttribute('aria-pressed', active ? 'true' : 'false');
+            }
+            // Toggle visibility of action buttons and drag handles
+            grid.querySelectorAll('.set-list-card').forEach(card => {
+                const openBtn = card.querySelector('a.btn.ghost');
+                const dotsBtn = card.querySelector('.dots-btn');
+                const dragHandle = card.querySelector('.reorder-handle');
+                if (openBtn) openBtn.style.display = active ? 'none' : '';
+                if (dotsBtn) dotsBtn.style.display = active ? 'none' : '';
+                if (dragHandle) dragHandle.style.display = active ? '' : 'none';
+            });
+            closeMenus();
+            updateSelectLock();
+        };
+
+        if (reorderToggle && (!grid || lastOrder.length <= 1)) {
+            reorderToggle.disabled = true;
+            reorderToggle.title = 'Aucune liste à réordonner';
+        }
+
+        const autoScroll = (clientY) => {
+            if (clientY < AUTO_SCROLL_EDGE) {
+                window.scrollBy({ top: -AUTO_SCROLL_STEP, behavior: 'auto' });
+            } else if (clientY > window.innerHeight - AUTO_SCROLL_EDGE) {
+                window.scrollBy({ top: AUTO_SCROLL_STEP, behavior: 'auto' });
+            }
+        };
+
+        const placePlaceholder = (pageY) => {
+            if (!dragState || !grid) return;
+            const { card, placeholder } = dragState;
+            const siblings = Array.from(grid.querySelectorAll('.set-list-card')).filter(el => el !== card);
+            let placed = false;
+            for (const sibling of siblings) {
+                const rect = sibling.getBoundingClientRect();
+                const middle = rect.top + window.scrollY + rect.height / 2;
+                if (pageY < middle) {
+                    grid.insertBefore(placeholder, sibling);
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) grid.appendChild(placeholder);
+        };
+
+        const persistOrder = async (order) => {
+            if (!order || order.length === 0 || ordersEqual(order, lastOrder)) return;
+            try {
+                if (reorderToggle) {
+                    reorderToggle.setAttribute('disabled', 'disabled');
+                    reorderToggle.classList.add('loading');
+                }
+                const res = await fetch('/my/lists/reorder-ids', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ordered_ids: order })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || !data || data.success !== true) {
+                    throw new Error('save failed');
+                }
+                lastOrder = order.slice();
+                window.location.reload();
+            } catch (err) {
+                alert('Impossible de sauvegarder le nouvel ordre.');
+                console.error(err);
+            } finally {
+                if (reorderToggle && grid) {
+                    reorderToggle.removeAttribute('disabled');
+                    reorderToggle.classList.remove('loading');
+                }
+            }
+        };
+
+        const finishDrag = () => {
+            if (!dragState || !grid) return;
+            const { card, placeholder } = dragState;
+            card.classList.remove('dragging');
+            card.removeAttribute('style');
+            grid.insertBefore(card, placeholder);
+            placeholder.remove();
+            dragState = null;
+            const order = getOrder();
+            updateSelectLock();
+            card.classList.add('drag-settled');
+            setTimeout(() => card.classList.remove('drag-settled'), 320);
+            persistOrder(order);
+        };
 
         const startDrag = (card, startEvt) => {
-            // Prevent drag on buttons
-            if (startEvt.target.closest('button') || startEvt.target.closest('a') || startEvt.target.closest('.card-menu')) return;
-
+            if (dragState || !reorderMode || !grid) return;
             const rect = card.getBoundingClientRect();
-            const placeholder = card.cloneNode(true);
-            placeholder.style.opacity = '0';
-            placeholder.classList.add('drag-placeholder');
+            const placeholder = document.createElement('div');
+            placeholder.className = 'card-placeholder';
+            placeholder.style.height = `${rect.height}px`;
+            dragState = {
+                card,
+                placeholder,
+                offsetY: startEvt.clientY - rect.top,
+                left: rect.left
+            };
+            grid.insertBefore(placeholder, card.nextElementSibling);
 
-            card.style.position = 'fixed';
-            card.style.zIndex = '9999';
+            card.classList.add('dragging');
+            updateSelectLock();
             card.style.width = `${rect.width}px`;
             card.style.height = `${rect.height}px`;
             card.style.left = `${rect.left}px`;
             card.style.top = `${rect.top}px`;
-            card.classList.add('dragging');
+            card.style.position = 'fixed';
+            card.style.pointerEvents = 'none';
+            card.style.zIndex = '60';
 
-            card.parentNode.insertBefore(placeholder, card);
-            document.body.appendChild(card);
-
-            const offsetX = startEvt.clientX - rect.left;
-            const offsetY = startEvt.clientY - rect.top;
-
-            dragState = { card, placeholder, offsetX, offsetY, startX: startEvt.clientX, startY: startEvt.clientY };
-
-            const moveHandler = (e) => {
-                if (!dragState) return;
+            const onMove = (e) => {
                 e.preventDefault();
-                const x = e.clientX - dragState.offsetX;
-                const y = e.clientY - dragState.offsetY;
-                card.style.left = `${x}px`;
-                card.style.top = `${y}px`;
-
-                // Auto scroll
-                if (e.clientY < AUTO_SCROLL_EDGE) {
-                    window.scrollBy(0, -AUTO_SCROLL_STEP);
-                } else if (e.clientY > window.innerHeight - AUTO_SCROLL_EDGE) {
-                    window.scrollBy(0, AUTO_SCROLL_STEP);
-                }
-
-                // Reorder logic
-                const siblings = Array.from(personalGrid.children).filter(c => c !== placeholder && c.style.display !== 'none');
-                const mouseY = e.clientY;
-
-                let inserted = false;
-                for (const sibling of siblings) {
-                    const sibRect = sibling.getBoundingClientRect();
-                    const middle = sibRect.top + sibRect.height / 2;
-                    if (mouseY < middle) {
-                        personalGrid.insertBefore(placeholder, sibling);
-                        inserted = true;
-                        break;
-                    }
-                }
-                if (!inserted) {
-                    personalGrid.appendChild(placeholder);
-                }
+                const clientY = e.clientY;
+                if (!Number.isFinite(clientY)) return;
+                card.style.top = `${clientY - dragState.offsetY}px`;
+                card.style.left = `${dragState.left}px`;
+                autoScroll(clientY);
+                placePlaceholder(clientY + window.scrollY);
             };
 
-            const upHandler = () => {
-                document.removeEventListener('pointermove', moveHandler);
-                document.removeEventListener('pointerup', upHandler);
-
-                if (!dragState) return;
-
-                // Finalize drop
-                const { card, placeholder } = dragState;
-
-                // Animate back to placeholder
-                const dest = placeholder.getBoundingClientRect();
-                card.style.transition = 'all 0.2s ease';
-                card.style.left = `${dest.left}px`;
-                card.style.top = `${dest.top}px`;
-
-                setTimeout(() => {
-                    card.style.position = '';
-                    card.style.zIndex = '';
-                    card.style.width = '';
-                    card.style.height = '';
-                    card.style.left = '';
-                    card.style.top = '';
-                    card.style.transition = '';
-                    card.classList.remove('dragging');
-
-                    if (placeholder.parentNode) {
-                        placeholder.parentNode.replaceChild(card, placeholder);
-                    } else {
-                        personalGrid.appendChild(card);
-                    }
-
-                    dragState = null;
-
-                    // Save order
-                    saveOrder();
-                }, 200);
+            const onUp = () => {
+                document.removeEventListener('pointermove', onMove);
+                document.removeEventListener('pointerup', onUp);
+                finishDrag();
             };
 
-            document.addEventListener('pointermove', moveHandler);
-            document.addEventListener('pointerup', upHandler);
+            document.addEventListener('pointermove', onMove);
+            document.addEventListener('pointerup', onUp);
         };
 
         const attachDrag = (card) => {
             card.addEventListener('pointerdown', (e) => {
-                if (e.button !== 0) return; // Only left click
+                if (!reorderMode) return;
+                if (!e.target.closest('[data-drag-handle]')) return;
+                if (e.button !== 0 && e.pointerType !== 'touch') return;
+                if (e.pointerType === 'touch') {
+                    e.preventDefault();
+                }
 
-                // Delay to distinguish click from drag
+                const startEvt = e;
                 let moved = false;
-                const startX = e.clientX;
-                const startY = e.clientY;
 
-                const checkMove = (m) => {
-                    if (Math.abs(m.clientX - startX) > 5 || Math.abs(m.clientY - startY) > 5) moved = true;
+                const detectMove = (moveEvt) => {
+                    if (
+                        Math.abs(moveEvt.clientY - startEvt.clientY) > 6 ||
+                        Math.abs(moveEvt.clientX - startEvt.clientX) > 6
+                    ) {
+                        moved = true;
+                    }
                 };
-                document.addEventListener('pointermove', checkMove);
-
-                const timer = setTimeout(() => {
-                    document.removeEventListener('pointermove', checkMove);
-                    if (!moved) startDrag(card, e);
-                }, HOLD_DELAY_MS);
 
                 const cancel = () => {
                     clearTimeout(timer);
-                    document.removeEventListener('pointermove', checkMove);
+                    document.removeEventListener('pointermove', detectMove);
                     document.removeEventListener('pointerup', cancel);
                 };
+
+                const timer = setTimeout(() => {
+                    if (!moved) startDrag(card, startEvt);
+                    cancel();
+                }, HOLD_DELAY_MS);
+
+                document.addEventListener('pointermove', detectMove);
                 document.addEventListener('pointerup', cancel);
             });
         };
 
-        if (isCustomSort && personalGrid) {
-            personalGrid.querySelectorAll('.set-list-card').forEach(attachDrag);
+        if (grid) {
+            grid.querySelectorAll('.set-list-card').forEach(card => attachDrag(card));
         }
 
-        const saveOrder = () => {
-            const ids = Array.from(personalGrid.querySelectorAll('.set-list-card')).map(c => c.dataset.setId);
-            fetch('/my/lists/reorder', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids })
-            }).catch(err => console.error('Reorder failed', err));
-        };
-
+        if (reorderToggle) {
+            reorderToggle.addEventListener('click', () => {
+                if (!grid) return;
+                setReorderMode(!reorderMode);
+            });
+        }
     })();
 </script>
-
-

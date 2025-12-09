@@ -147,6 +147,7 @@ safeAlter('ALTER TABLE card_progress ADD COLUMN last_seen_at DATETIME');
 safeAlter('ALTER TABLE card_progress ADD COLUMN last_wrong_at DATETIME');
 safeAlter('ALTER TABLE card_progress ADD COLUMN status TEXT');
 safeAlter('ALTER TABLE card_progress ADD COLUMN history_json TEXT');
+safeAlter('ALTER TABLE users ADD COLUMN list_sort TEXT DEFAULT \"custom\"');
 db.run('UPDATE themes SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL', err => {
   if (err && !/no such column/i.test(err.message)) {
     console.error('Alter fill error:', err.message);

@@ -17,22 +17,23 @@
       <div class="word-stats">
         <div class="mini-stat">
           <span>Th&egrave;mes</span>
-          <strong><%= favorites ? favorites.length : 0 %></strong>
+          <strong>
+            <%= favorites ? favorites.length : 0 %>
+          </strong>
         </div>
         <div class="mini-stat">
           <span>Listes perso</span>
-          <strong><%= listFavorites ? listFavorites.length : 0 %></strong>
-        </div>
-        <div class="mini-stat">
-          <span>Listes partag&eacute;es</span>
-          <strong><%= sharedFavorites ? sharedFavorites.length : 0 %></strong>
+          <strong>
+            <%= listFavorites ? listFavorites.length : 0 %>
+          </strong>
         </div>
       </div>
     </div>
     <div class="segmented-control word-toggle">
-      <button type="button" class="seg-btn active" data-tab="themes" data-count="<%= favorites ? favorites.length : 0 %>">Th&egrave;mes</button>
-      <button type="button" class="seg-btn" data-tab="personal" data-count="<%= listFavorites ? listFavorites.length : 0 %>">Listes perso</button>
-      <button type="button" class="seg-btn" data-tab="shared" data-count="<%= sharedFavorites ? sharedFavorites.length : 0 %>">Listes partag&eacute;es</button>
+      <button type="button" class="seg-btn active" data-tab="themes"
+        data-count="<%= favorites ? favorites.length : 0 %>">Th&egrave;mes</button>
+      <button type="button" class="seg-btn" data-tab="personal"
+        data-count="<%= listFavorites ? listFavorites.length : 0 %>">Listes perso</button>
     </div>
   </div>
 
@@ -42,7 +43,9 @@
         <p class="eyebrow">Favoris</p>
         <h3>Th&egrave;mes</h3>
       </div>
-      <span class="pill muted"><%= favorites && favorites.length ? favorites.length : 0 %> &eacute;l&eacute;ment(s)</span>
+      <span class="pill muted">
+        <%= favorites && favorites.length ? favorites.length : 0 %> &eacute;l&eacute;ment(s)
+      </span>
     </div>
     <% if (!favorites || favorites.length===0) { %>
       <div class="empty-state">Pas de favoris pour l'instant.</div>
@@ -93,7 +96,9 @@
         <p class="eyebrow">Favoris</p>
         <h3>Listes perso</h3>
       </div>
-      <span class="pill muted"><%= listFavorites && listFavorites.length ? listFavorites.length : 0 %> &eacute;l&eacute;ment(s)</span>
+      <span class="pill muted">
+        <%= listFavorites && listFavorites.length ? listFavorites.length : 0 %> &eacute;l&eacute;ment(s)
+      </span>
     </div>
     <% if (!listFavorites || listFavorites.length===0) { %>
       <div class="empty-state">Pas de cartes de liste en favoris.</div>
@@ -135,57 +140,7 @@
         <% } %>
   </div>
 
-  <div class="card word-panel" data-tab="shared">
-    <div class="panel-head">
-      <div>
-        <p class="eyebrow">Favoris</p>
-        <h3>Listes partag&eacute;es</h3>
-      </div>
-      <span class="pill muted"><%= sharedFavorites && sharedFavorites.length ? sharedFavorites.length : 0 %> &eacute;l&eacute;ment(s)</span>
-    </div>
-    <% if (!sharedFavorites || sharedFavorites.length===0) { %>
-      <div class="empty-state">Aucun favori provenant des listes partag&eacute;es.</div>
-      <% } else { %>
-        <div class="table-wrapper">
-          <table class="table compact-table">
-            <thead>
-              <tr>
-                <th>Fran&ccedil;ais</th>
-                <th>H&eacute;breu</th>
-                <th>Liste</th>
-                <th>Propri&eacute;taire</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% sharedFavorites.forEach(c=> { %>
-                <tr>
-                  <td>
-                    <%= c.french %>
-                  </td>
-                  <td>
-                    <%= c.hebrew %>
-                  </td>
-                  <td>
-                    <%= c.set_name || '-' %>
-                  </td>
-                  <td>
-                    <%= c.owner_name || '-' %>
-                  </td>
-                  <td>
-                    <form action="/my/lists/<%= c.set_id %>/cards/<%= c.id %>/action" method="post" class="inline-form">
-                      <input type="hidden" name="action" value="toggle_fav">
-                      <input type="hidden" name="redirectTo" value="/my/words">
-                      <button class="link" type="submit">Retirer</button>
-                    </form>
-                  </td>
-                </tr>
-                <% }) %>
-            </tbody>
-          </table>
-        </div>
-        <% } %>
-  </div>
+
 </section>
 
 <script>

@@ -73,8 +73,6 @@
                     'checked' : '' %>> <span>Thèmes en ligne</span></label>
                   <label class="check-row"><input type="checkbox" id="toggle-lists" <%=(sets || []).some(s=>
                     selectedSets.has(String(s.id))) ? 'checked' : '' %>> <span>Mes listes</span></label>
-                  <label class="check-row"><input type="checkbox" id="toggle-shared" <%=(sharedSets || []).some(s=>
-                    selectedSets.has(String(s.id))) ? 'checked' : '' %>> <span>Listes partagées</span></label>
                 </div>
               </fieldset>
 
@@ -149,26 +147,7 @@
                       <% } %>
                 </div>
 
-                <div class="theme-group" id="shared-list-group" style="display:none;">
-                  <p class="muted mini" style="margin:0 0 0.2rem;">Listes partagées</p>
-                  <% if (!sharedSets || sharedSets.length===0) { %>
-                    <p class="muted mini">Aucune liste partagée.</p>
-                    <% } else { %>
-                      <ul class="custom-select-container">
-                        <% sharedSets.forEach(s=> { %>
-                          <li>
-                            <div class="theme-row">
-                              <input type="checkbox" name="set_ids[]" value="<%= s.id %>" id="shared-set-<%= s.id %>"
-                                <%=selectedSets.has(String(s.id)) ? 'checked' : '' %>>
-                              <label for="shared-set-<%= s.id %>">
-                                <%= s.name %> (<%= s.owner_name %>)
-                              </label>
-                            </div>
-                          </li>
-                          <% }) %>
-                      </ul>
-                      <% } %>
-                </div>
+
               </div>
 
               <div class="field-block" id="level-field" style="display:none;">
@@ -262,10 +241,8 @@
     const levelField = document.getElementById('level-field');
     const publicGroup = document.getElementById('public-group');
     const listGroup = document.getElementById('list-group');
-    const sharedListGroup = document.getElementById('shared-list-group');
     const togglePublic = document.getElementById('toggle-public');
     const toggleLists = document.getElementById('toggle-lists');
-    const toggleShared = document.getElementById('toggle-shared');
 
     const renderLevels = () => {
       const checkedInputs = document.querySelectorAll('input[name="theme_ids[]"]:checked');
@@ -295,7 +272,6 @@
     const updateGroups = () => {
       if (publicGroup) publicGroup.style.display = togglePublic && togglePublic.checked ? 'block' : 'none';
       if (listGroup) listGroup.style.display = toggleLists && toggleLists.checked ? 'block' : 'none';
-      if (sharedListGroup) sharedListGroup.style.display = toggleShared && toggleShared.checked ? 'block' : 'none';
       renderLevels();
     };
 
@@ -322,7 +298,6 @@
 
     if (togglePublic) togglePublic.addEventListener('change', updateGroups);
     if (toggleLists) toggleLists.addEventListener('change', updateGroups);
-    if (toggleShared) toggleShared.addEventListener('change', updateGroups);
 
     const rmAll = document.getElementById('rm-all');
     const rmCustom = document.getElementById('rm-custom');

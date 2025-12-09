@@ -199,7 +199,7 @@ a:hover {
   text-decoration: none;
   border: 1px solid transparent;
   background: transparent;
-  font-size: 1.05em;
+  font-size: 1.4rem;
   transition: background 0.2s ease, border-color 0.2s ease;
 }
 
@@ -669,9 +669,13 @@ button:hover,
 }
 
 .quiz-word {
-  font-size: 1.4rem;
+  font-size: 3.5rem;
   font-weight: 700;
   margin: 0.3rem 0 0.8rem;
+}
+
+.quiz .form button[type="submit"] {
+  font-size: 1.3rem;
 }
 
 .result {
@@ -757,6 +761,7 @@ button:hover,
   padding: 1.6rem 1.2rem 1.2rem 1.2rem;
   cursor: pointer;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  font-size: 120%;
 }
 
 .flashcard-topbar {
@@ -812,10 +817,14 @@ button:hover,
 }
 
 .flashcard-word {
-  font-size: 1.5rem;
+  font-size: 2.4rem;
   margin: 0.1rem 0;
   font-weight: 700;
   color: var(--text-main);
+}
+
+.flashcard-word.french {
+  font-size: 1.8rem;
 }
 
 .flashcard-sub {
@@ -1288,6 +1297,16 @@ details.advanced summary {
 
   .options-grid {
     grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: 1fr;
+  }
+
+  .options-grid .option-btn {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 80px;
   }
 
   .auth-card {
@@ -1352,6 +1371,7 @@ details.advanced summary {
   background: var(--bg-hover);
   border: 1px solid var(--border-main);
   color: var(--text-main);
+  white-space: nowrap;
 }
 
 .btn.ghost:hover {
@@ -2326,6 +2346,7 @@ details.advanced summary {
   justify-content: space-between;
   gap: 0.5rem;
   cursor: pointer;
+  font-size: 1.2rem;
 }
 
 .card-menu .menu-item:hover {
@@ -3145,11 +3166,13 @@ input[type=range]::-moz-range-thumb:hover {
 
 .donut-legend {
   display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: nowrap;
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: clamp(1.05rem, 2.5vw, 1rem);
   margin-top: 0.5rem;
+  white-space: nowrap;
 }
 
 .legend {
@@ -3162,7 +3185,9 @@ input[type=range]::-moz-range-thumb:hover {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  margin-right: 0.35rem;
+  margin-right: -0.6rem;
+  vertical-align: middle;
+  flex-shrink: 0;
 }
 
 .legend.mem {
@@ -3189,6 +3214,10 @@ input[type=range]::-moz-range-thumb:hover {
   border: 1px solid var(--border-main);
   border-radius: 0.75rem;
   background: var(--bg-card);
+}
+
+.highlight h4 {
+  font-size: 1.4rem;
 }
 
 .detail-list {
@@ -3258,9 +3287,25 @@ input[type=range]::-moz-range-thumb:hover {
   background: rgba(56, 189, 248, 0.08);
 }
 
+@media (max-width: 720px) {
+  .detail-list .status-filter {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .status-filter button {
+    width: 100%;
+  }
+}
+
 .detail-items {
   display: grid;
   gap: 0.75rem;
+}
+
+.detail-items {
+  font-size: 135%;
 }
 
 .detail-item {
@@ -3289,11 +3334,48 @@ input[type=range]::-moz-range-thumb:hover {
   margin: 0 0 0.15rem 0;
 }
 
+.item-word .mini.muted {
+  font-size: 105%;
+}
+
+.word-main-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.word-main-line h3 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.word-main-line .transliteration {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  font-style: italic;
+}
+
+.word-main-line .word-separator {
+  color: var(--text-faint);
+  font-weight: 300;
+}
+
+.word-main-line .word-french {
+  color: var(--text-main);
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+
 .item-stats {
   display: flex;
   gap: 0.5rem;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.item-stats .mini.muted {
+  white-space: nowrap;
 }
 
 .item-actions {

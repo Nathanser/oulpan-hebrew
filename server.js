@@ -174,7 +174,7 @@ function formatDateLabel(value) {
   if (!value) return '–';
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return '–';
-  return d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+  return d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Paris' });
 }
 
 function statusLabel(status) {
@@ -3223,7 +3223,17 @@ app.post('/themes/:id/toggle-visibility', requireAuth, async (req, res) => {
 app.get('/my/lists', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   try {
-    const sort = req.query.sort || 'custom';
+    // If sort is provided in query, update user's preference
+    let sort = req.query.sort;
+    if (sort) {
+      // Save the user's sort preference
+      await run('UPDATE users SET list_sort = ? WHERE id = ?', [sort, userId]);
+    } else {
+      // Get user's saved preference
+      const user = await get('SELECT list_sort FROM users WHERE id = ?', [userId]);
+      sort = user && user.list_sort ? user.list_sort : 'custom';
+    }
+
     let orderBy = 'COALESCE(s.display_no, s.id) ASC, s.id ASC';
     if (sort === 'created_asc') orderBy = 's.created_at ASC';
     if (sort === 'created_desc') orderBy = 's.created_at DESC';
@@ -3646,6 +3656,69 @@ app.post('/my/lists/:id/share', requireAuth, async (req, res) => {
   }
 });
 
+app.post('/my/lists/reorder-ids', requireAuth, express.json(), async (req, res) => {
+  const userId = req.session.user.id;
+  const requested = [...new Set(normalizeIds(req.body.ordered_ids))];
+  if (!requested.length) return res.status(400).json({ success: false, error: 'Aucun identifiant fourni.' });
+
+  try {
+    // Get all sets owned by user
+    const setRows = await all('SELECT id FROM sets WHERE user_id = ? ORDER BY id ASC', [userId]);
+    const allIds = setRows.map(r => Number(r.id));
+    if (allIds.length === 0) return res.json({ success: true, changed: false });
+
+    const missing = requested.filter(id => !allIds.includes(id));
+    if (missing.length > 0) {
+      return res.status(400).json({ success: false, error: 'Listes inconnues.' });
+    }
+
+    const remaining = allIds.filter(id => !requested.includes(id));
+    const finalOrder = [...requested, ...remaining];
+    if (finalOrder.length !== allIds.length) {
+      return res.status(400).json({ success: false, error: 'Ordre incomplet.' });
+    }
+
+    const moves = finalOrder
+      .map((oldId, idx) => ({ oldId, newId: idx + 1 }))
+      .filter(move => move.oldId !== move.newId);
+
+    const moveSetEverywhere = async (fromId, toId) => {
+      await run('UPDATE cards SET set_id = ? WHERE set_id = ?', [toId, fromId]);
+      await run('UPDATE set_shares SET set_id = ? WHERE set_id = ?', [toId, fromId]);
+      await run('UPDATE user_set_overrides SET set_id = ? WHERE set_id = ?', [toId, fromId]);
+      await run('UPDATE sets SET id = ? WHERE id = ?', [toId, fromId]);
+    };
+
+    if (moves.length > 0) {
+      const maxRow = await get('SELECT MAX(id) AS max_id FROM sets');
+      const tempBase = (maxRow && maxRow.max_id ? Number(maxRow.max_id) : 0) + 100000;
+
+      for (const move of moves) {
+        const tempId = tempBase + move.newId;
+        await moveSetEverywhere(move.oldId, tempId);
+      }
+
+      for (const move of moves) {
+        const tempId = tempBase + move.newId;
+        await moveSetEverywhere(tempId, move.newId);
+      }
+    }
+
+    for (let i = 0; i < finalOrder.length; i++) {
+      const newId = i + 1;
+      await run('UPDATE sets SET display_no = ? WHERE id = ?', [newId, newId]);
+    }
+
+    res.json({
+      success: true,
+      changed: moves.length > 0,
+      mapping: Object.fromEntries(finalOrder.map((oldId, idx) => [oldId, idx + 1]))
+    });
+  } catch (e) {
+    console.error('Reorder user lists error:', e);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
 app.post('/my/lists/:id/duplicate', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   try {
@@ -4070,12 +4143,21 @@ app.get('/train/setup', requireAuth, async (req, res) => {
   const rootThemes = await getActiveThemeTreeForUser(userId);
 
   const levels = await getLevelsForUser(userId);
+
+  // Get user's list_sort preference
+  const userRow = await get('SELECT list_sort FROM users WHERE id = ?', [userId]);
+  const sort = userRow && userRow.list_sort ? userRow.list_sort : 'custom';
+  let orderBy = 'COALESCE(s.display_no, s.id) ASC, s.id ASC';
+  if (sort === 'created_asc') orderBy = 's.created_at ASC';
+  if (sort === 'created_desc') orderBy = 's.created_at DESC';
+  if (sort === 'alpha') orderBy = 's.name COLLATE NOCASE ASC';
+
   const sets = await all(
     `SELECT s.id, s.name
        FROM sets s
        LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
        WHERE s.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
-       ORDER BY s.id ASC`,
+       ORDER BY ${orderBy}`,
     [userId, userId]
   );
   const sharedSets = await all(
@@ -4085,7 +4167,7 @@ app.get('/train/setup', requireAuth, async (req, res) => {
        LEFT JOIN user_set_overrides uso ON uso.set_id = s.id AND uso.user_id = ?
        JOIN users owner ON owner.id = s.user_id
        WHERE sh.user_id = ? AND s.active = 1 AND COALESCE(uso.active, s.active) = 1
-       ORDER BY s.id ASC`,
+       ORDER BY ${orderBy}`,
     [userId, userId]
   );
   const state = req.session.trainState || null;
